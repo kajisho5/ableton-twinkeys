@@ -14,6 +14,9 @@ public struct PeerInfo: Identifiable, Equatable, Sendable {
     /// False when the peer speaks another protocol version: connecting would never work.
     public var isCompatible: Bool { version == nil || version == String(WireProtocol.version) }
 
+    /// Prefix of placeholder peer IDs for connections made by IP address.
+    public static let manualPrefix = "manual:"
+
     public var modeText: String {
         switch (sends, receives) {
         case (true, true): return "Send + Receive"

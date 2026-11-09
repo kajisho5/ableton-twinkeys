@@ -9,6 +9,10 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section(t.pairingTitle) {
+                PairingPanel(state: model.state, actions: model.actions)
+                    .padding(.vertical, 4)
+            }
             Section {
                 Picker(t.language, selection: Binding(get: { model.language }, set: { model.setLanguage($0) })) {
                     ForEach(AppLanguage.allCases) { l in Text(t.languageName(l)).tag(l) }

@@ -22,6 +22,21 @@ enum Snapshot {
         connected.inputMonitoring = .granted
         connected.localNetwork = .peersVisible
         connected.heldNotes = [64, 67, 72]
+        connected.isPaired = true
+        connected.pairingCode = "K7MQ2-WX9TP"
+
+        // Pairing set, one visible Mac uses another code.
+        var mismatch = connected
+        mismatch.linkedPeerID = nil
+        mismatch.link = .notConnected
+        mismatch.heldNotes = []
+        mismatch.mismatchedPeers = ["b"]
+
+        // No pairing code yet.
+        var unpaired = mismatch
+        unpaired.isPaired = false
+        unpaired.pairingCode = nil
+        unpaired.mismatchedPeers = []
 
         var empty = ViewState()
         empty.inputMonitoring = .denied
@@ -31,6 +46,8 @@ enum Snapshot {
             ("main", connected, CGSize(width: 560, height: 420)),
             ("min-size", empty, Theme.minWindow),
             ("min-size-connected", connected, Theme.minWindow),
+            ("pairing-needed", unpaired, CGSize(width: 560, height: 420)),
+            ("pairing-mismatch", mismatch, CGSize(width: 560, height: 420)),
         ]
         for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
             for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
@@ -43,6 +60,20 @@ enum Snapshot {
             }
         }
         renderHelp(to: dir)
+        for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
+            for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                var s = connected
+                s.language = language
+                s.localAddresses = ["192.168.1.10"]
+                s.lastManualAddress = "192.168.1.20"
+                renderWindow(view: PairingSheet(state: s, actions: ViewActions()), size: CGSize(width: 440, height: 330),
+                             appearance: appearance, title: "TwinKeys",
+                             to: dir.appendingPathComponent("sheet-pairing-\(appearanceName)\(suffix).png"))
+                renderWindow(view: ConnectByIPSheet(state: s, actions: ViewActions()), size: CGSize(width: 440, height: 270),
+                             appearance: appearance, title: "TwinKeys",
+                             to: dir.appendingPathComponent("sheet-ip-\(appearanceName)\(suffix).png"))
+            }
+        }
     }
 
     static func renderHelp(to dir: URL) {

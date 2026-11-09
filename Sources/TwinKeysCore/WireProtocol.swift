@@ -3,20 +3,21 @@ import Foundation
 /// TwinKeys UDP packet format (big-endian).
 ///
 ///     0  'T' 'K'            magic
-///     2  version (1)
+///     2  version (2: authenticated and encrypted, see SecureChannel)
 ///     3  type
 ///     4  session  u32        random per app launch; a new value resets sequence tracking
 ///     8  seq      u32        increases by 1 per packet
 ///    12  payload
 public enum WireProtocol {
-    public static let version: UInt8 = 1
+    public static let version: UInt8 = 2
     public static let headerSize = 12
-    public static let maxPacketSize = 64
+    public static let maxPacketSize = 128
 }
 
 public enum PacketBody: Equatable, Sendable {
-    case hello(instanceID: UUID, name: String)
-    case helloAck(instanceID: UUID, name: String)
+    /// `nonce`: the sender's 16-byte per-launch value (part of the link keys).
+    case hello(instanceID: UUID, nonce: [UInt8], name: String)
+    case helloAck(instanceID: UUID, nonce: [UInt8], name: String)
     case bye
     case noteOn(channel: UInt8, note: UInt8, velocity: UInt8)
     case noteOff(channel: UInt8, note: UInt8)
@@ -65,9 +66,10 @@ extension Packet {
         var b: [UInt8] = [0x54, 0x4B, WireProtocol.version, body.typeCode]
         b.appendBE(session); b.appendBE(seq)
         switch body {
-        case let .hello(id, name), let .helloAck(id, name):
+        case let .hello(id, nonce, name), let .helloAck(id, nonce, name):
             let u = id.uuid
             b += [u.0, u.1, u.2, u.3, u.4, u.5, u.6, u.7, u.8, u.9, u.10, u.11, u.12, u.13, u.14, u.15]
+            b += Array((nonce + [UInt8](repeating: 0, count: 16)).prefix(16))
             let nameBytes = Array(truncatedUTF8(name, max: maxNameBytes))
             b.append(UInt8(nameBytes.count)); b += nameBytes
         case .bye, .allNotesOff:
@@ -94,12 +96,13 @@ extension Packet {
         let body: PacketBody
         switch data[3] {
         case 0x01, 0x02:
-            guard p.count >= 17 else { throw DecodeError.badPayload }
+            guard p.count >= 33 else { throw DecodeError.badPayload }
             let id = UUID(uuid: (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]))
-            let len = Int(p[16])
-            guard len <= maxNameBytes, p.count >= 17 + len else { throw DecodeError.badPayload }
-            let name = String(decoding: p[17..<(17 + len)], as: UTF8.self)
-            body = data[3] == 0x01 ? .hello(instanceID: id, name: name) : .helloAck(instanceID: id, name: name)
+            let nonce = Array(p[16..<32])
+            let len = Int(p[32])
+            guard len <= maxNameBytes, p.count >= 33 + len else { throw DecodeError.badPayload }
+            let name = String(decoding: p[33..<(33 + len)], as: UTF8.self)
+            body = data[3] == 0x01 ? .hello(instanceID: id, nonce: nonce, name: name) : .helloAck(instanceID: id, nonce: nonce, name: name)
         case 0x03: body = .bye
         case 0x10:
             guard p.count >= 3, p[0] < 16, p[1] < 128, p[2] < 128 else { throw DecodeError.badPayload }
@@ -169,4 +172,7 @@ public struct SequenceFilter: Sendable {
     }
 
     public mutating func reset() { session = nil; last = 0; retired.removeAll() }
+
+    /// The session value currently accepted (the peer's running instance).
+    public var currentSession: UInt32? { session }
 }

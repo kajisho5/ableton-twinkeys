@@ -7,9 +7,13 @@ let package = Package(
     products: [
         .executable(name: "TwinKeys", targets: ["TwinKeys"]),
     ],
+    dependencies: [
+        // Apple's swift-crypto: re-exports CryptoKit on macOS, same API on Linux for the tests.
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "5.1.1"),
+    ],
     targets: [
         // Platform-independent logic. Builds and tests on Linux too.
-        .target(name: "TwinKeysCore"),
+        .target(name: "TwinKeysCore", dependencies: [.product(name: "Crypto", package: "swift-crypto")]),
         // macOS app (SwiftUI, CoreMIDI, Network.framework, CGEventTap).
         .executableTarget(
             name: "TwinKeys",

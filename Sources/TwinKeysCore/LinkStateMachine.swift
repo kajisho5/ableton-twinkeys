@@ -32,7 +32,10 @@ public struct LinkStateMachine: Sendable {
     private var rtts: [Double] = []
     /// Peers the person disconnected from (or switched away from). Their hellos are answered
     /// with Bye until the person connects to them again, so a lost Bye cannot undo that choice.
-    public private(set) var declined: Set<String> = []
+    /// Value: when its last hello arrived. An entry expires after `declineMemory` seconds without
+    /// hellos (the peer evidently got the Bye), so the person on that Mac can connect again later.
+    public private(set) var declined: [String: Double] = [:]
+    public static let declineMemory = 30.0
 
     public init() {}
 
@@ -57,6 +60,15 @@ public struct LinkStateMachine: Sendable {
         min(maxRetry, minRetry * Double(1 << min(max(attempt - 1, 0), 8)))
     }
 
+    /// A placeholder peer (for example "manual:192.168.1.20") turned out to be `real`.
+    public mutating func renamePeer(from old: String, to real: String) {
+        switch state {
+        case let .connecting(p, a, n) where p == old: state = .connecting(peer: real, attempt: a, nextRetryAt: n)
+        case let .connected(p) where p == old: state = .connected(peer: real)
+        default: break
+        }
+    }
+
     // MARK: - Inputs
 
     /// User pressed Connect.
@@ -64,9 +76,9 @@ public struct LinkStateMachine: Sendable {
         var actions: [Action] = []
         if let old = self.peer, old != peer {
             actions += leave(old)
-            declined.insert(old)    // its late hellos must not bring it back
+            declined[old] = now     // its late hellos must not bring it back
         }
-        declined.remove(peer)       // the person chose this peer
+        declined.removeValue(forKey: peer)   // the person chose this peer
         state = .connecting(peer: peer, attempt: 1, nextRetryAt: now + Self.retryDelay(attempt: 1))
         rtts.removeAll()
         actions.append(.sendHello(peer: peer))
@@ -74,11 +86,11 @@ public struct LinkStateMachine: Sendable {
     }
 
     /// User pressed Disconnect.
-    public mutating func disconnect() -> [Action] {
+    public mutating func disconnect(now: Double? = nil) -> [Action] {
         guard let p = peer else { return [] }
         state = .idle
         rtts.removeAll()
-        declined.insert(p)
+        declined[p] = now ?? lastHeard
         return leave(p) + [.log("Disconnected from \(p)")]
     }
 
@@ -89,7 +101,9 @@ public struct LinkStateMachine: Sendable {
 
     /// A hello arrived (the peer connects to us, or reconnects after a drop).
     public mutating func receivedHello(from peer: String, now: Double) -> [Action] {
-        if declined.contains(peer), peer != self.peer {
+        if let t = declined[peer], now - t >= Self.declineMemory { declined.removeValue(forKey: peer) }
+        if declined[peer] != nil, peer != self.peer {
+            declined[peer] = now
             // Answer with Bye (also while linked to another Mac) so the old peer stops retrying.
             return [.sendBye(peer: peer), .log("Ignored hello from \(peer) after a manual disconnect")]
         }

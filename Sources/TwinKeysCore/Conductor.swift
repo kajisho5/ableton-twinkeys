@@ -18,6 +18,10 @@ public struct ConductorSnapshot: Equatable, Sendable {
     public var link: LinkStateMachine.State = .idle
     public var latencyMs: Double?
     public var peerNames: [String: String] = [:]
+    /// A pairing code is set (without one nothing can link).
+    public var isPaired = false
+    /// Peers whose recent hello did not match our pairing code.
+    public var mismatchedPeers: Set<String> = []
     public var octave = 3
     public var velocity = 100
     public var heldNotes: [UInt8] = []
@@ -56,9 +60,14 @@ public final class Conductor: @unchecked Sendable {
     private let clock: () -> Double
     private let nanos: () -> UInt64
     public var log: (String) -> Void = { _ in }
-    /// True if the peer is currently advertised on the network (Bonjour). Hellos from
-    /// anything else are ignored, so a device cannot link up without being visible.
+    /// True if the peer is currently advertised on the network (Bonjour). Only used to label
+    /// visible Macs whose pairing code does not match; trust comes from the pairing code.
     public var isKnownPeer: (String) -> Bool = { _ in true }
+    /// Authentication and encryption; nil until a pairing code is set.
+    private var channel: SecureChannel?
+    /// Each peer's per-launch nonce, learned from its authenticated hello / helloAck.
+    private var peerNonces: [String: [UInt8]] = [:]
+    private var mismatchAt: [String: Double] = [:]
     /// Set when the app is quitting: key input is ignored from then on.
     private var quitting = false
     /// Last time an "ignored hello" was logged per peer (to keep floods out of the log).
@@ -105,30 +114,53 @@ public final class Conductor: @unchecked Sendable {
     /// can bind a new route after a hello), or nil if it was not usable.
     @discardableResult
     public func receive(_ bytes: [UInt8], knownPeer: String?) -> String? {
-        guard let packet = try? Packet.decode(bytes) else { return nil }
+        let isHello = SecureChannel.isHello(bytes)
+        guard isHello || knownPeer != nil else { return nil }
         lock.lock(); defer { lock.unlock() }
+        // Quitting: the final All Notes Off has gone out; nothing new may start.
+        if quitting { return nil }
         let now = clock()
+        guard let channel else { return nil }   // no pairing code: nothing is trusted
+
+        // Authenticate before anything else.
+        let packet: Packet
+        if isHello {
+            do { packet = try channel.openHello(bytes) } catch {
+                noteMismatch(bytes, now)
+                return nil
+            }
+        } else {
+            guard let k = knownPeer, let nonce = peerNonces[k],
+                  let p = try? channel.open(bytes, peerNonce: nonce) else { return nil }
+            packet = p
+        }
+
         let peer: String
         switch packet.body {
-        case let .hello(id, _), let .helloAck(id, _): peer = id.uuidString
-        default:
-            guard let k = knownPeer else { return nil }
-            peer = k
+        case let .hello(id, _, _), let .helloAck(id, _, _): peer = id.uuidString
+        default: peer = knownPeer!
         }
         guard peer != myID else { return nil }
-        if case .hello = packet.body {
-            // Only Macs that are visible on the network may link up.
-            guard isKnownPeer(peer) else { logIgnored(peer, now, "not advertised on the network"); return nil }
+        // A connection made by IP address: the first answer tells us who is on the other end.
+        if let k = knownPeer, k.hasPrefix(PeerInfo.manualPrefix), link.peer == k, k != peer {
+            link.renamePeer(from: k, to: peer)
+            if let n = peerNames[k] { peerNames[peer] = peerNames[peer] ?? n }
         }
         switch packet.body {
         case .hello, .helloAck:
             // A hello on a new route must not take over a link that is alive on its own route
             // (the instance ID is public, so it could be someone else).
-            if knownPeer != peer, link.isConnected, link.peer == peer, now - link.lastHeard < 2 {
+            // The same running instance (same session) opening a fresh route is allowed through.
+            if knownPeer != peer, link.isConnected, link.peer == peer, now - link.lastHeard < 2,
+               filters[peer]?.currentSession != packet.session {
                 logIgnored(peer, now, "on a second route while the link is alive")
                 return nil
             }
         default: break
+        }
+        if case .helloAck = packet.body, link.peer != peer {
+            // Only the Mac we are connecting to may answer; anything else is not bound.
+            return nil
         }
         var f = filters[peer] ?? SequenceFilter()
         let fresh = f.accept(session: packet.session, seq: packet.seq)
@@ -136,11 +168,15 @@ public final class Conductor: @unchecked Sendable {
         guard fresh else { return peer }
 
         switch packet.body {
-        case let .hello(_, name):
+        case let .hello(_, nonce, name):
             setName(name, for: peer)
+            peerNonces[peer] = nonce
+            mismatchAt.removeValue(forKey: peer)
             perform(link.receivedHello(from: peer, now: now))
-        case let .helloAck(_, name):
+        case let .helloAck(_, nonce, name):
             setName(name, for: peer)
+            peerNonces[peer] = nonce
+            mismatchAt.removeValue(forKey: peer)
             perform(link.receivedHelloAck(from: peer, now: now))
         case .bye:
             perform(link.receivedBye(from: peer))
@@ -182,22 +218,30 @@ public final class Conductor: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         let now = clock()
         perform(link.tick(now: now))
-        // Notes whose keys are still down are not stuck: only the key-up ends them
-        // (up to maxProtectedHold, in case a key-up was never seen).
-        let down = Set(engine.heldNotes.map { NoteGuard.Key(channel: engine.channel, note: $0) }
-            .filter { k in keysGuard.active[k].map { now - $0 < Self.maxProtectedHold } ?? false })
+        // A key "held" longer than maxProtectedHold probably lost its key-up: end it on both
+        // Macs through the engine, so it also leaves the held list sent to the peer.
+        for note in engine.heldNotes {
+            let k = NoteGuard.Key(channel: engine.channel, note: note)
+            if let t = keysGuard.active[k], now - t >= Self.maxProtectedHold {
+                for m in engine.release(note: note) { emitLocal(m, fromKeys: true); sendRemote(m) }
+                log("Released \(noteName(note)) after \(Int(Self.maxProtectedHold)) s without a key-up")
+            }
+        }
+        // Notes whose keys are still down are not stuck: only the key-up ends them.
+        let down = Set(engine.heldNotes.map { NoteGuard.Key(channel: engine.channel, note: $0) })
         for m in keysGuard.expire(now: now, keep: down) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m))") }
         for m in peerGuard.expire(now: now) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m)) (from peer)") }
     }
 
     public func connect(to peer: String) {
         lock.lock(); defer { lock.unlock() }
+        guard channel != nil else { log("Cannot connect: no pairing code set"); return }
         perform(link.connect(to: peer, now: clock()))
     }
 
     public func disconnect() {
         lock.lock(); defer { lock.unlock() }
-        perform(link.disconnect())
+        perform(link.disconnect(now: clock()))
     }
 
     public func panic() {
@@ -221,7 +265,7 @@ public final class Conductor: @unchecked Sendable {
         quitting = true
         if link.peer != nil {
             // Disconnect turns notes off here and on the peer, then says goodbye.
-            perform(link.disconnect())
+            perform(link.disconnect(now: clock()))
         } else {
             apply(.appWillQuit, peer: nil)
         }
@@ -261,8 +305,18 @@ public final class Conductor: @unchecked Sendable {
     /// can only attribute packets on it after a hello, so send one right away.
     public func newRoute(to peer: String) {
         lock.lock(); defer { lock.unlock() }
-        guard link.peer == peer else { return }
-        sendBody(.hello(instanceID: instanceID, name: displayName), to: peer)
+        guard link.peer == peer, let channel else { return }
+        sendBody(.hello(instanceID: instanceID, nonce: channel.myNonce, name: displayName), to: peer)
+    }
+
+    /// Sets (or clears) the pairing code. Changing it ends the current link.
+    /// `nonce` is only for tests.
+    public func setPairing(_ secret: PairingSecret?, nonce: [UInt8]? = nil) {
+        lock.lock(); defer { lock.unlock() }
+        if link.peer != nil { perform(link.disconnect(now: clock())) }
+        channel = secret.map { SecureChannel(secret: $0, myNonce: nonce ?? SecureChannel.randomNonce()) }
+        peerNonces.removeAll(); filters.removeAll(); mismatchAt.removeAll()
+        log(secret == nil ? "Pairing code cleared" : "Pairing code set (fingerprint \(secret!.fingerprint))")
     }
 
     /// Forget sequence state and names of peers that are neither linked nor listed.
@@ -271,6 +325,8 @@ public final class Conductor: @unchecked Sendable {
         let keep = visible.union(link.peer.map { [$0] } ?? [])
         filters = filters.filter { keep.contains($0.key) }
         peerNames = peerNames.filter { keep.contains($0.key) }
+        peerNonces = peerNonces.filter { keep.contains($0.key) }
+        mismatchAt = mismatchAt.filter { keep.contains($0.key) }
     }
 
     public func setPeerName(_ name: String, for peer: String) {
@@ -280,7 +336,10 @@ public final class Conductor: @unchecked Sendable {
 
     public func snapshot() -> ConductorSnapshot {
         lock.lock(); defer { lock.unlock() }
+        let now = clock()
         return ConductorSnapshot(link: link.state, latencyMs: link.latencyMs, peerNames: peerNames,
+                                 isPaired: channel != nil,
+                                 mismatchedPeers: Set(mismatchAt.filter { now - $0.value < 15 }.keys),
                                  octave: engine.octave, velocity: engine.velocity, heldNotes: engine.heldNotes,
                                  sendKeys: sendKeys, receiveNotes: receiveNotes, keyCapture: keyCapture)
     }
@@ -330,9 +389,27 @@ public final class Conductor: @unchecked Sendable {
     }
 
     private func sendBody(_ body: PacketBody, to peer: String, copies: Int = 1) {
+        guard let channel else { return }
         seq &+= 1
-        let bytes = Packet(session: session, seq: seq, body: body).encode()
+        // Without the peer's nonce (no handshake yet) only hello/helloAck can be sent.
+        guard let bytes = channel.seal(Packet(session: session, seq: seq, body: body), peerNonce: peerNonces[peer]) else { return }
         for _ in 0..<copies { net.send(bytes, to: peer) }
+    }
+
+    /// A hello that failed authentication: if it names a Mac visible on the network,
+    /// remember it so the window can say "pairing code does not match".
+    private func noteMismatch(_ bytes: [UInt8], _ now: Double) {
+        guard bytes.count > SecureChannel.tagSize,
+              let p = try? Packet.decode(Array(bytes.dropLast(SecureChannel.tagSize))) else { return }
+        switch p.body {
+        case let .hello(id, _, _), let .helloAck(id, _, _):
+            let peer = id.uuidString
+            guard peer != myID, isKnownPeer(peer) else { return }
+            mismatchAt[peer] = now
+            if mismatchAt.count > 64 { mismatchAt.removeAll() }
+            logIgnored(peer, now, "pairing code does not match")
+        default: break
+        }
     }
 
     private func perform(_ actions: [LinkStateMachine.Action]) {
@@ -340,9 +417,9 @@ public final class Conductor: @unchecked Sendable {
             switch a {
             case let .sendHello(p):
                 net.resetRoute(to: p)
-                sendBody(.hello(instanceID: instanceID, name: displayName), to: p)
+                if let channel { sendBody(.hello(instanceID: instanceID, nonce: channel.myNonce, name: displayName), to: p) }
             case let .sendHelloAck(p):
-                sendBody(.helloAck(instanceID: instanceID, name: displayName), to: p)
+                if let channel { sendBody(.helloAck(instanceID: instanceID, nonce: channel.myNonce, name: displayName), to: p) }
             case let .sendHeartbeat(p):
                 sendBody(.heartbeat(timestampNanos: nanos()), to: p)
                 // Always send the full list (also when empty): the peer ends any of our notes

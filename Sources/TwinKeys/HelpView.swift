@@ -21,15 +21,11 @@ struct HelpView: View {
                 Button(t.done, action: onClose)
                     .buttonStyle(TKButtonStyle(kind: .primary))
                     .keyboardShortcut(.defaultAction)
-                Button("", action: onClose)
-                    .keyboardShortcut(.cancelAction)
-                    .frame(width: 0, height: 0)
-                    .opacity(0)
-                    .accessibilityHidden(true)
             }
             .padding(.top, 4)
         }
         .padding(20)
+        .onExitCommand(perform: onClose)   // Esc closes the sheet
         .frame(width: 440)
         .background(Theme.windowBackground)
         .foregroundStyle(Theme.textPrimary)

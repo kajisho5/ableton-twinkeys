@@ -36,10 +36,21 @@ struct ViewState: Equatable {
     var midiPortReady = true
     var problems: [AppProblem] = []
     var language: AppLanguage = .system
+    /// macOS Secure Input is on (a password field has focus): key events are hidden.
+    var secureInput = false
+    /// Pairing code is set and in use.
+    var isPaired = false
+    /// The code shown in Settings ("K7MQ2-WX9TP"), nil if none.
+    var pairingCode: String?
+    var mismatchedPeers: Set<String> = []
+    var listenPort: UInt16?
+    var localAddresses: [String] = []
+    var lastManualAddress = ""
+    var sheet: AppSheet?
 
     var t: Strings { Strings(language) }
 
-    var canToggleConnection: Bool { linkedPeerID != nil || (peers.count == 1 && peers[0].isCompatible) }
+    var canToggleConnection: Bool { linkedPeerID != nil || (isPaired && peers.count == 1 && peers[0].isCompatible) }
     var connectMenuTitle: String {
         if linkedPeerID != nil { return t.disconnect }
         if peers.count == 1 { return t.connectTo(peers[0].name) }
@@ -66,6 +77,7 @@ struct ViewState: Equatable {
         }
         switch link {
         case .notConnected:
+            if !isPaired { return t.needsPairingDetail }
             return peers.isEmpty ? t.searching : t.chooseMac
         case let .connecting(_, attempt):
             return attempt > 1 ? t.retrying(attempt) : t.waitingForAnswer
@@ -91,5 +103,14 @@ struct ViewActions {
     var openInputMonitoringSettings: () -> Void = {}
     var openLocalNetworkSettings: () -> Void = {}
     var recheckPermissions: () -> Void = {}
+    var setSheet: (AppSheet?) -> Void = { _ in }
+    var makeNewPairingCode: () -> Void = {}
+    /// Returns false if the code is not valid.
+    var savePairingCode: (String) -> Bool = { _ in false }
+    var copyPairingCode: () -> Void = {}
+    /// Returns false if the address is not valid.
+    var connectByAddress: (String) -> Bool = { _ in false }
 }
+
+enum AppSheet: Equatable { case pairing, connectByIP, help }
 #endif

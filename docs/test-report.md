@@ -2,7 +2,7 @@
 
 TwinKeys is an unofficial third-party tool, not affiliated with Ableton.
 
-Covers version 0.4.0 (branch `claude/new-session-k8s13h`). Earlier versions: see git history.
+Covers version 0.5.0 (branch `claude/new-session-k8s13h`). Earlier versions: see git history.
 
 Date: 2026-11-09. What could be checked without real Macs and Live. Items that need two physical Macs are in [manual-test.md](manual-test.md) and are **not yet done**.
 
@@ -19,7 +19,7 @@ CI run with these results: https://github.com/kajisho5/ableton-twinkeys/actions/
 
 | Area | How it was checked | Result |
 |---|---|---|
-| Unit tests (70) | `swift test` on Linux and macOS | **Pass** (0 failures) |
+| Unit tests (85) | `swift test` on Linux and macOS | **Pass** (0 failures) |
 | Key → note mapping (layout, key codes, repeat, chords, modifiers, octave/velocity limits, JSON) | `MappingTests` | Pass |
 | Protocol encode/decode, bad packets, duplicate / reordered / wrap-around sequence numbers | `ProtocolTests` | Pass |
 | Reconnect state machine (handshake, 1 s heartbeat, 3 s timeout, 1→2→4→5 s retry, bye, manual disconnect) | `LinkTests` | Pass |
@@ -44,6 +44,8 @@ CI run with these results: https://github.com/kajisho5/ableton-twinkeys/actions/
 | Two-Mac discovery, latency, reconnect over a real network | Needs two Macs | Not checked → manual-test 2, 4 |
 | Added latency ≤ 5 ms | Code path: key event → local port and network send happen right away on the key thread (no UI hop). Real measurement needs two Macs | Not checked → manual-test 3-9 |
 | Network edge cases (hellos from unknown Macs, route takeover, lost note-off repaired by the held list, peer switching, previous-session packets) | `ConductorTests`, `LinkTests`, `ProtocolTests` | Pass |
+| Pairing code and encryption (0.5.0): PBKDF2 against RFC 7914 test vectors, signed hellos, ChaCha20-Poly1305 traffic, wrong code / no code cannot link, tampered and replayed packets dropped, connect by address learns the real peer | `PairingTests`, `ConductorTests` | Pass |
+| End to end with encryption: a fake second Mac with the same code links over Bonjour and its encrypted notes come out of the TwinKeys MIDI source; listener on UDP 47801 | CI `scripts/e2e-midi.swift` | Pass |
 | Japanese UI | Screenshots `*-ja.png` rendered by the app on macOS (window, all sections, empty state, permission banner) | Pass (layout and wording). Live switching in Settings → manual-test 6-6 |
 | Author credit | About panel credits text and copyright set in code / Info.plist / LICENSE; panel itself not viewed | Not viewed → manual-test 6-7 |
 | VoiceOver | Labels and hints are set in code; not listened to | Not checked → manual-test 6-3 |

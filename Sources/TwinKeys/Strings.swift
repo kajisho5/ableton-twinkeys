@@ -36,7 +36,7 @@ struct Strings {
     var waitingForAnswer: String { s("Waiting for an answer…", "応答を待っています…") }
     func latencyLine(_ latency: String, _ roles: String) -> String { s("Latency \(latency)  ·  \(roles)", "遅延 \(latency)  ·  \(roles)") }
     var measuring: String { s("measuring…", "測定中…") }
-    var connectionStatus: String { s("Connection status", "接続状態") }
+    func statusLabel(_ h: String, _ d: String) -> String { s("Connection status: \(h). \(d)", "接続状態：\(h)。\(d)") }
 
     var allNotesOff: String { s("All Notes Off", "オールノートオフ") }
     var allNotesOffHelp: String { s("Stop every sounding note on this Mac and the connected Mac (⌃⌘P)", "この Mac と接続先の Mac で鳴っている音をすべて止めます（⌃⌘P）") }
@@ -56,7 +56,7 @@ struct Strings {
                      "settings.json を読み込めなかったため、\(backup) として残し、初期設定で起動しました。")
         case .duplicateID:
             return s("Another Mac was using the same TwinKeys ID (its settings were copied from this Mac). A new ID was made: quit and reopen TwinKeys.",
-                     "ほかの Mac が同じ TwinKeys の識別番号を使っていました（設定がこの Mac からコピーされたためです）。新しい番号を作ったので、TwinKeys を終了して開き直してください。")
+                     "ほかの Mac が同じ TwinKeys の ID を使っていました（この Mac から設定がコピーされたためです）。新しい ID を作成したので、TwinKeys を終了してから開き直してください。")
         case .mappingUnreadable:
             return s("mapping.json could not be read. Using the default mapping.", "mapping.json を読み込めなかったため、初期のキー配置を使っています。")
         case .midiPort:
@@ -85,7 +85,7 @@ struct Strings {
     func connectTo(_ name: String) -> String { s("Connect to \(name)", "\(name) に接続") }
     func disconnectFrom(_ name: String) -> String { s("Disconnect from \(name)", "\(name) との接続を解除") }
     var disconnectHelp: String { s("Disconnect (⌘K)", "接続解除（⌘K）") }
-    var incompatible: String { s("Different TwinKeys version. Use the same version on both Macs.", "TwinKeys の版が違います。両方の Mac で同じ版を使ってください。") }
+    var incompatible: String { s("Different TwinKeys version. Use the same version on both Macs.", "TwinKeys のバージョンが違います。両方の Mac で同じバージョンを使ってください。") }
     var connectingShort: String { s("connecting…", "接続中…") }
     var anotherMac: String { s("another Mac", "相手の Mac") }
     func modes(_ p: PeerInfo) -> String {
@@ -112,6 +112,8 @@ struct Strings {
     var valueNotSending: String { s("Not sending", "送信していません") }
     var valueNeedsPermission: String { s("Needs permission", "許可が必要") }
     var keyCaptureNeedsPermission: String { s("Key capture: Needs permission", "キー入力: 許可が必要") }
+    var keyCapturePaused: String { s("Key capture: Paused (password field)", "キー入力: 一時停止中（パスワード入力中）") }
+    var valuePaused: String { s("Paused", "一時停止中") }
     var keyCaptureHelp: String { s("Turn key capture on or off (⌃⌘K)", "キー入力のオン／オフ（⌃⌘K）") }
     var octave: String { s("Octave", "オクターブ") }
     var velocity: String { s("Velocity", "ベロシティ") }
@@ -155,7 +157,7 @@ struct Strings {
     // MARK: Settings
     func autoNoteOff(_ seconds: Int) -> String { s("Automatic note-off after \(seconds) s", "\(seconds) 秒で自動ノートオフ") }
     var autoNoteOffDisabled: String { s("Automatic note-off: Off", "自動ノートオフ: オフ") }
-    var autoNoteOffHelp: String { s("Protects against stuck notes if a note-off is lost. 0 turns it off.", "ノートオフが届かなかったときに、音が鳴り続けるのを防ぎます。0 にするとオフになります。") }
+    var autoNoteOffHelp: String { s("Protects against stuck notes if a note-off is lost. Notes from the other Mac wait at least 3 s. 0 turns it off.", "ノートオフが届かなかったときに、音が鳴り続けるのを防ぎます。相手の Mac から届いた音は最低 3 秒待ちます。0 にするとオフになります。") }
     var autoNoteOffHint: String { s("A note that never receives its note-off is stopped after this time. 0 turns it off.", "ノートオフが届かない音を、この時間で止めます。0 でオフ。") }
     var showMappingFile: String { s("Show Mapping File in Finder", "キー配置ファイルをFinderで表示") }
     var reloadMapping: String { s("Reload Mapping", "キー配置を再読み込み") }
@@ -170,9 +172,41 @@ struct Strings {
         }
     }
     var languageNote: String {
-        s("Standard menu items such as Hide and Quit follow the macOS language.",
-          "「隠す」「終了」などの標準メニューは、macOS の言語で表示されます。")
+        s("Standard menu items such as Hide TwinKeys and Quit TwinKeys follow the macOS language.",
+          "「TwinKeysを非表示」「TwinKeysを終了」などの標準メニュー項目は、macOS の言語で表示されます。")
     }
+
+    // MARK: Pairing
+    var pairingTitle: String { s("Pairing Code", "合言葉") }
+    var pairingExplain: String { s("Macs that use the same pairing code can connect to each other, and nothing else can. Their traffic is also encrypted.", "2台の Mac で同じ合言葉を使うと、その2台だけがつながります。通信の中身も暗号化されます。") }
+    var pairingNeeded: String { s("To connect, both Macs need the same pairing code.", "接続するには、2台で同じ合言葉を使います。") }
+    var pairingNeededHint: String { s("You only need to do this once.", "一度設定すれば、次からは不要です") }
+    var setUpPairing: String { s("Set Up Pairing Code…", "合言葉を設定…") }
+    var needsPairingDetail: String { s("Set a pairing code to connect", "合言葉を設定すると接続できます") }
+    var thisMacCode: String { s("This Mac’s pairing code", "この Mac の合言葉") }
+    var noCodeYet: String { s("Not set", "未設定") }
+    var makeNewCode: String { s("Make New Code", "新しく作る") }
+    var copy: String { s("Copy", "コピー") }
+    var enterCode: String { s("Enter Code…", "合言葉を入力…") }
+    var enterCodeTitle: String { s("Enter Pairing Code", "合言葉を入力") }
+    var enterCodeExplain: String { s("Type the 10 characters shown on the other Mac under Settings > Pairing Code.", "もう1台の Mac の「設定」>「合言葉」に出ている10文字を入れてください。") }
+    var enterCodeRule: String { s("Upper or lower case and hyphens do not matter.", "大文字・小文字、ハイフンの有無は区別しません。") }
+    var invalidCode: String { s("That is not a valid code: it has 10 letters and digits (no 0, 1, I, L or O).", "合言葉の形になっていません。10文字の英数字です（0・1・I・L・O は使いません）。") }
+    var haveOtherCode: String { s("If the other Mac already has a code:", "もう1台の Mac で作った合言葉があるときは") }
+    var replaceCodeTitle: String { s("Make a new pairing code?", "新しい合言葉を作りますか？") }
+    var replaceCodeMessage: String { s("The current code stops working. Enter the new code on the other Mac too.", "今の合言葉は使えなくなります。もう1台の Mac にも新しい合言葉を入れてください。") }
+    var makeNew: String { s("Make New", "作る") }
+    var cancel: String { s("Cancel", "キャンセル") }
+    var save: String { s("Save", "保存") }
+    var codeMismatch: String { s("Different pairing code", "合言葉が違います") }
+    func thisMacAddress(_ a: String) -> String { s("This Mac’s IP address: \(a)", "この Mac の IP アドレス: \(a)") }
+    var noAddress: String { s("none (not on a network)", "なし（ネットワーク未接続）") }
+    var connectByIP: String { s("Connect by IP Address…", "IPアドレスで接続…") }
+    var connectByIPHint: String { s("If the other Mac is not listed (⇧⌘K)", "一覧に出ないときはこちら（⇧⌘K）") }
+    var connectByIPTitle: String { s("Connect by IP Address", "IPアドレスで接続") }
+    var connectByIPExplain: String { s("Use this when the other Mac is not listed. Type the IP address shown on the other Mac under Settings > Pairing Code. Both Macs need the same pairing code.", "相手が一覧に出ないときに使います。相手の Mac の「設定」>「合言葉」に出ている IP アドレスを入れてください。合言葉が同じ必要があります。") }
+    func portLabel(_ p: UInt16) -> String { s("Port \(p)", "ポート \(p)") }
+    var invalidAddress: String { s("Type an IP address such as 192.168.1.20.", "192.168.1.20 のような IP アドレスを入れてください。") }
 
     // MARK: Menus and About
     var connectionMenu: String { s("Connection", "接続") }
@@ -180,7 +214,7 @@ struct Strings {
     var keyCaptureMenuOn: String { s("Turn Key Capture On", "キー入力をオン") }
     var help: String { s("TwinKeys Help", "TwinKeysヘルプ") }
     var helpMissing: String { s("The help file is not included in this build.", "このビルドにはヘルプのファイルが入っていません。") }
-    var helpOnGitHub: String { s("Open on GitHub", "GitHub で開く") }
+    var helpOnGitHub: String { s("Open on GitHub", "GitHubで開く") }
     var showLogs: String { s("Show Log Folder in Finder", "ログフォルダをFinderで表示") }
     var aboutMenu: String { s("About TwinKeys", "TwinKeysについて") }
     var aboutCredits: String {
