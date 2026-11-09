@@ -40,6 +40,9 @@ final class AppModel: ObservableObject {
     private var hasAccessibility = KeyMonitor.hasAccessibility
     /// "Restart Now" was clicked: open the new version after the swap.
     private var relaunchAfterQuit = false
+    /// Held while linked: no App Nap (timers would be delayed past the link timeout) and no
+    /// idle sleep during a show.
+    private var showActivity: NSObjectProtocol?
 
     init() {
         let store = ConfigStore()
@@ -165,6 +168,10 @@ final class AppModel: ObservableObject {
         t.resume()
         tickTimer = t
 
+        // Going to sleep: key-ups will be missed and the link will drop; end held cue notes now.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { _ in
+            conductor.releaseHeldKeys()
+        }
         // Common modes: keep checking permissions and Secure Input while a menu is open.
         let ui = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
@@ -346,6 +353,17 @@ final class AppModel: ObservableObject {
         }
         if keyMonitor.isRunning, problems.contains(.keyCaptureFailed) {
             problems.removeAll { $0 == .keyCaptureFailed }
+        }
+    }
+
+    private func updateShowActivity(linked: Bool) {
+        if linked, showActivity == nil {
+            showActivity = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated, .latencyCritical, .idleSystemSleepDisabled],
+                reason: "TwinKeys is linked to another Mac (show in progress)")
+        } else if !linked, let a = showActivity {
+            ProcessInfo.processInfo.endActivity(a)
+            showActivity = nil
         }
     }
 
@@ -534,6 +552,7 @@ final class AppModel: ObservableObject {
         s.update = updater.state
         s.appVersion = updater.currentVersion
         s.autoUpdate = settings.autoUpdate
+        updateShowActivity(linked: s.linkedPeerID != nil)
         if s != state { state = s }
     }
 }
