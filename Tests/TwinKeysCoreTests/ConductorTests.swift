@@ -197,8 +197,18 @@ final class ConductorTests: XCTestCase {
 
     func testHelloFromMacNotOnTheNetworkIsIgnored() {
         backup.isKnownPeer = { _ in false }
-        main.connect(to: backupID.uuidString); pump()
+        main.connect(to: backupID.uuidString)
+        // A first hello arrives on a new route (not yet bound to any peer).
+        for (_, bytes) in mainNet.outbox { XCTAssertNil(backup.receive(bytes, knownPeer: nil)) }
         XCTAssertEqual(backup.snapshot().link, .idle)
+    }
+
+    func testHelloOnBoundRouteAcceptedEvenIfBonjourEntryExpired() {
+        connect()
+        backup.isKnownPeer = { _ in false }      // the Bonjour record of main expired
+        main.disconnect(); pump()
+        main.connect(to: backupID.uuidString); pump()   // same route: knownPeer is passed by pump()
+        XCTAssertEqual(backup.snapshot().link, .connected(peer: mainID.uuidString))
     }
 
     func testPeerNameControlCharactersAreRemoved() {

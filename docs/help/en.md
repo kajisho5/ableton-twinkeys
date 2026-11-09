@@ -7,7 +7,7 @@ Unofficial third-party tool. Not affiliated with Ableton.
 ## What you need
 
 - Two Macs with macOS 13 or later (main and backup)
-- Both on the same network (wired, or a dedicated router, works best)
+- Both on the same network: a wired network, your own router, or one Ethernet cable directly between the two Macs
 - The same Live set on both Macs
 
 ## First launch
@@ -58,7 +58,7 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 
 - The red All Notes Off button (⌃⌘P) stops every note on this Mac and the connected Mac.
 - Quitting TwinKeys and clicking Disconnect also stop notes on both Macs.
-- A note whose note-off never arrives stops after 10 seconds (notes whose keys are still held keep playing). Change this in Settings; 0 turns it off.
+- A note whose note-off never arrives stops after 10 seconds (notes whose keys are still held keep playing). Change this in Settings; 0 turns it off. Notes received from the other Mac always wait at least 3 seconds.
 - When the network drops, only notes that came from the other Mac stop. Notes you are playing on the main Mac keep sounding.
 
 ## Troubleshooting
@@ -69,13 +69,25 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 **The other Mac does not appear**
 - Check that both Macs are on the same network.
 - Check that TwinKeys is on in System Settings > Privacy & Security > Local Network.
-- Turn off VPN software and Limit IP Address Tracking for the Wi-Fi network.
+- Turn off VPN software. Some VPNs send all traffic, including traffic to the other Mac, through the VPN. Also turn off Limit IP Address Tracking for the Wi-Fi network.
+- If the firewall is on, open System Settings > Network > Firewall > Options and check that TwinKeys allows incoming connections and that "Block all incoming connections" is off.
+
+**Using one cable between the Macs (no router)**
+- Connect the two Macs with one Ethernet cable (or a Thunderbolt/USB-C cable). No settings are needed. After a short wait, System Settings > Network shows "Self-assigned IP" with a yellow dot. That is normal here, and TwinKeys still finds the other Mac.
+
+**The other Mac does not appear on venue or hotel Wi-Fi**
+- Many public Wi-Fi networks block devices from seeing each other. Connect the Macs with a cable, or bring your own router.
+- Both Macs must be on the same network. If one is on Wi-Fi and the other on a different router or VLAN, they cannot find each other.
+- A phone hotspot may work, but some phones block devices from seeing each other. For shows, use a cable or a router.
+
+**Both Wi-Fi and a cable are connected**
+- TwinKeys uses the cable. For the steadiest timing, turn Wi-Fi off during the show.
 
 **Keys make no sound**
 - Check that Input Monitoring is allowed (shown at the bottom of the window).
 - Check that Send my keys and Key capture are on.
 - Check that Track is on for TwinKeys in Live's MIDI settings.
-- While you type in a password field (macOS Secure Input), keys are hidden from TwinKeys. Held notes are ended when that starts.
+- While you type in a password field (macOS Secure Input), keys are hidden from TwinKeys. The window shows "Key capture: Paused", and held notes are ended when that starts.
 
 **Every note plays twice**
 - Turn off Live's Computer MIDI Keyboard on the main Mac.

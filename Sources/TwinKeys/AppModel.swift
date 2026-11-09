@@ -325,6 +325,7 @@ final class AppModel: ObservableObject {
         s.midiPortReady = midi != nil
         s.problems = problems
         s.language = language
+        s.secureInput = secureInputOn
         if s != state { state = s }
     }
 }

@@ -118,7 +118,10 @@ public final class Conductor: @unchecked Sendable {
         guard peer != myID else { return nil }
         if case .hello = packet.body {
             // Only Macs that are visible on the network may link up.
-            guard isKnownPeer(peer) else { logIgnored(peer, now, "not advertised on the network"); return nil }
+            // A route already bound to this peer is fine too (the Bonjour entry may have expired).
+            guard isKnownPeer(peer) || knownPeer == peer else {
+                logIgnored(peer, now, "not advertised on the network"); return nil
+            }
         }
         switch packet.body {
         case .hello, .helloAck:

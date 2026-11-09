@@ -1,16 +1,18 @@
 name: Release
 
-# Publishes a signed and notarized TwinKeys (universal .app in a .dmg).
-#  - Change the VERSION file on main (for example to 0.4.0): if release v0.4.0 does not exist
-#    yet, it is built, signed, notarized, checked on a clean Mac and published (the tag is created
-#    on that commit).
-#  - Pushing a tag like v1.0.0, or running this workflow by hand with a version, also works.
-# Developer ID signing and Apple notarization are done by kajisho5/runway (mac-notarize.yml).
-# Certificates live in kajisho5/hanger; the secrets are copied here by runway's sync-secrets
-# (this repository is listed in runway's repos.txt).
+# Publishes a signed and notarized TwinKeys (universal .app in a .dmg). Releases come only from
+# commits on main:
+#  - Change the VERSION file on main (for example to 0.5.0). If release v0.5.0 does not have its
+#    .dmg yet, it is built, signed, notarized, checked on a clean Mac and published (the tag is
+#    created on that commit).
+#  - Pushing a tag like v1.0.0 that points at a commit on main, or running this workflow by hand
+#    on main with a version, also works.
+# Developer ID signing and Apple notarization are done by kajisho5/runway (mac-notarize.yml),
+# pinned to a reviewed commit. Certificates live in kajisho5/hanger; the secrets are copied here by
+# runway's sync-secrets (this repository is listed in runway's repos.txt).
 on:
   push:
-    branches: [main]      # releases come only from main
+    branches: [main]
     paths: ["VERSION"]
     tags: ["v*"]
   workflow_dispatch:
@@ -23,11 +25,6 @@ on:
 permissions:
   contents: read
 
-# One run per commit, never cancelled: a version pushed in between is not dropped.
-concurrency:
-  group: release-${{ github.sha }}
-  cancel-in-progress: false
-
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -35,9 +32,18 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       release: ${{ steps.v.outputs.release }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
+      - name: Signing secrets are available
+        env:
+          HAS_KEY: ${{ secrets.ASC_KEY_P8_BASE64 != '' && secrets.MATCH_GIT_TOKEN != '' && secrets.ASC_KEY_ID != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Signing secrets are missing. Is kajisho5/ableton-twinkeys listed in kajisho5/runway repos.txt? Run runway's sync-secrets."
+            exit 1
+          fi
       - id: v
         env:
           GH_TOKEN: ${{ github.token }}
@@ -45,26 +51,37 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
+          publish_requested=true
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            ver="${GITHUB_REF_NAME#v}"; release=true
+            ver="${GITHUB_REF_NAME#v}"
           elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            ver="${INPUT_VERSION#v}"; release=true
-            [ -n "$ver" ] || { ver="$(tr -d '[:space:]' < VERSION)"; release=false; }
+            ver="${INPUT_VERSION#v}"
+            if [ -z "$ver" ]; then ver="$(tr -d '[:space:]' < VERSION)"; publish_requested=false; fi
           else
             ver="$(tr -d '[:space:]' < VERSION)"
-            if gh release view "v$ver" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              echo "Release v$ver already exists; nothing to publish."; release=false
-            else
-              release=true
-            fi
           fi
-          if ! printf '%s' "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+          # One line, strict format (a multi-line value must not slip through).
+          if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "::error::Not a valid version: $ver"; exit 1
           fi
-          # A tag with this name that points at another commit would make the release
-          # describe one commit while shipping another: stop instead.
+          release=$publish_requested
           if [ "$release" = true ]; then
-            tag_sha=$(git ls-remote --tags "https://github.com/$GITHUB_REPOSITORY" "refs/tags/v$ver^{}" "refs/tags/v$ver" | head -1 | cut -f1)
+            # Only commits on main are released.
+            git fetch -q origin main
+            if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+              echo "::error::$GITHUB_SHA is not on main; releases come only from main."; exit 1
+            fi
+            # Already published with its .dmg: nothing to do (a release without the .dmg is repaired).
+            if gh release view "v$ver" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null \
+                 | grep -qx "TwinKeys-$ver.dmg"; then
+              echo "Release v$ver already has its .dmg; nothing to publish."; release=false
+            fi
+          fi
+          if [ "$release" = true ]; then
+            # A tag with this name on another commit would make the release describe one commit
+            # while shipping another: stop instead. (Annotated tags: use the commit it points to.)
+            tag_sha=$(git ls-remote --tags origin "refs/tags/v$ver" "refs/tags/v$ver^{}" \
+              | awk -v t="refs/tags/v$ver" '$2==t"^{}"{p=$1} $2==t{l=$1} END{print (p?p:l)}')
             if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then
               echo "::error::Tag v$ver already exists on $tag_sha, not on $GITHUB_SHA. Use a new version."; exit 1
             fi
@@ -79,30 +96,41 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: swift test
 
-  # Build -> Developer ID signature (hardened runtime) -> notarization -> stapled .dmg
+  # Build -> Developer ID signature (hardened runtime) -> notarization -> stapled .dmg.
+  # Pinned to a reviewed runway commit: whatever runs here has the signing key.
   mac:
     needs: [check, test]
-    uses: kajisho5/runway/.github/workflows/mac-notarize.yml@main
+    uses: kajisho5/runway/.github/workflows/mac-notarize.yml@546e56279d7789e3f9d6401e4d46c0202019facd # main 2026-11-09
     with:
       name: TwinKeys
       version: ${{ needs.check.outputs.version }}
       runner: macos-26
-      build: scripts/build-app.sh "${{ needs.check.outputs.version }}" "${{ github.run_number }}"
+      # No values pasted in: runway exports RW_VERSION (the validated version) to the build.
+      build: scripts/build-app.sh "$RW_VERSION" "$GITHUB_RUN_NUMBER"
       products: dist/TwinKeys.app
       package: dmg
       app_link: true
-    secrets: inherit
+    secrets:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+      SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
-  # Open the .dmg on a clean Mac and check Gatekeeper, signature, version and that the app starts.
+  # Open the .dmg on a clean Mac the way a downloaded file is opened, and check Gatekeeper,
+  # notarization, signature, version and that the app starts.
   verify:
     needs: [check, mac]
     runs-on: macos-26
     timeout-minutes: 20
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: TwinKeys-notarized
           path: dist
@@ -113,6 +141,8 @@ jobs:
           set -euo pipefail
           dmg=$(ls dist/*.dmg)
           echo "== $dmg"
+          # Mark it as downloaded from the internet, like a browser does.
+          xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" "$dmg"
           xcrun stapler validate "$dmg"
           spctl -a -t open --context context:primary-signature -vv "$dmg"
           mnt=$(mktemp -d)
@@ -127,7 +157,8 @@ jobs:
           codesign -dvv "$app" 2>&1 | tee sig.txt
           grep -q "Authority=Developer ID Application" sig.txt
           grep -q "runtime" sig.txt
-          spctl -a -t exec -vv "$app"
+          spctl -a -t exec -vv "$app" 2>&1 | tee spctl.txt
+          grep -q "source=Notarized Developer ID" spctl.txt
           test -f "$app/Contents/Resources/help/ja.md"
           test -f "$app/Contents/Resources/AppIcon.icns"
           sudo rm -rf /Applications/TwinKeys.app
@@ -144,10 +175,14 @@ jobs:
     needs: [check, verify]
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
+    # One publish at a time, never cancelled.
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: TwinKeys-notarized
           path: dist
@@ -158,6 +193,12 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v$VERSION"
+          # Re-check right before publishing: another run may have tagged this version meanwhile.
+          tag_sha=$(git ls-remote --tags "https://github.com/$GITHUB_REPOSITORY" "refs/tags/$TAG" "refs/tags/$TAG^{}" \
+            | awk -v t="refs/tags/$TAG" '$2==t"^{}"{p=$1} $2==t{l=$1} END{print (p?p:l)}')
+          if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::$TAG now points at $tag_sha, not $GITHUB_SHA. Not publishing."; exit 1
+          fi
           # 0.x versions and versions with a suffix (e.g. 1.0.0-beta.1) are marked as pre-releases.
           PRE=""
           case "$TAG" in v0.*|*-*) PRE="--prerelease" ;; esac

@@ -48,7 +48,7 @@ struct ContentView: View {
                 Text(state.detail).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary).lineLimit(1)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(t.connectionStatus): \(state.headline). \(state.detail)")
+            .accessibilityLabel(t.statusLabel(state.headline, state.detail))
             Spacer(minLength: 8)
             Button(t.allNotesOff, action: actions.panic)
                 .buttonStyle(TKButtonStyle(kind: .destructive))
@@ -226,7 +226,7 @@ struct ContentView: View {
         Toggle(isOn: Binding(get: { state.keyCapture }, set: actions.setKeyCapture)) {
             Text(keyCaptureText)
                 .font(.system(size: Theme.caption, weight: .semibold))
-                .foregroundStyle(state.keyCaptureActive ? Theme.ok : Theme.textSecondary)
+                .foregroundStyle(state.keyCaptureActive && !state.secureInput ? Theme.ok : Theme.textSecondary)
         }
         .toggleStyle(.checkbox)
         .fixedSize()
@@ -238,6 +238,7 @@ struct ContentView: View {
     /// Short value for VoiceOver (the label already says "Key capture").
     private var keyCaptureValue: String {
         if !state.keyCapture { return t.valueOff }
+        if state.secureInput && state.keyCaptureActive { return t.valuePaused }
         if !state.sendKeys { return t.valueNotSending }
         if state.inputMonitoring != .granted { return t.valueNeedsPermission }
         return t.valueOn
@@ -245,6 +246,7 @@ struct ContentView: View {
 
     private var keyCaptureText: String {
         if !state.keyCapture { return t.keyCaptureOff }
+        if state.secureInput && state.keyCaptureActive { return t.keyCapturePaused }
         if !state.sendKeys { return t.keyCaptureNotSending }
         if state.inputMonitoring != .granted { return t.keyCaptureNeedsPermission }
         return t.keyCaptureOn

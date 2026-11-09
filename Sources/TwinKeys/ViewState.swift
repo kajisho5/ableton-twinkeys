@@ -36,6 +36,8 @@ struct ViewState: Equatable {
     var midiPortReady = true
     var problems: [AppProblem] = []
     var language: AppLanguage = .system
+    /// macOS Secure Input is on (a password field has focus): key events are hidden.
+    var secureInput = false
 
     var t: Strings { Strings(language) }
 

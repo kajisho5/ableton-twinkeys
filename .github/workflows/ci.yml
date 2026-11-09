@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -15,20 +15,25 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Toolchain
         run: |
           xcodebuild -version
           swift --version
       - name: Unit tests
+        timeout-minutes: 10
         run: swift test
       - name: Build universal .app
+        timeout-minutes: 10
         run: scripts/build-app.sh "0.0.0-ci.${GITHUB_RUN_NUMBER}" "${GITHUB_RUN_NUMBER}"
       - name: Check bundle
         run: |
           plutil -p dist/TwinKeys.app/Contents/Info.plist
           ls -l dist/TwinKeys.app/Contents/Resources
       - name: Launch smoke test (starts, stays up 5 s, quits)
+        timeout-minutes: 3
         run: |
           dist/TwinKeys.app/Contents/MacOS/TwinKeys > smoke.log 2>&1 &
           PID=$!
@@ -40,11 +45,12 @@ jobs:
           footprint -p $PID 2>/dev/null | grep -iE "^\s*(TwinKeys|Footprint|phys_footprint)|Footprint:" | head -5 | tee -a memory.txt || true
           vmmap --summary $PID 2>/dev/null | grep -iE "Physical footprint" | tee -a memory.txt || true
           kill -TERM $PID || true
-          sleep 1
+          wait $PID || true
           cat smoke.log || true
           ls -la ~/Library/Logs/TwinKeys/ ~/Library/Application\ Support/TwinKeys/ || true
           cat ~/Library/Logs/TwinKeys/*.log || true
       - name: End-to-end check (network notes come out of the TwinKeys MIDI port)
+        timeout-minutes: 5
         # macOS Local Network privacy silently blocks Bonjour for an .app that nobody can
         # answer the permission prompt for (CI has no user). The same build, run as a plain
         # executable from the shell, is not subject to it, so the check uses that binary.
@@ -63,18 +69,24 @@ jobs:
           RESULT=${PIPESTATUS[0]}
           set -e
           kill -TERM $PID || true
+          wait $PID || true
           echo "--- TwinKeys log"; cat ~/Library/Logs/TwinKeys/*.log || true
           exit $RESULT
       - name: Screenshots (light / dark)
+        timeout-minutes: 3
         run: dist/TwinKeys.app/Contents/MacOS/TwinKeys --snapshot "$PWD/screenshots"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: TwinKeys-app
           path: dist/*.zip
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
         with:
           name: screenshots
           path: |
             screenshots/*.png
             memory.txt
             e2e.txt
+            *.log
+            ~/Library/Logs/TwinKeys/*.log
+          if-no-files-found: ignore

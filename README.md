@@ -65,7 +65,7 @@ Keys pressed together with ⌘, ⌃, ⌥ or ⇧ never play notes, so shortcuts i
 
 - **All Notes Off** (the red button) stops notes on this Mac and the connected Mac.
 - All Notes Off is also sent when you quit TwinKeys or click Disconnect.
-- A note that never receives its note-off is stopped automatically after 10 seconds (change in Settings, 0 turns it off). Notes whose keys are still held keep sounding.
+- A note that never receives its note-off is stopped automatically after 10 seconds (change in Settings, 0 turns it off). Notes whose keys are still held keep sounding. Notes received from the other Mac always wait at least 3 seconds.
 - When the link drops, only notes that came from the other Mac stop; notes played on this Mac keep sounding.
 - TwinKeys does **not** switch audio between Macs. Automatic audio failover needs dedicated hardware and is out of scope.
 
@@ -106,14 +106,14 @@ The platform-independent logic (`Sources/TwinKeysCore`) also builds and tests on
 ### Releases (GitHub Actions)
 
 - Every push runs **CI** on a macOS runner: tests, universal build, launch and memory check, an end-to-end check (`scripts/e2e-midi.swift`: a fake second Mac sends notes over the network and they must come out of the TwinKeys MIDI port) and screenshots (downloadable from the run page).
-- **Release:** signing with a Developer ID and Apple notarization are done by [kajisho5/runway](https://github.com/kajisho5/runway) (`mac-notarize.yml`); this repository is listed in runway's `repos.txt`, which gives it the signing secrets. Change the `VERSION` file (for example to `0.2.0`) on `main` (directly or by merging a pull request). GitHub Actions builds the app, signs and notarizes it, checks the .dmg on a clean Mac, creates the tag `v0.2.0` on that commit and publishes a release with `TwinKeys-0.2.0.dmg`. Versions 0.x and versions with a suffix such as `1.0.0-beta.1` are marked as pre-releases. Pushing a `v*` tag or running the workflow by hand also works.
+- **Release:** signing with a Developer ID and Apple notarization are done by [kajisho5/runway](https://github.com/kajisho5/runway) (`mac-notarize.yml`); this repository is listed in runway's `repos.txt`, which gives it the signing secrets. Change the `VERSION` file (for example to `0.2.0`) on `main` (directly or by merging a pull request). GitHub Actions builds the app, signs and notarizes it, checks the .dmg on a clean Mac, creates the tag `v0.2.0` on that commit and publishes a release with `TwinKeys-0.2.0.dmg`. Versions 0.x and versions with a suffix such as `1.0.0-beta.1` are marked as pre-releases. Pushing a `v*` tag that points at a commit on `main`, or running the workflow by hand with a version, also works; anything not on `main` is refused.
 
 ## Limitations
 
 - One-to-one link (one main, one backup) in v1.
 - TwinKeys cannot know whether your music software has the TwinKeys port turned on; it only knows the port exists.
 - Key capture does not see keys typed while macOS Secure Input is on (most password fields, and Terminal with Secure Keyboard Entry). TwinKeys ends held notes when that starts.
-- TwinKeys trusts the local network: only Macs that advertise TwinKeys on the network can connect, but there is no pairing code yet. Use it on a network you control.
+- TwinKeys trusts the local network: it only accepts Macs that are visible as TwinKeys on the network, but anyone on the same network can appear as one. There is no pairing code yet (planned for 0.5.0). Use it on a network you control.
 - Wi-Fi adds variable delay that TwinKeys cannot control. Prefer a wired network.
 
 ## Credits
@@ -140,12 +140,14 @@ TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らす Mac ア
 
 ### 入れ方
 
-1. [リリースのページ](https://github.com/kajisho5/ableton-twinkeys/releases)から `TwinKeys-<版>.dmg` をダウンロードして開き、TwinKeys を「アプリケーション」にドラッグします。Apple の公証を通っているので、そのまま開けます。
+1. [リリースのページ](https://github.com/kajisho5/ableton-twinkeys/releases)から `TwinKeys-<バージョン>.dmg` をダウンロードして開き、TwinKeys を「アプリケーション」にドラッグします。Apple の公証を受けているので、そのまま開けます。
 2. メインの Mac では、TwinKeys の画面にある「システム設定を開く…」から「入力監視」で TwinKeys をオンにし、「もう一度確認」をクリックします。
 3. 両方の Mac で、ローカルネットワークの利用を確認されたら「許可」をクリックします（macOS 15 以降）。
 4. ファイアウォールから受信接続を許可するか聞かれたら「許可」をクリックします。
 
-0.3.0 までの版は公証を通していません。手元にある場合は、新しい版に入れ替えてください。
+0.3.0 までのバージョンは公証されていません。お使いの場合は、最新のバージョンに入れ替えてください。
+
+画面の下に「ローカルネットワーク: 未許可」と出るときは、ほかの Mac から TwinKeys が見えていません。「システム設定」>「プライバシーとセキュリティ」>「ローカルネットワーク」で TwinKeys をオンにして、TwinKeys を開き直してください。
 
 ### 使い方の流れ
 
@@ -159,5 +161,5 @@ TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らす Mac ア
 ### 注意
 
 - 音声そのものの自動切り替え（オーディオフェイルオーバー）は対象外です。専用の機材が必要です。
-- つなげるのは、同じネットワーク上で TwinKeys として見えている Mac だけです。ただし合言葉（ペアリング）の仕組みはまだないので、自分で管理しているネットワークで使ってください。
+- つなげるのは、同じネットワーク上で TwinKeys として見えている Mac だけです。ただし同じネットワークにいれば誰でも TwinKeys のふりができ、合言葉（ペアリング）の仕組みはまだありません（0.5.0 で追加予定）。自分で管理しているネットワークで使ってください。
 - Wi-Fi は遅れが揺れやすいので、有線ネットワークをおすすめします。

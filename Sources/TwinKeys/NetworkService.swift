@@ -29,6 +29,8 @@ final class NetworkService: PacketSink {
     private var routePeer: [ObjectIdentifier: String] = [:]   // connection -> peer ID (all bound connections)
     private var unbound: [ObjectIdentifier: NWConnection] = [:]
     private var endpoints: [String: NWEndpoint] = [:]         // peer ID -> Bonjour endpoint
+    private var interfaces: [String: NWInterface] = [:]       // peer ID -> best interface it was seen on
+    private var unpinned: Set<String> = []                    // pinned route failed: let the system choose
     /// Peers currently advertised. Read from any thread (also from the network queue itself),
     /// so it has its own lock instead of `queue.sync`.
     private var visible: Set<String> {
@@ -57,8 +59,11 @@ final class NetworkService: PacketSink {
         self.serviceName = serviceName
     }
 
-    private static func parameters() -> NWParameters {
+    private static func parameters(on interface: NWInterface? = nil) -> NWParameters {
         let p = NWParameters.udp
+        // Use the interface the peer was found on (wired first). Needed for link-local
+        // addresses on a direct cable, and keeps the link off Wi-Fi when a cable is there.
+        if let interface { p.requiredInterface = interface }
         p.serviceClass = .interactiveVoice   // low-latency queueing
         p.includePeerToPeer = false
         return p
@@ -176,7 +181,8 @@ final class NetworkService: PacketSink {
     func resetRoute(to peer: String) {
         queue.async { [weak self] in
             guard let self, let old = self.routes[peer] else { return }
-            // Only replace routes we opened; an incoming route is the peer's choice.
+            // We can only open a new route to a peer we can see on Bonjour; otherwise keep the
+            // current route (for example one the peer opened to us).
             guard self.endpoints[peer] != nil else { return }
             self.routes.removeValue(forKey: peer)
             self.retire(old)
@@ -197,11 +203,16 @@ final class NetworkService: PacketSink {
     private func route(to peer: String) -> NWConnection? {
         if let c = routes[peer] { return c }
         guard let ep = endpoints[peer] else { return nil }
-        let c = NWConnection(to: ep, using: Self.parameters())
+        let pin = unpinned.contains(peer) ? nil : interfaces[peer]
+        let c = NWConnection(to: ep, using: Self.parameters(on: pin))
         bind(c, to: peer)
         c.stateUpdateHandler = { [weak self, weak c] state in
             switch state {
-            case .failed, .cancelled: if let c { self?.drop(c) }
+            case .failed:
+                // The pinned interface did not work: next time let the system choose.
+                if pin != nil { self?.unpinned.insert(peer) }
+                if let c { self?.drop(c) }
+            case .cancelled: if let c { self?.drop(c) }
             default: break
             }
         }
@@ -276,7 +287,7 @@ final class NetworkService: PacketSink {
 
     private func update(_ results: Set<NWBrowser.Result>) {
         var found: [String: PeerInfo] = [:]
-        var eps: [String: (NWEndpoint, Int)] = [:]
+        var eps: [String: (NWEndpoint, Int, NWInterface?)] = [:]
         var duplicate = false
         // Sort so the choice does not change between updates; prefer wired, then Wi-Fi.
         let sorted = results.sorted { "\($0.endpoint)" < "\($1.endpoint)" }
@@ -285,26 +296,30 @@ final class NetworkService: PacketSink {
             let dict = txt.dictionary
             if TXTKeys.isDuplicateOfUs(dict, ownID: ownID, ownBoot: ownBoot) { duplicate = true; continue }
             guard let peer = TXTKeys.peer(from: dict, serviceName: name, ownID: ownID) else { continue }
-            let rank = Self.rank(r.interfaces)
+            let (rank, best) = Self.best(r.interfaces)
             if let current = eps[peer.id], current.1 <= rank { continue }
             found[peer.id] = peer
-            eps[peer.id] = (r.endpoint, rank)
+            eps[peer.id] = (r.endpoint, rank, best)
         }
         endpoints = eps.mapValues { $0.0 }
+        let newInterfaces = eps.compactMapValues { $0.2 }
+        for (id, i) in newInterfaces where interfaces[id]?.name != i.name { unpinned.remove(id) }
+        interfaces = newInterfaces
         visible = Set(found.keys)
         let list = found.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         DispatchQueue.main.async { [weak self] in
             self?.onPeersChanged?(list)
-            if !list.isEmpty { self?.onLocalNetworkState?(.peersVisible) }
+            self?.onLocalNetworkState?(list.isEmpty ? .searching : .peersVisible)
             if duplicate { self?.onDuplicateID?() }
         }
     }
 
-    /// Lower is better: wired Ethernet, then Wi-Fi, then anything else.
-    private static func rank(_ interfaces: [NWInterface]) -> Int {
-        if interfaces.contains(where: { $0.type == .wiredEthernet }) { return 0 }
-        if interfaces.contains(where: { $0.type == .wifi }) { return 1 }
-        return 2
+    /// The best interface a service was seen on and its rank (lower is better):
+    /// wired Ethernet, then Wi-Fi, then anything else (for example Thunderbolt Bridge).
+    private static func best(_ interfaces: [NWInterface]) -> (Int, NWInterface?) {
+        if let i = interfaces.first(where: { $0.type == .wiredEthernet }) { return (0, i) }
+        if let i = interfaces.first(where: { $0.type == .wifi }) { return (1, i) }
+        return (2, interfaces.first)
     }
 
     private func report(_ message: String) {
