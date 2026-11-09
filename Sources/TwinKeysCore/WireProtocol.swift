@@ -30,7 +30,8 @@ public enum PacketBody: Equatable, Sendable {
     /// Since 1.0.0: what the sender understands (bit 0: cue delivery check; bit 1: the sender
     /// has just (re)connected and starts counting cues from zero). Sent with each
     /// heartbeat. Older versions drop unknown packet types, so they simply never send it.
-    case features(flags: UInt8)
+    /// `epoch` (1.0.1+): the sender's link counter; when it changes, the sender reconnected.
+    case features(flags: UInt8, epoch: UInt8? = nil)
     /// Since 1.0.0: "your note-on with this sequence number arrived".
     case noteAck(seq: UInt32)
     /// Since 1.0.0: the name of a cue key, so the other Mac can show it ("↓", "Next scene").
@@ -99,8 +100,9 @@ extension Packet {
         case let .held(ch, notes):
             let list = Array(notes.prefix(maxHeldNotes))
             b += [ch & 0x0F, UInt8(list.count)] + list.map { $0 & 0x7F }
-        case let .features(flags):
+        case let .features(flags, epoch):
             b.append(flags)
+            if let epoch { b.append(epoch) }
         case let .noteAck(s):
             b.appendBE(s)
         case let .cueName(ch, note, label, memo):
@@ -149,7 +151,7 @@ extension Packet {
             body = data[3] == 0x30 ? .heartbeat(timestampNanos: t) : .heartbeatAck(timestampNanos: t)
         case 0x13:
             guard p.count >= 1 else { throw DecodeError.badPayload }
-            body = .features(flags: p[0])
+            body = .features(flags: p[0], epoch: p.count >= 2 ? p[1] : nil)
         case 0x14:
             guard p.count >= 4 else { throw DecodeError.badPayload }
             body = .noteAck(seq: p.readBE32(at: 0))

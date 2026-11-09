@@ -40,7 +40,7 @@ export const t = {
     metaShort: 'macOS 13+ · Free (MIT) · Notarized',
     notarized: 'Notarized by Apple. Unofficial third-party tool.',
     screenshotAlt:
-      'The TwinKeys window: connected to Backup Stage Mac with 2 ms latency, a list of nearby Macs, and the key and note settings.',
+      'The TwinKeys window: connected to Backup Stage Mac with 2 ms latency, the last cue ↓ "Next scene" marked as reached the backup, nearby Macs, and the cue keys.',
     howTitle: 'How it works',
     how: [
       ['Main Mac', 'Keys → TwinKeys'],
@@ -96,7 +96,7 @@ export const t = {
     metaShort: 'macOS 13 以降・無料（MIT）・Apple の公証済み',
     notarized: 'Apple の公証済み。非公式のサードパーティ製ツールです。',
     screenshotAlt:
-      'TwinKeys の画面。Backup Stage Mac に接続済み（遅延 2 ms）、近くの TwinKeys の一覧、キーとノートの設定が表示されています。',
+      'TwinKeys の画面。Backup Stage Mac に接続済み（遅延 2 ms）。直前のキュー ↓「次のシーン」がバックアップに届いたことを示す ✓、近くの TwinKeys の一覧、キューのキーが表示されています。',
     howTitle: 'しくみ',
     how: [
       ['メインの Mac', 'キーを押す → TwinKeys'],

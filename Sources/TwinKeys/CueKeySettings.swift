@@ -63,7 +63,7 @@ struct CueKeySettings: View {
                 .frame(width: 84, alignment: .leading)
             MemoField(text: k.memo, placeholder: t.memoPlaceholder) { model.setCueMemo($0, for: k.keycode) }
                 .accessibilityLabel(t.memoFor(k.label))
-            Text("ch 2 · \(noteName(k.note))")
+            Text("ch \(model.settings.midiChannel) · \(noteName(k.note))")
                 .font(.system(size: 12, design: .monospaced)).foregroundStyle(Theme.textSecondary)
                 .frame(width: 84, alignment: .leading)
             Button { model.removeCueKey(k.keycode) } label: { Image(systemName: "minus.circle") }
@@ -90,6 +90,7 @@ private struct MemoField: View {
             .onAppear { value = text }
             .onChange(of: text) { if !focused { value = $0 } }
             .onChange(of: focused) { if !$0 { onCommit(value) } }
+            .onDisappear { if value != text { onCommit(value) } }     // Settings closed while typing
             .onSubmit { onCommit(value) }
     }
 }
@@ -140,8 +141,9 @@ struct AddCueKeySheet: View {
         model.setRecordingCueKey(true)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+            // Only keys typed into this sheet; shortcuts (⌃⌘P All Notes Off, ⌘Q…) keep working.
+            guard event.window?.isSheet == true, mods.isEmpty else { return event }
             // Every key (Esc too) is a candidate; Cancel is clicked with the mouse.
-            guard mods.isEmpty else { return nil }
             let code = event.keyCode
             if let existing = model.state.cueKeys.first(where: { $0.keycode == code }) {
                 message = t.keyAlreadyUsed(existing.label)

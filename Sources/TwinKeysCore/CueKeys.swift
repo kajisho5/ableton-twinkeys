@@ -15,6 +15,16 @@ public struct CueKey: Codable, Equatable, Hashable, Sendable, Identifiable {
 
     public var id: UInt16 { keycode }
 
+    enum CodingKeys: String, CodingKey { case keycode, label, memo, note }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        keycode = try c.decode(UInt16.self, forKey: .keycode)
+        note = try c.decode(UInt8.self, forKey: .note)
+        label = (try? c.decodeIfPresent(String.self, forKey: .label)) ?? KeyNames.label(for: keycode)
+        memo = (try? c.decodeIfPresent(String.self, forKey: .memo)) ?? ""
+    }
+
     public init(keycode: UInt16, label: String? = nil, memo: String = "", note: UInt8) {
         self.keycode = keycode
         self.label = label ?? KeyNames.label(for: keycode)

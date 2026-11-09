@@ -117,9 +117,23 @@ public final class Conductor: @unchecked Sendable {
     private struct SentCue {
         var cue: CueKey; var count: Int; var seq: UInt32; var sentAt: Double
         var resends = 0; var delivery: CueStatus.Delivery
+        /// The key of this press has been released.
+        var keyUp = false
     }
-    private var sentCue: SentCue?
+    /// Cues sent recently, oldest first. Each is resent and checked on its own, so a quick
+    /// second press never hides a first one that got lost.
+    private var sentCues: [SentCue] = []
     private var receivedCue: CueStatus?
+    /// Which was last: a cue sent from here or one received (both can happen when both Macs send).
+    private var lastCueWasReceived = false
+    /// This Mac's link counter, sent with every heartbeat. When the other Mac sees it change
+    /// (this Mac reconnected), it starts counting again too. Random start: a restart changes it.
+    private var linkEpoch = UInt8.random(in: 0...255)
+    /// The other Mac's (session, epoch) last seen.
+    private var peerEpoch: (session: UInt32, epoch: UInt8)?
+    /// A hello from a new session of the linked peer, not yet trusted: it could be a replay of
+    /// an old capture. It is used only once a packet sealed with its nonce opens.
+    private var pendingHello: (peer: String, session: UInt32, seq: UInt32, nonce: [UInt8], name: String)?
     private var cueCount = 0
     /// The peer sent `features` with the cue bit (it answers cues).
     private var peerAnswersCues = false
@@ -172,7 +186,11 @@ public final class Conductor: @unchecked Sendable {
         }
         for (m, cue) in engine.handleEvents(input) {
             emitLocal(m, fromKeys: true)
-            if let cue, case .noteOn = m { sendCue(m, cue) } else { sendRemote(m) }
+            if let cue, case .noteOn = m { sendCue(m, cue); continue }
+            if case .noteOff = m, let i = sentCues.lastIndex(where: { $0.cue.keycode == input.keycode }) {
+                sentCues[i].keyUp = true
+            }
+            sendRemote(m)
         }
         return swallow
     }
@@ -198,9 +216,24 @@ public final class Conductor: @unchecked Sendable {
                 return nil
             }
         } else {
-            guard let k = knownPeer, let nonce = peerNonces[k],
-                  let p = try? channel.open(bytes, peerNonce: nonce) else { return nil }
-            packet = p
+            guard let k = knownPeer else { return nil }
+            if let nonce = peerNonces[k], let p = try? channel.open(bytes, peerNonce: nonce) {
+                packet = p
+            } else if let h = pendingHello, h.peer == k, let p = try? channel.open(bytes, peerNonce: h.nonce) {
+                // The peer really restarted (an old capture cannot seal with our current nonce):
+                // take its new session now.
+                pendingHello = nil
+                var f = SequenceFilter()
+                _ = f.accept(session: h.session, seq: h.seq)
+                filters[k] = f
+                peerNonces[k] = h.nonce
+                setName(h.name, for: k)
+                perform(link.receivedHello(from: k, now: now))
+                log("\(name(of: k)) restarted; continuing with its new session")
+                packet = p
+            } else {
+                return nil
+            }
         }
 
         let peer: String
@@ -230,10 +263,22 @@ public final class Conductor: @unchecked Sendable {
             // Only the Mac we are connecting to may answer; anything else is not bound.
             return nil
         }
+        if case let .hello(_, nonce, name) = packet.body, link.isConnected, link.peer == peer,
+           let current = filters[peer]?.currentSession, current != packet.session {
+            // A hello from another session while the link is up: the peer restarted, or someone
+            // replays an old hello. Answer it, but change nothing until the new session proves
+            // itself (see the open above). The route is not rebound either.
+            pendingHello = (peer, packet.session, packet.seq, nonce, name)
+            sendBody(.helloAck(instanceID: instanceID, nonce: channel.myNonce, name: displayName), to: peer)
+            return nil
+        }
         var f = filters[peer] ?? SequenceFilter()
         let fresh = f.accept(session: packet.session, seq: packet.seq)
         filters[peer] = f
-        guard fresh else { return peer }
+        // A repeated packet changes nothing (a repeated hello must not move the route either).
+        guard fresh else {
+            switch packet.body { case .hello, .helloAck: return nil; default: return peer }
+        }
 
         switch packet.body {
         case let .hello(_, nonce, name):
@@ -276,22 +321,28 @@ public final class Conductor: @unchecked Sendable {
         case let .noteAck(ackSeq):
             guard link.peer == peer, link.isConnected else { return peer }
             link.receivedOther(from: peer, now: now)
-            if var c = sentCue, c.seq == ackSeq {
-                switch c.delivery {
+            if let i = sentCues.firstIndex(where: { $0.seq == ackSeq }) {
+                switch sentCues[i].delivery {
                 case .waiting, .missing, .unconfirmed:
-                    c.delivery = .delivered(ms: max(0, now - c.sentAt) * 1000)
-                    sentCue = c
+                    sentCues[i].delivery = .delivered(ms: max(0, now - sentCues[i].sentAt) * 1000)
                 default: break
                 }
             }
-        case let .features(flags):
+        case let .features(flags, epoch):
             guard link.peer == peer else { return peer }
             peerAnswersCues = flags & 1 != 0
             // The other Mac (re)connected and started counting again, maybe without this Mac
             // noticing a drop: start again too, and send our cue names (it forgot them).
-            if flags & 2 != 0, link.isConnected {
+            // 1.0.1 and later repeat their link counter (epoch) with every heartbeat, so one lost
+            // packet does not matter; 1.0.0 only sends bit 2 once.
+            var restarted = flags & 2 != 0
+            if let e = epoch {
+                if let old = peerEpoch, old.session != packet.session || old.epoch != e { restarted = true }
+                peerEpoch = (packet.session, e)
+            }
+            if restarted, link.isConnected {
                 resetCues()
-                sendBody(.features(flags: 1), to: peer)
+                sendBody(features(), to: peer)
                 sendCueNames(to: peer)
             }
         case let .cueName(ch, note, label, memo):
@@ -460,8 +511,10 @@ public final class Conductor: @unchecked Sendable {
     public func snapshot() -> ConductorSnapshot {
         lock.lock(); defer { lock.unlock() }
         let now = clock()
-        var cue: CueStatus? = receivedCue
-        if let c = sentCue {
+        var cue: CueStatus? = lastCueWasReceived ? receivedCue : nil
+        // A cue that was not confirmed stays on screen (in red) until the next press, even if a
+        // later one was confirmed; otherwise the newest sent cue is shown.
+        if let c = sentCues.last(where: { $0.delivery == .missing }) ?? (lastCueWasReceived ? nil : sentCues.last) {
             cue = CueStatus(label: c.cue.label, memo: c.cue.memo, note: c.cue.note, count: c.count,
                             delivery: c.delivery, peerName: link.peer.map { name(of: $0) })
         }
@@ -534,35 +587,38 @@ public final class Conductor: @unchecked Sendable {
     private func sendCue(_ m: MIDIMessage, _ cue: CueKey) {
         let now = clock()
         cueCount += 1
-        receivedCue = nil
+        lastCueWasReceived = false
+        // Cues already settled were shown; a new press starts a fresh view.
+        sentCues.removeAll { $0.delivery != .waiting }
+        if sentCues.count >= 16 { sentCues.removeFirst() }
         guard link.isConnected, let p = link.peer, case let .noteOn(ch, n, v) = m else {
-            sentCue = SentCue(cue: cue, count: cueCount, seq: 0, sentAt: now, delivery: .notConnected)
+            sentCues.append(SentCue(cue: cue, count: cueCount, seq: 0, sentAt: now, delivery: .notConnected))
             return
         }
         let s = sendBody(.noteOn(channel: ch, note: n, velocity: v), to: p, copies: redundancy)
-        sentCue = SentCue(cue: cue, count: cueCount, seq: s, sentAt: now, delivery: .waiting)
+        sentCues.append(SentCue(cue: cue, count: cueCount, seq: s, sentAt: now, delivery: .waiting))
     }
 
-    /// Resend a cue that has no answer yet; give up after `cueAnswerTimeout`.
+    /// Resend cues that have no answer yet; give up after `cueAnswerTimeout`.
     private func checkCue(_ now: Double) {
-        guard var c = sentCue, c.delivery == .waiting else { return }
-        defer { sentCue = c }
-        let age = now - c.sentAt
-        guard link.isConnected, let p = link.peer else { c.delivery = .missing; return }
-        if age >= Self.cueAnswerTimeout {
-            if peerAnswersCues {
-                c.delivery = .missing
-                log("Cue \(c.cue.label) (\(noteName(c.cue.note))): no answer from \(name(of: p)) within \(Int(Self.cueAnswerTimeout * 1000)) ms")
-            } else {
-                c.delivery = .unconfirmed
+        for i in sentCues.indices where sentCues[i].delivery == .waiting {
+            let c = sentCues[i]
+            let age = now - c.sentAt
+            guard link.isConnected, let p = link.peer else { sentCues[i].delivery = .missing; continue }
+            if age >= Self.cueAnswerTimeout {
+                if peerAnswersCues {
+                    sentCues[i].delivery = .missing
+                    log("Cue \(c.cue.label) (\(noteName(c.cue.note))): no answer from \(name(of: p)) within \(Int(Self.cueAnswerTimeout * 1000)) ms")
+                } else {
+                    sentCues[i].delivery = .unconfirmed
+                }
+                continue
             }
-            return
+            guard peerAnswersCues, age >= Self.cueResendInterval * Double(c.resends + 1), c.resends < 2 else { continue }
+            sentCues[i].resends += 1
+            sendBody(.cueResend(originalSeq: c.seq, channel: engine.channel, note: c.cue.note,
+                                velocity: CueKey.velocity, released: c.keyUp), to: p)
         }
-        guard peerAnswersCues, age >= Self.cueResendInterval * Double(c.resends + 1), c.resends < 2 else { return }
-        c.resends += 1
-        let released = !engine.heldNotes.contains(c.cue.note)
-        sendBody(.cueResend(originalSeq: c.seq, channel: engine.channel, note: c.cue.note,
-                            velocity: CueKey.velocity, released: released), to: p)
     }
 
     /// The backup played a note-on from the peer: answer it, and show it if it is a cue.
@@ -575,7 +631,7 @@ public final class Conductor: @unchecked Sendable {
         // Without names (an older main Mac) every note counts as a cue.
         guard named != nil || peerCueNames.isEmpty else { return }
         cueCount += 1
-        sentCue = nil
+        lastCueWasReceived = true
         receivedCue = CueStatus(label: named?.label ?? noteName(note), memo: named?.memo ?? "", note: note,
                                 count: cueCount, delivery: .received, peerName: name(of: peer))
     }
@@ -592,18 +648,25 @@ public final class Conductor: @unchecked Sendable {
         let up = link.isConnected
         guard up != wasConnected else { return }
         wasConnected = up
-        guard up else { return }
+        guard up else { pendingHello = nil; return }
         resetCues()
-        peerAnswersCues = false; peerCueNames.removeAll()
+        peerAnswersCues = false; peerCueNames.removeAll(); peerEpoch = nil; pendingHello = nil
+        linkEpoch &+= 1
         if let p = link.peer {
-            // Bit 2: "I start counting again": the other Mac does the same, so both counts match.
-            sendBody(.features(flags: 3), to: p)
+            // Bit 2: "I start counting again" (for 1.0.0); the new epoch does the same for 1.0.1+.
+            sendBody(.features(flags: 3, epoch: linkEpoch), to: p, copies: redundancy)
             sendCueNames(to: p)
         }
     }
 
+    private func features() -> PacketBody { .features(flags: 1, epoch: linkEpoch) }
+
+    /// Start counting again. A cue still waiting for its answer is reported as not confirmed
+    /// instead of disappearing.
     private func resetCues() {
-        cueCount = 0; sentCue = nil; receivedCue = nil
+        cueCount = 0; receivedCue = nil; lastCueWasReceived = false
+        sentCues = sentCues.filter { $0.delivery == .waiting || $0.delivery == .missing }
+        for i in sentCues.indices { sentCues[i].delivery = .missing }
     }
 
     private func clean(_ raw: String) -> String {
@@ -640,7 +703,7 @@ public final class Conductor: @unchecked Sendable {
                 // that are not in it, which repairs note-offs lost while the link was down.
                 let on = sendKeys && keyCapture
                 sendBody(.held(channel: engine.channel, notes: on ? engine.heldNotes : []), to: p)
-                sendBody(.features(flags: 1), to: p)
+                sendBody(features(), to: p)
                 heartbeatsSinceNames += 1
                 if heartbeatsSinceNames >= 10, link.isConnected { sendCueNames(to: p) }
             case let .sendHeartbeatAck(p, t):

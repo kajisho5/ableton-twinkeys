@@ -41,7 +41,7 @@ for l in en ja; do
 done
 cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
 
-# Ad-hoc signature (no certificate). Not notarized: see README for first launch.
+# Ad-hoc signature (no certificate). Ad-hoc signed only; releases are signed and notarized by the release workflow.
 codesign --force --deep --sign - "$APP"
 codesign --verify --verbose "$APP"
 lipo -info "$APP/Contents/MacOS/TwinKeys"

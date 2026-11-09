@@ -219,7 +219,12 @@ jobs:
           PRE=""
           case "$TAG" in *-*) PRE="--prerelease" ;; esac
           # Release notes come from release-notes/{ja,en}/<version>.md (front matter removed).
-          body() { awk 'BEGIN{n=0} /^---$/{n++; next} n>=2' "release-notes/$1/$VERSION.md"; }
+          # Only the front matter (the first two --- lines) is removed; sections move one level
+          # down (###) so they sit under the "## 日本語" / "## English" headings.
+          body() { tr -d '\r' < "release-notes/$1/$VERSION.md" | awk 'n<2 && /^---[[:space:]]*$/ {n++; next} n>=2 { sub(/^## /, "### "); print }'; }
+          for l in ja en; do
+            [ -n "$(body $l | tr -d '[:space:]')" ] || { echo "::error::Release notes for $l are empty (front matter missing?)"; exit 1; }
+          done
           {
             echo "## 日本語"; body ja; echo
             echo "## English"; body en; echo
@@ -230,6 +235,7 @@ jobs:
           } > notes.md
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/*.dmg --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --notes-file notes.md --prerelease="$([ -n "$PRE" ] && echo true || echo false)" --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" dist/*.dmg $PRE --target "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" \
               --title "TwinKeys $TAG" --notes-file notes.md

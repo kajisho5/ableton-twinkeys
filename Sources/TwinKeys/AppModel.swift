@@ -8,6 +8,8 @@ import TwinKeysCore
 
 @MainActor
 final class AppModel: ObservableObject {
+    /// One model for the whole app, created at launch (the engine must not depend on a window).
+    static let shared = AppModel()
     @Published private(set) var state = ViewState()
 
     private let store = ConfigStore()
@@ -120,6 +122,9 @@ final class AppModel: ObservableObject {
         started = true
         let conductor = self.conductor
         let network = self.network
+        // Key callbacks first: refresh() below may already start the key tap.
+        keyMonitor.onKey = { input in conductor.handleKey(input) }
+        keyMonitor.onEventsMissed = { conductor.releaseHeldKeys() }
         conductor.isKnownPeer = { network.isVisible($0) }
         network.onDatagram = { bytes, known in conductor.receive(bytes, knownPeer: known) }
         network.onNewRoute = { peer in conductor.newRoute(to: peer) }
@@ -145,13 +150,12 @@ final class AppModel: ObservableObject {
         }
         network.start(sends: settings.sendKeys, receives: settings.receiveNotes)
 
-        keyMonitor.onKey = { input in conductor.handleKey(input) }
         let log2 = self.log
         updater.log = { log2.write($0) }
         updater.onChange = { [weak self] in self?.refresh() }
+        updater.isInShow = { [weak self] in self?.state.linkedPeerID != nil }
         updater.start(enabled: settings.autoUpdate)
         applyMenuBarOnly()
-        keyMonitor.onEventsMissed = { conductor.releaseHeldKeys() }
         checkPermissions()
 
         // Link timing (heartbeats, timeouts, auto note-off) runs off the main thread.
@@ -161,9 +165,12 @@ final class AppModel: ObservableObject {
         t.resume()
         tickTimer = t
 
-        uiTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        // Common modes: keep checking permissions and Secure Input while a menu is open.
+        let ui = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }
+        RunLoop.main.add(ui, forMode: .common)
+        uiTimer = ui
     }
 
     func shutdown() {
@@ -329,14 +336,23 @@ final class AppModel: ObservableObject {
             if secure, !secureInputOn { conductor.releaseHeldKeys() }
             secureInputOn = secure
         }
-        // Start the tap once permission appears; retry at most every 2 s.
-        if hasInputMonitoring, !keyMonitor.isRunning, now - lastTapAttempt >= 2 {
+        // TwinKeys' own text fields and sheets get the keys (no cues while typing a memo,
+        // a pairing code or an address, and Return / Esc work there).
+        keyMonitor.passThrough = Self.ownInputHasFocus()
+        // Start the tap once permission appears (after start(): callbacks are set); retry every 2 s.
+        if started, hasInputMonitoring, !keyMonitor.isRunning, now - lastTapAttempt >= 2 {
             lastTapAttempt = now
             _ = keyMonitor.start(blocking: settings.blockCueKeys)
         }
         if keyMonitor.isRunning, problems.contains(.keyCaptureFailed) {
             problems.removeAll { $0 == .keyCaptureFailed }
         }
+    }
+
+    /// True while TwinKeys is in front and a text field or a sheet of its own has the keyboard.
+    static func ownInputHasFocus() -> Bool {
+        guard NSApp.isActive, let w = NSApp.keyWindow else { return false }
+        return w.firstResponder is NSText || w.isSheet || w.attachedSheet != nil
     }
 
     /// Recreates the key tap (blocking or listen-only, as the settings and permissions allow).
@@ -435,6 +451,8 @@ final class AppModel: ObservableObject {
         } catch {
             log.write("Open at login could not be changed: \(error)")
         }
+        // macOS may ask the person to allow it under Login Items first.
+        if on, SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
         objectWillChange.send()
     }
 
@@ -445,7 +463,7 @@ final class AppModel: ObservableObject {
         objectWillChange.send()
     }
 
-    private func applyMenuBarOnly() {
+    func applyMenuBarOnly() {
         NSApp.setActivationPolicy(settings.menuBarOnly ? .accessory : .regular)
     }
 

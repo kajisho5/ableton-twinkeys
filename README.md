@@ -46,11 +46,11 @@ If the other Mac is not listed (for example on a network that blocks Bonjour, or
 
 Do this once per Mac, in Live 11 or Live 12:
 
-1. Open **Settings** (Live 12) or **Preferences** (Live 11) and choose the **Link, Tempo & MIDI** tab (labelled **Link/Tempo/MIDI** in some versions).
+1. Open **Settings** (Live 12) or **Preferences** (Live 11) and choose the **Link, Tempo & MIDI** tab (**Link/Tempo/MIDI** in Live 11).
 2. If your set plays to tempo or bars, turn **Link** on, on both Macs, so tempo and bar position stay in sync.
-3. In the MIDI ports list, find the input **TwinKeys** and turn on **Track** (to play instruments) and **Remote** (to trigger mapped controls such as clips or scenes).
+3. In the MIDI ports list, find the input **TwinKeys** and turn on **Remote** (to trigger mapped controls such as clips or scenes). **Track** is not needed.
 4. Map your cues in **MIDI Map Mode** (⌘M): click a clip slot, scene up/down, launch selected scene, Play or Stop, press a cue key on the main Mac, and leave MIDI Map Mode. Use the same mapping on both Macs (the same Set file is the safest way). Remove the same keys from Live's Key Map Mode (⌘K).
-5. Keep each clip's **Launch Mode** at **Trigger** (the default). Gate and Repeat stop the clip on key release, so they would also stop when TwinKeys turns notes off after a network drop.
+5. Keep each clip's **Launch Mode** at **Trigger**. With Gate or Repeat the clip stops as soon as the cue key is released, and also when TwinKeys turns notes off after a network drop.
 6. On the main Mac, turn **off** Live's computer MIDI keyboard (shortcut M).
 
 ## Using TwinKeys
@@ -104,7 +104,7 @@ Cue keys are stored in `settings.json` (`cue_keys`) with macOS virtual key codes
 | Heartbeat / timeout / retry | 1 s / 3 s / 1–5 s | `Sources/TwinKeysCore/LinkStateMachine.swift` |
 | Copies of each note packet | 2 | `Sources/TwinKeysCore/Conductor.swift` (`redundancy`) |
 | Cue resend / give up | every 0.1 s / after 0.3 s | `Sources/TwinKeysCore/Conductor.swift` (`cueResendInterval`, `cueAnswerTimeout`) |
-| Cue keys: channel / first note | 2 / C1 (36) | `Sources/TwinKeysCore/CueKeys.swift` |
+| Cue keys: channel / first note | `midi_channel` (1) / C1 (36) | `settings.json`, `Sources/TwinKeysCore/CueKeys.swift` |
 | Update check | 1 min after launch, then every 6 h | `Sources/TwinKeysCore/Updates.swift` |
 | Default auto note-off | 10 s | `Sources/TwinKeysCore/Settings.swift` |
 | Default MIDI channel | 1 | `settings.json` (`midi_channel`) |
@@ -171,7 +171,7 @@ TwinKeys は、音響のキュー出しを2台の Mac で同時に行う Mac ア
 
 ### 使い方の流れ
 
-- 各 Mac に仮想 MIDI 入力「TwinKeys」ができます。Live の設定（「Link, Tempo & MIDI」）で TwinKeys の「トラック」と「リモート」をオンにするだけで使えます。転送用のトラックはいりません。
+- 各 Mac に仮想 MIDI 入力「TwinKeys」ができます。Live の環境設定（「Link, Tempo & MIDI」）で TwinKeys の「リモート」をオンにするだけで使えます（「トラック」は不要）。転送用のトラックはいりません。
 - キューを出すキーは「設定」の「キューのキー」で決めます（最初は ↑ ↓ ← → Space Return Esc）。英字・数字を含め、Mac のどのキーでも登録できます。キーごとに決まったノート（MIDI チャンネル 1、C1 から順、ベロシティ 127）を送ります。
 - Live の MIDI 割り当てモード（⌘M）で、クリップ・シーンの上下・選んだシーンの再生・再生／停止などを、キューのキーに割り当てます。2台で同じ割り当てにしてください。クリップの起動モードは「トリガー」のままにしてください。
 - メインの Mac では「アクセシビリティ」で TwinKeys をオンにします。キューのキーがほかのアプリ（Live を含む）に届かなくなり、メインの Live が2回動くのを防ぎます。
@@ -182,7 +182,7 @@ TwinKeys は、音響のキュー出しを2台の Mac で同時に行う Mac ア
 - 最初に一度だけ、2台で同じ「合言葉」を設定します。片方の Mac で「合言葉を設定…」>「新しく作る」を押し、出てきた10文字（例 `K7MQ2-WX9TP`）を、もう片方の Mac の「合言葉を入力…」に入れます。合言葉が同じ Mac どうしだけがつながり、通信の中身も暗号化されます。
 - メインの Mac で「キーを送信」、バックアップの Mac で「ノートを受信」にチェックを入れ、メインの Mac の一覧で相手の「接続」をクリックします。切れても自動でつなぎ直します。
 - 一覧に相手が出ないときは「IPアドレスで接続…」（⇧⌘K）から、相手の IP アドレスを入れてつなげます。
-- メインの Mac では、Live のコンピュータ MIDI キーボードをオフにしてください。
+- メインの Mac では、Live のコンピューターMIDIキーボードをオフにしてください。
 - 赤い「オールノートオフ」ボタン（⌃⌘P）で、両方の Mac の音をすべて止められます。
 - 表示言語は「設定」（⌘,）の「言語」で、「システムに合わせる」「English」「日本語」から選べます。
 

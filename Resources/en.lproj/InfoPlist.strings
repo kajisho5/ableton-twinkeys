@@ -1,3 +1,3 @@
 /* Shown by macOS in the Local Network permission dialog. */
-"NSLocalNetworkUsageDescription" = "TwinKeys finds and talks to TwinKeys on your other Mac over the local network so both Macs can play the same notes.";
+"NSLocalNetworkUsageDescription" = "TwinKeys finds and talks to TwinKeys on your other Mac over the local network so both Macs fire the same cues.";
 "NSHumanReadableCopyright" = "© 2026 Shogo Kajiyama / SEVENTHWELL. MIT License.";

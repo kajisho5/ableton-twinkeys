@@ -15,6 +15,8 @@ final class CueTests: XCTestCase {
     var mainToBackupUp = true, backupToMainUp = true
     /// Packet types the backup's packets are dropped for (to act like an older version).
     var dropFromBackup: Set<UInt8> = []
+    /// Drop single main -> backup packets chosen by this test (returns true to drop).
+    var dropMain: ([UInt8]) -> Bool = { _ in false }
     let secret = PairingSecret(keyBytes: Array(repeating: 7, count: 32))
     let down = KeyNames.down
 
@@ -37,7 +39,7 @@ final class CueTests: XCTestCase {
             let a = mainNet.outbox; mainNet.outbox.removeAll()
             let b = backupNet.outbox; backupNet.outbox.removeAll()
             if a.isEmpty && b.isEmpty { return }
-            if mainToBackupUp { for (_, x) in a { backup.receive(x, knownPeer: mainID.uuidString) } }
+            if mainToBackupUp { for (_, x) in a where !dropMain(x) { backup.receive(x, knownPeer: mainID.uuidString) } }
             if backupToMainUp { for (_, x) in b where !dropFromBackup.contains(x[3]) { main.receive(x, knownPeer: backupID.uuidString) } }
         }
     }
@@ -273,5 +275,130 @@ final class CueTests: XCTestCase {
         main.releaseHeldKeys()
         main.setBlockCueKeys(false)
         XCTAssertFalse(main.handleKey(KeyInput(keycode: KeyNames.up, isDown: false)))
+    }
+
+    // MARK: Fixes from the 1.0.0 review
+
+    func testLostFirstOfTwoQuickPressesIsResentAndBothArrive() {
+        connect(); tick(1.1)
+        var dropping = true
+        dropMain = { b in dropping && b[3] == 0x10 }          // both copies of press 1's note-on
+        main.handleKey(KeyInput(keycode: down, isDown: true)); pump()
+        dropping = false
+        main.handleKey(KeyInput(keycode: down, isDown: false)); pump()
+        now += 0.04
+        main.handleKey(KeyInput(keycode: KeyNames.up, isDown: true)); pump()
+        main.handleKey(KeyInput(keycode: KeyNames.up, isDown: false)); pump()
+        tick(0.5)
+        XCTAssertEqual(cueOnsAtBackup(37), 1, "press 1 resent")
+        XCTAssertEqual(cueOnsAtBackup(36), 1)
+        XCTAssertEqual(backup.snapshot().lastCue?.count, 2)
+        XCTAssertEqual(main.snapshot().lastCue?.count, 2)
+        if case .delivered = main.snapshot().lastCue!.delivery {} else { XCTFail("\(main.snapshot().lastCue!.delivery)") }
+    }
+
+    func testOlderMissingCueStaysVisibleAfterALaterOneArrives() {
+        connect(); tick(1.1)
+        var dropping = true
+        dropMain = { b in dropping && (b[3] == 0x10 || b[3] == 0x16) }   // press 1 and its resends
+        main.handleKey(KeyInput(keycode: down, isDown: true)); pump()
+        main.handleKey(KeyInput(keycode: down, isDown: false)); pump()
+        tick(0.35)
+        dropping = false
+        // Not pressed again yet: press 1 shows as missing.
+        XCTAssertEqual(main.snapshot().lastCue?.delivery, .missing)
+    }
+
+    func testCountsMeetAgainEvenIfTheResetPacketIsLost() {
+        main.setCueKeys([CueKey(keycode: down, memo: "Next", note: 37)])
+        connect(); tick(1.1)
+        for _ in 0..<3 { press() }
+        backupToMainUp = false
+        tick(3.5)                                             // only main notices the drop
+        backupToMainUp = true
+        var first = true
+        dropMain = { b in if b[3] == 0x13 && first { first = false; return true }; return false }
+        tick(3)
+        press()
+        XCTAssertEqual(main.snapshot().lastCue!.count, backup.snapshot().lastCue!.count)
+        XCTAssertEqual(backup.snapshot().lastCue!.memo, "Next")
+    }
+
+    func testReplayedOldHelloDoesNotBreakTheLink() {
+        // A hello captured from an earlier launch of the main Mac (same pairing code, old session).
+        let oldRun = make(mainID, "Main", AppSettings(), FakeMIDI(), FakeNet(), session: 77)
+        let oldNet = FakeNet()
+        let old = Conductor(instanceID: mainID, displayName: "Main", settings: AppSettings(), midi: nil, net: oldNet,
+                            session: 77, clock: { [unowned self] in now }, nanos: { 0 })
+        old.setPairing(secret)
+        old.connect(to: backupID.uuidString)
+        let captured = oldNet.outbox.map(\.bytes)
+        _ = oldRun
+        connect(); tick(1.1)
+        for b in captured { XCTAssertNil(backup.receive(b, knownPeer: mainID.uuidString)) }
+        for b in captured { XCTAssertNil(backup.receive(b, knownPeer: nil)) }
+        tick(5)
+        XCTAssertEqual(backup.snapshot().link, .connected(peer: mainID.uuidString))
+        press()
+        XCTAssertEqual(cueOnsAtBackup(37), 1, "cues still arrive")
+    }
+
+    func testRepeatedHelloIsNotUsedToMoveTheRoute() {
+        let net = FakeNet()
+        let m = Conductor(instanceID: mainID, displayName: "Main", settings: AppSettings(), midi: nil, net: net,
+                          session: 1, clock: { [unowned self] in now }, nanos: { 0 })
+        m.setPairing(secret)
+        m.connect(to: backupID.uuidString)
+        let hello = net.outbox[0].bytes
+        XCTAssertEqual(backup.receive(hello, knownPeer: nil), mainID.uuidString)
+        XCTAssertNil(backup.receive(hello, knownPeer: nil), "the same hello again changes nothing")
+    }
+
+    func testMainRestartWhileLinkedStillReconnects() {
+        connect(); tick(1.1)
+        press()
+        // Main restarts (new session, new nonce) without saying goodbye.
+        let newNet = FakeNet()
+        main = Conductor(instanceID: mainID, displayName: "Main", settings: { var s = AppSettings(); s.receiveNotes = false; return s }(),
+                         midi: mainMIDI, net: newNet, session: 5, clock: { [unowned self] in now }, nanos: { UInt64(self.now * 1e9) })
+        main.setPairing(secret)
+        mainNet = newNet
+        main.connect(to: backupID.uuidString)
+        for _ in 0..<40 { now += 0.05; main.tick(); backup.tick(); pump() }
+        XCTAssertEqual(main.snapshot().link, .connected(peer: backupID.uuidString))
+        press()
+        XCTAssertEqual(cueOnsAtBackup(37), 2)
+        XCTAssertEqual(backup.snapshot().lastCue?.count, main.snapshot().lastCue?.count)
+    }
+
+    func testResetWhileACueWaitsReportsItMissing() {
+        connect(); tick(1.1)
+        dropMain = { b in b[3] == 0x10 || b[3] == 0x16 }
+        main.handleKey(KeyInput(keycode: down, isDown: true)); pump()
+        dropMain = { _ in false }
+        // The backup reconnected and asks to count again before the answer could come.
+        backup.disconnect(); pump(); backup.connect(to: mainID.uuidString); pump()
+        XCTAssertEqual(main.snapshot().lastCue?.delivery, .missing)
+    }
+
+    func testCueFromTheOtherMacDoesNotHideAWaitingCue() {
+        var b = AppSettings(); b.sendKeys = true
+        backup = make(backupID, "Backup", b, backupMIDI, backupNet, session: 2)
+        var a = AppSettings(); a.receiveNotes = true
+        main = make(mainID, "Main", a, mainMIDI, mainNet, session: 1)
+        connect(); tick(1.1)
+        dropMain = { b in b[3] == 0x10 || b[3] == 0x16 }
+        main.handleKey(KeyInput(keycode: down, isDown: true)); pump()
+        backup.handleKey(KeyInput(keycode: KeyNames.up, isDown: true)); pump()
+        tick(0.4)
+        XCTAssertEqual(main.snapshot().lastCue?.delivery, .missing)
+    }
+
+    func testOneBadCueKeyEntryKeepsTheOthers() throws {
+        let json = #"{"cue_keys":[{"keycode":125,"note":37},{"keycode":"x"},{"keycode":126,"note":999},{"keycode":124,"label":"→","memo":"Go","note":39}],"midi_channel":"two"}"#
+        let s = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertEqual(s.cueKeys.map(\.note), [37, 39])
+        XCTAssertEqual(s.cueKeys[0].label, "↓")
+        XCTAssertEqual(s.midiChannel, 1)
     }
 }
