@@ -20,6 +20,14 @@ TwinKeys fires sound cues on two Macs at once. Press a key on the main Mac and *
 - Tempo and bar position are **not** handled by TwinKeys. Use Ableton Link (built into Live) for that.
 - The two Macs find each other automatically with Bonjour (or by IP address). A small UDP protocol carries note on/off, heartbeats and All Notes Off, signed and encrypted with keys from a shared pairing code. Each note is sent twice; duplicates and out-of-order packets are dropped.
 
+## TwinKeys Remote (iPhone and iPad, 2.0)
+
+**TwinKeys Remote** is an iPhone and iPad app that controls Live on both Macs at once: scenes and clips (with the time left on playing clips), play and stop, tempo, the mixer, the cue keys and All Notes Off. It connects to the main Mac with the same pairing code, and each iPhone is allowed once on the Mac after checking a 4-digit code. The main Mac runs every action locally and sends it to the backup.
+
+- A small Live Remote Script, **TwinKeysBridge** ([LiveBridge/](LiveBridge/)), lets TwinKeys read and control Live. It listens on 127.0.0.1 only. TwinKeys installs it from Settings → Live → **Install into Live**.
+- The iPhone app source is in [iOS/](iOS/) (SwiftUI). It is built and sent to TestFlight by GitHub Actions; no Mac is needed for building.
+- Setup steps: [guide (English)](docs/help/en.md#controlling-live-from-an-iphone-or-ipad-twinkeys-remote) · [使い方（日本語）](docs/help/ja.md).
+
 ## Download and first launch
 
 1. Download `TwinKeys-<version>.dmg` from the [Releases page](https://github.com/kajisho5/ableton-twinkeys/releases), open it and drag **TwinKeys** to **Applications**. The app is signed with a Developer ID and notarized by Apple, so it opens normally.
@@ -143,7 +151,8 @@ TwinKeys is made by **Shogo Kajiyama / SEVENTHWELL**. Released under the MIT Lic
 
 ## Roadmap
 
-- RTP-MIDI (AppleMIDI) compatibility (v2 candidate)
+- TwinKeys Remote next steps: the backup Live's status on the iPhone, comparing the two sets, switching to the backup, sends in the mixer
+- RTP-MIDI (AppleMIDI) compatibility
 - Planned v1.x additions: several backups at once, remote MIDI ports, named virtual ports and routing, presets, status of both Macs, watchdog alarm, event log.
 
 Not planned: Windows, audio processing, automatic audio failover, setlist management.
@@ -185,6 +194,12 @@ TwinKeys は、音響のキュー出しを2台の Mac で同時に行う Mac ア
 - メインの Mac では、Live のコンピューターMIDIキーボードをオフにしてください。
 - 赤い「オールノートオフ」ボタン（⌃⌘P）で、両方の Mac の音をすべて止められます。
 - 表示言語は「設定」（⌘,）の「言語」で、「システムに合わせる」「English」「日本語」から選べます。
+
+### iPhone・iPad から操作する（TwinKeys Remote、2.0）
+
+- iPhone・iPad のアプリ「TwinKeys Remote」から、2台の Live をまとめて操作できます（シーン・クリップの再生、再生・停止、テンポ、ミキサー、キューのキー、オールノートオフ）。
+- 両方の Mac で、TwinKeys の「設定」>「Live との連携」>「Live に組み込む」を押し、Live の「コントロールサーフェス」で「TwinKeysBridge」を選びます。
+- iPhone には Mac と同じ合言葉を入れ、Mac に出る4桁の番号を確かめて「許可」します。詳しくは[使い方](docs/help/ja.md)の「iPhone・iPad から Live を操作する」を見てください。
 
 ### 注意
 

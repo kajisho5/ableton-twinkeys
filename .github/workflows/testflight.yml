@@ -1,0 +1,39 @@
+# TwinKeys Remote (iPhone / iPad) to TestFlight, through kajisho5/runway (no Mac needed).
+# Run it from Actions > testflight > Run workflow (the GitHub app on iPhone works too).
+# Before the first run: the Bundle ID and the App Store Connect app record must exist (see docs/remote-setup.md).
+name: testflight
+
+on:
+  # Before this workflow is on main (where "Run workflow" needs it), a change to
+  # iOS/testflight-request.txt on the work branch sends a build too.
+  push:
+    branches: [claude/new-session-k8s13h]
+    paths: [iOS/testflight-request.txt]
+  workflow_dispatch:
+    inputs:
+      xcode:
+        description: "Xcode major version (26 is checked on CI; 27 adds the iPhone Duo full screen when a runner has it)"
+        type: string
+        default: "26"
+      runner:
+        description: "Runner label (macos-26 has Xcode 26)"
+        type: string
+        default: "macos-26"
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    # Pinned to a reviewed runway commit: whatever runs here has the signing key.
+    uses: kajisho5/runway/.github/workflows/apple-testflight.yml@546e56279d7789e3f9d6401e4d46c0202019facd # main 2026-11-09
+    with:
+      bundle_id: io.github.kajisho5.twinkeys.remote
+      working_directory: iOS
+      project: TwinKeysRemote.xcodeproj
+      scheme: TwinKeysRemote
+      xcode: ${{ inputs.xcode || '26' }}
+      runner: ${{ inputs.runner || 'macos-26' }}
+      # The Xcode project is generated from iOS/project.yml (XcodeGen 2.46.0, checked by SHA-256).
+      pre_build: ../scripts/get-xcodegen.sh && /tmp/xcodegen/bin/xcodegen generate
+    secrets: inherit

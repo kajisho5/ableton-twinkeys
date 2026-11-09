@@ -55,3 +55,19 @@ final class SettingsTests: XCTestCase {
         XCTAssertNil(store.loadSettingsReportingProblem().1)   // the new file reads fine
     }
 }
+
+final class ManualAddressTests: XCTestCase {
+    func testParse() {
+        XCTAssertEqual(ManualAddress.parse("192.168.1.20")?.port, 47801)
+        XCTAssertEqual(ManualAddress.parse(" 192.168.1.20:47802 ")?.port, 47802)
+        XCTAssertEqual(ManualAddress.parse("192.168.1.20:47802")?.host, "192.168.1.20")
+        XCTAssertEqual(ManualAddress.parse("fe80::1%en0")?.host, "fe80::1%en0")
+        XCTAssertEqual(ManualAddress.parse("fe80::1%en0")?.port, 47801)
+        XCTAssertEqual(ManualAddress.parse("[fe80::1%en0]:5000")?.host, "fe80::1%en0")
+        XCTAssertEqual(ManualAddress.parse("[fe80::1%en0]:5000")?.port, 5000)
+        XCTAssertNil(ManualAddress.parse(""))
+        XCTAssertNil(ManualAddress.parse("1.2.3.4:0"))
+        XCTAssertNil(ManualAddress.parse("1.2.3.4:99999"))
+        XCTAssertNil(ManualAddress.parse("[::1"))
+    }
+}

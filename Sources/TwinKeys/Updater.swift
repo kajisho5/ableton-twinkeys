@@ -53,7 +53,7 @@ final class Updater {
     func start(enabled: Bool) {
         timer?.invalidate(); timer = nil
         // Leftovers of earlier downloads (a swap that did not happen, a crash) are removed.
-        if staged == nil { try? FileManager.default.removeItem(at: cacheDir) }
+        if staged == nil, !busy { try? FileManager.default.removeItem(at: cacheDir) }
         guard enabled else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + UpdateCheck.firstCheckDelay) { [weak self] in
             guard let self, self.timer != nil else { return }

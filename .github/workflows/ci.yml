@@ -98,6 +98,16 @@ jobs:
             ~/Library/Logs/TwinKeys/*.log
           if-no-files-found: ignore
 
+  bridge:
+    name: Live Bridge script tests (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: cd LiveBridge && python3 -m unittest -v
+
   site:
     name: Website builds
     runs-on: ubuntu-latest
@@ -116,4 +126,67 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  ios:
+    name: iPhone and iPad app (TwinKeys Remote)
+    runs-on: macos-26
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: XcodeGen 2.46.0 (checked against its SHA-256)
+        run: scripts/get-xcodegen.sh
+      - name: Generate the Xcode project
+        run: cd iOS && /tmp/xcodegen/bin/xcodegen generate
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcodebuild -project iOS/TwinKeysRemote.xcodeproj -scheme TwinKeysRemote -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build > build-ios.log 2>&1 || { grep -E "error:|warning: .*deprecated" build-ios.log | sort -u | head -n 80; tail -n 30 build-ios.log; exit 1; }
+          tail -n 5 build-ios.log
+          test -d build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app
+          ls build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app
+          plutil -p build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app/Info.plist
+          grep -n "INFOPLIST\|PRODUCT_BUNDLE_IDENTIFIER" iOS/TwinKeysRemote.xcodeproj/project.pbxproj | head
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app/Info.plist
+      - name: Screenshots with sample data (iPhone and iPad, landscape and portrait, light and dark)
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          APP=build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app
+          mkdir -p ios-screenshots
+          pick() { xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for r in d.values() for x in r if x['name'].startswith(sys.argv[1])))" "$1"; }
+          for kind in "iPhone 17 Pro" "iPad Pro 13"; do
+            UDID=$(pick "$kind" || pick "${kind%% *}")
+            echo "== $kind: $UDID"
+            xcrun simctl boot "$UDID" || true
+            xcrun simctl bootstatus "$UDID" -b
+            xcrun simctl install "$UDID" "$APP"
+            for look in light dark; do
+              xcrun simctl ui "$UDID" appearance $look
+              for turn in landscape portrait; do
+                for pane in session mixer cues; do
+                  xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
+                  if [ "$turn" = landscape ]; then
+                    xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane $pane -landscape
+                  else
+                    xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane $pane
+                  fi
+                  sleep 5
+                  xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-$turn-$pane-$look.png"
+                done
+              done
+            done
+            xcrun simctl shutdown "$UDID" || true
+          done
+          ls -la ios-screenshots
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ios-screenshots
+          path: ios-screenshots/*.png
+          if-no-files-found: ignore
 

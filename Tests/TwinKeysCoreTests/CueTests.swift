@@ -15,6 +15,7 @@ final class CueTests: XCTestCase {
     var mainToBackupUp = true, backupToMainUp = true
     /// Packet types the backup's packets are dropped for (to act like an older version).
     var dropFromBackup: Set<UInt8> = []
+    var dropFromBackupFn: ([UInt8]) -> Bool = { _ in false }
     /// Drop single main -> backup packets chosen by this test (returns true to drop).
     var dropMain: ([UInt8]) -> Bool = { _ in false }
     let secret = PairingSecret(keyBytes: Array(repeating: 7, count: 32))
@@ -40,7 +41,7 @@ final class CueTests: XCTestCase {
             let b = backupNet.outbox; backupNet.outbox.removeAll()
             if a.isEmpty && b.isEmpty { return }
             if mainToBackupUp { for (_, x) in a where !dropMain(x) { backup.receive(x, knownPeer: mainID.uuidString) } }
-            if backupToMainUp { for (_, x) in b where !dropFromBackup.contains(x[3]) { main.receive(x, knownPeer: backupID.uuidString) } }
+            if backupToMainUp { for (_, x) in b where !dropFromBackup.contains(x[3]) && !dropFromBackupFn(x) { main.receive(x, knownPeer: backupID.uuidString) } }
         }
     }
 
@@ -220,7 +221,8 @@ final class CueTests: XCTestCase {
     func testNewPacketsRoundTrip() throws {
         for body: PacketBody in [.features(flags: 1), .noteAck(seq: 0xDEADBEEF),
                                  .cueName(channel: 1, note: 37, label: "↓", memo: "次のシーン"),
-                                 .cueResend(originalSeq: 5, channel: 1, note: 37, velocity: 127, released: true)] {
+                                 .cueResend(originalSeq: 5, channel: 1, note: 37, velocity: 127, released: true),
+                                 .cueCount(seq: 9, count: 12), .features(flags: 3, epoch: 200)] {
             let p = Packet(session: 3, seq: 4, body: body)
             XCTAssertEqual(try Packet.decode(p.encode()), p)
         }
@@ -400,5 +402,49 @@ final class CueTests: XCTestCase {
         XCTAssertEqual(s.cueKeys.map(\.note), [37, 39])
         XCTAssertEqual(s.cueKeys[0].label, "↓")
         XCTAssertEqual(s.midiChannel, 1)
+    }
+
+    func testReplayOfAnEarlierMainSessionIsNotTakenBack() {
+        connect(); tick(1.1)
+        var captured: [[UInt8]] = []
+        dropMain = { b in captured.append(b); return false }
+        press(); tick(1.1)
+        dropMain = { _ in false }
+        // Main restarts as a new session and relinks.
+        let newNet = FakeNet()
+        main = Conductor(instanceID: mainID, displayName: "Main", settings: { var s = AppSettings(); s.receiveNotes = false; return s }(),
+                         midi: mainMIDI, net: newNet, session: 5, clock: { [unowned self] in now }, nanos: { UInt64(self.now * 1e9) })
+        main.setPairing(secret)
+        mainNet = newNet
+        main.connect(to: backupID.uuidString)
+        for _ in 0..<40 { now += 0.05; main.tick(); backup.tick(); pump() }
+        let before = cueOnsAtBackup(37)
+        // Someone replays everything captured from the first session.
+        for b in captured { backup.receive(b, knownPeer: mainID.uuidString) }
+        pump(); tick(1)
+        XCTAssertEqual(cueOnsAtBackup(37), before, "no old cue plays again")
+        XCTAssertEqual(backup.snapshot().link, .connected(peer: mainID.uuidString))
+    }
+
+    func testResentCueEndsWhenTheKeyWasReleasedByTheApp() {
+        connect(); tick(1.1)
+        dropMain = { b in b[3] == 0x10 }
+        main.handleKey(KeyInput(keycode: down, isDown: true)); pump()
+        dropMain = { _ in false }
+        main.releaseHeldKeys()                    // e.g. Secure Input started; no key-up seen
+        tick(0.4)
+        XCTAssertEqual(backupMIDI.sent.filter { $0[1] == 37 }.last, [0x80, 37, 0])
+    }
+
+    func testLateOrderFreePacketsAreAcceptedOnceButLateNotesAreNot() {
+        var f = SequenceFilter()
+        XCTAssertTrue(f.accept(session: 1, seq: 10))
+        XCTAssertTrue(f.accept(session: 1, seq: 12))
+        XCTAssertFalse(f.accept(session: 1, seq: 11), "a late note is still dropped")
+        XCTAssertTrue(f.accept(session: 1, seq: 11, allowLate: true))
+        XCTAssertFalse(f.accept(session: 1, seq: 11, allowLate: true), "only once")
+        XCTAssertFalse(f.accept(session: 1, seq: 12, allowLate: true))
+        XCTAssertTrue(f.accept(session: 1, seq: 200))
+        XCTAssertFalse(f.accept(session: 1, seq: 100, allowLate: true), "too old")
     }
 }

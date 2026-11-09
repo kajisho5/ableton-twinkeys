@@ -38,6 +38,10 @@ final class NetworkService: PacketSink {
     private var endpoints: [String: NWEndpoint] = [:]         // peer ID -> Bonjour endpoint
     private var interfaces: [String: NWInterface] = [:]       // peer ID -> best interface it was seen on
     private var unpinned: Set<String> = []                    // pinned route failed: let the system choose
+    private var routePin: [String: String] = [:]               // peer ID -> interface name its route was pinned to
+    private var lastReset: [String: Date] = [:]               // peer ID -> last resetRoute that opened a new route
+    /// A second listener on the fixed port while the main one had to use another port.
+    private var fixedPortListener: NWListener?
     /// Peers currently advertised. Read from any thread (also from the network queue itself),
     /// so it has its own lock instead of `queue.sync`.
     private var visible: Set<String> {
@@ -122,11 +126,17 @@ final class NetworkService: PacketSink {
                 }
                 if case let .failed(error) = state {
                     l?.cancel()
-                    if self.useFixedPort {
-                        // Port 47801 is taken (for example by another copy): use any free port.
-                        self.onLog?("UDP port \(Self.fixedPort) unavailable (\(error)); using another port")
+                    if self.useFixedPort, case .posix(.EADDRINUSE) = error {
+                        // Port 47801 is taken (for example by another copy): use any free port now,
+                        // and keep trying to get 47801 back (Connect by IP uses it).
+                        self.onLog?("UDP port \(Self.fixedPort) in use; using another port for now")
                         self.useFixedPort = false
                         self.queue.async { self.startListener() }
+                        self.queue.asyncAfter(deadline: .now() + 30) { self.retryFixedPort() }
+                    } else if self.useFixedPort {
+                        // Any other failure (for example after sleep): try the same port again.
+                        self.report("Listening for other Macs failed (\(error)); retrying")
+                        self.queue.asyncAfter(deadline: .now() + 2) { self.startListener() }
                     } else {
                         self.report("Listening for other Macs failed (\(error)); retrying")
                         self.queue.asyncAfter(deadline: .now() + 2) { self.startListener() }
@@ -144,6 +154,28 @@ final class NetworkService: PacketSink {
             report("Could not start listening for other Macs: \(error)")
             queue.asyncAfter(deadline: .now() + 5) { [weak self] in self?.startListener() }
         }
+    }
+
+    /// While the main listener is on another port, keep trying to also listen on the fixed port
+    /// (no Bonjour advertisement on it: it only serves Connect by IP).
+    private func retryFixedPort() {
+        guard !stopped, !useFixedPort, fixedPortListener == nil,
+              let port = NWEndpoint.Port(rawValue: Self.fixedPort),
+              let l = try? NWListener(using: Self.parameters(), on: port) else { return }
+        l.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
+        l.stateUpdateHandler = { [weak self, weak l] state in
+            guard let self else { return }
+            switch state {
+            case .ready: self.onLog?("Now also listening on UDP port \(Self.fixedPort)")
+            case .failed:
+                l?.cancel()
+                self.fixedPortListener = nil
+                self.queue.asyncAfter(deadline: .now() + 30) { self.retryFixedPort() }
+            default: break
+            }
+        }
+        fixedPortListener = l
+        l.start(queue: queue)
     }
 
     private func startBrowser() {
@@ -172,9 +204,11 @@ final class NetworkService: PacketSink {
 
     /// Registers a typed IP address (IPv4 or IPv6) and returns a placeholder peer ID for it.
     /// The real peer ID is learned from its first authenticated answer.
-    func addManual(host: String) -> String {
-        let key = PeerInfo.manualPrefix + host
-        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: Self.fixedPort)!)
+    func addManual(host raw: String) -> String {
+        let parsed = ManualAddress.parse(raw) ?? (raw, Self.fixedPort)
+        let key = PeerInfo.manualPrefix + raw.trimmingCharacters(in: .whitespaces)
+        let port = NWEndpoint.Port(rawValue: parsed.port) ?? NWEndpoint.Port(rawValue: Self.fixedPort)!
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(parsed.host), port: port)
         queue.sync { manualEndpoints[key] = endpoint }
         return key
     }
@@ -210,7 +244,7 @@ final class NetworkService: PacketSink {
     func stop() {
         queue.sync {
             stopped = true
-            listener?.cancel(); browser?.cancel()
+            listener?.cancel(); browser?.cancel(); fixedPortListener?.cancel()
             for c in Array(routes.values) + unbound.values.map(\.conn) { c.cancel() }
             routes.removeAll(); routePeer.removeAll(); unbound.removeAll()
         }
@@ -240,6 +274,9 @@ final class NetworkService: PacketSink {
             // We can only open a new route to a peer we can see on Bonjour; otherwise keep the
             // current route (for example one the peer opened to us).
             guard self.endpoints[peer] != nil || self.manualEndpoints[peer] != nil else { return }
+            // At most one new route per second (hellos while connecting would otherwise open many).
+            if let t = self.lastReset[peer], Date().timeIntervalSince(t) < 1 { return }
+            self.lastReset[peer] = Date()
             self.routes.removeValue(forKey: peer)
             self.retire(old)
         }
@@ -262,12 +299,17 @@ final class NetworkService: PacketSink {
         let pin = unpinned.contains(peer) ? nil : interfaces[peer]
         let c = NWConnection(to: ep, using: Self.parameters(on: pin))
         bind(c, to: peer)
+        routePin[peer] = pin?.name
         c.stateUpdateHandler = { [weak self, weak c] state in
             switch state {
             case .failed:
                 // The pinned interface did not work: next time let the system choose.
                 if pin != nil { self?.unpinned.insert(peer) }
-                if let c { self?.drop(c) }
+                if let c { self?.drop(c); c.cancel() }
+            case .waiting where pin != nil:
+                // The pinned interface went away (cable pulled): do not wait for it to come back.
+                self?.unpinned.insert(peer)
+                if let c { self?.drop(c); c.cancel() }
             case .cancelled: if let c { self?.drop(c) }
             default: break
             }
@@ -287,7 +329,8 @@ final class NetworkService: PacketSink {
         unbound[key] = (c, Date())
         c.stateUpdateHandler = { [weak self, weak c] state in
             switch state {
-            case .failed, .cancelled: if let c { self?.drop(c) }
+            case .failed: if let c { self?.drop(c); c.cancel() }
+            case .cancelled: if let c { self?.drop(c) }
             default: break
             }
         }
@@ -373,6 +416,16 @@ final class NetworkService: PacketSink {
         let newInterfaces = eps.compactMapValues { $0.2 }
         for (id, i) in newInterfaces where interfaces[id]?.name != i.name { unpinned.remove(id) }
         interfaces = newInterfaces
+        // The best interface to a peer changed (cable plugged back in, Wi-Fi only now): move a
+        // route we opened onto it. Sending on the new route starts with a hello.
+        for (peer, name) in routePin where newInterfaces[peer] != nil && newInterfaces[peer]?.name != name {
+            if let old = routes[peer] {
+                routes.removeValue(forKey: peer)
+                retire(old)
+                onLog?("Route to \(peer) moves to \(newInterfaces[peer]!.name)")
+            }
+            routePin.removeValue(forKey: peer)
+        }
         visible = Set(found.keys)
         let list = found.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         DispatchQueue.main.async { [weak self] in

@@ -175,10 +175,14 @@ struct ConnectByIPSheet: View {
 }
 
 enum AddressCheck {
-    /// IPv4 or IPv6 literal (no host names: those need Bonjour or DNS).
+    /// IPv4 or IPv6 literal, optionally with a port ("192.168.1.20:47802", "[fe80::1%en0]:47802").
+    /// No host names: those need Bonjour or DNS. A link-local IPv6 address needs its interface
+    /// ("%en0"), otherwise macOS cannot tell where to send it.
     static func isValid(_ s: String) -> Bool {
-        let a = s.trimmingCharacters(in: .whitespaces)
-        return IPv4Address(a) != nil || IPv6Address(a) != nil
+        guard let (host, _) = ManualAddress.parse(s) else { return false }
+        if IPv4Address(host) != nil { return true }
+        guard IPv6Address(host) != nil else { return false }
+        return !host.lowercased().hasPrefix("fe80") || host.contains("%")
     }
 }
 #endif

@@ -52,3 +52,31 @@ public enum TXTKeys {
         return b != ownBoot
     }
 }
+
+/// A typed address for "Connect by IP Address": "192.168.1.20", "192.168.1.20:47802",
+/// "fe80::1%en0" or "[fe80::1%en0]:47802". The port defaults to TwinKeys' fixed port.
+public enum ManualAddress {
+    public static let defaultPort: UInt16 = 47801
+
+    /// Splits host and port. Returns nil for an empty host or a bad port.
+    public static func parse(_ raw: String) -> (host: String, port: UInt16)? {
+        let s = raw.trimmingCharacters(in: .whitespaces)
+        guard !s.isEmpty else { return nil }
+        if s.hasPrefix("[") {
+            guard let close = s.firstIndex(of: "]") else { return nil }
+            let host = String(s[s.index(after: s.startIndex)..<close])
+            let rest = s[s.index(after: close)...]
+            if rest.isEmpty { return host.isEmpty ? nil : (host, defaultPort) }
+            guard rest.hasPrefix(":"), let p = UInt16(rest.dropFirst()), p > 0, !host.isEmpty else { return nil }
+            return (host, p)
+        }
+        // More than one colon: an IPv6 address without a port.
+        if s.filter({ $0 == ":" }).count > 1 { return (s, defaultPort) }
+        if let colon = s.firstIndex(of: ":") {
+            let host = String(s[..<colon])
+            guard let p = UInt16(s[s.index(after: colon)...]), p > 0, !host.isEmpty else { return nil }
+            return (host, p)
+        }
+        return (s, defaultPort)
+    }
+}

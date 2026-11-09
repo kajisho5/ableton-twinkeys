@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>TwinKeys Remote</title>
+  <!-- B: one keycap split in two halves; the touch point sits on the split -->
+  <path fill="#000" fill-rule="evenodd" d="M70 48h47v160h-47a22 22 0 0 1-22-22v-116a22 22 0 0 1 22-22zM139 48h47a22 22 0 0 1 22 22v116a22 22 0 0 1-22 22h-47z"/>
+  <circle cx="128" cy="128" r="26" fill="#000"/>
+  <circle cx="128" cy="128" r="14" fill="#fff"/>
+</svg>

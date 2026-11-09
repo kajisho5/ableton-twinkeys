@@ -24,6 +24,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var autoUpdate: Bool = true
     /// Show TwinKeys only in the menu bar (no Dock icon).
     public var menuBarOnly: Bool = false
+    /// iPhones / iPads allowed to control Live through this Mac (TwinKeys Remote).
+    public var approvedDevices: [ApprovedDevice] = []
+    /// Wait for TwinKeys Remote on the network. Off until the user turns it on, so an
+    /// automatic update does not open a new network service on a show Mac by itself.
+    public var remoteEnabled: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -41,6 +46,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case blockCueKeys = "block_cue_keys"
         case autoUpdate = "auto_update"
         case menuBarOnly = "menu_bar_only"
+        case approvedDevices = "approved_devices"
+        case remoteEnabled = "remote_enabled"
     }
 
     public init() {}
@@ -69,6 +76,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         blockCueKeys = try c.decodeIfPresent(Bool.self, forKey: .blockCueKeys) ?? d.blockCueKeys
         autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? d.autoUpdate
         menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? d.menuBarOnly
+        approvedDevices = ((try? c.decodeIfPresent([Lenient<ApprovedDevice>].self, forKey: .approvedDevices)) ?? []).compactMap(\.value)
+        remoteEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .remoteEnabled)) ?? d.remoteEnabled
     }
 }
 
@@ -81,7 +90,16 @@ struct Lenient<T: Decodable>: Decodable {
 /// File locations. `home` is injectable for tests.
 public struct AppPaths: Sendable {
     public var home: URL
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) { self.home = home }
+    public init(home: URL = AppPaths.defaultHome) { self.home = home }
+
+    /// The user's home folder (on iOS, which has no `homeDirectoryForCurrentUser`, the app's own folder).
+    public static var defaultHome: URL {
+        #if os(iOS)
+        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        #else
+        return FileManager.default.homeDirectoryForCurrentUser
+        #endif
+    }
 
     public var supportDir: URL { home.appendingPathComponent("Library/Application Support/TwinKeys", isDirectory: true) }
     public var logsDir: URL { home.appendingPathComponent("Library/Logs/TwinKeys", isDirectory: true) }

@@ -55,6 +55,12 @@ struct ViewState: Equatable {
     var update: UpdateState = .idle
     var appVersion = ""
     var autoUpdate = true
+    /// Live on this Mac answers through the Bridge.
+    var liveConnected = false
+    var bridgeInstalled = false
+    var approvedDevices: [ApprovedDevice] = []
+    var remoteClients = 0
+    var remoteEnabled = true
 
     var t: Strings { Strings(language) }
 
@@ -132,5 +138,5 @@ struct ViewActions {
     var openReleasePage: () -> Void = {}
 }
 
-enum AppSheet: Equatable { case pairing, connectByIP, help }
+enum AppSheet: Equatable { case pairing, connectByIP, help, approveDevice(name: String, code: String) }
 #endif

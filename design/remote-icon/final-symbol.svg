@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>TwinKeys Remote</title>
+  <!-- "Linked Fader": two fader rails, one cap across both (one move, two Macs). Black master. -->
+  <rect x="78" y="28" width="20" height="200" rx="10"/>
+  <rect x="158" y="28" width="20" height="200" rx="10"/>
+  <path fill-rule="evenodd" d="M58 100h140a14 14 0 0 1 14 14v28a14 14 0 0 1-14 14H58a14 14 0 0 1-14-14v-28a14 14 0 0 1 14-14zM64 124a4 4 0 0 0 0 8h128a4 4 0 0 0 0-8z"/>
+</svg>
