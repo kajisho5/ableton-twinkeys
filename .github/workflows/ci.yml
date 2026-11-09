@@ -44,6 +44,18 @@ jobs:
           cat smoke.log || true
           ls -la ~/Library/Logs/TwinKeys/ ~/Library/Application\ Support/TwinKeys/ || true
           cat ~/Library/Logs/TwinKeys/*.log || true
+      - name: End-to-end check (network notes come out of the TwinKeys MIDI port)
+        run: |
+          dist/TwinKeys.app/Contents/MacOS/TwinKeys > e2e-app.log 2>&1 &
+          PID=$!
+          sleep 3
+          set +e
+          swift scripts/e2e-midi.swift 2>&1 | tee e2e.txt
+          RESULT=${PIPESTATUS[0]}
+          set -e
+          kill -TERM $PID || true
+          echo "--- TwinKeys log"; cat ~/Library/Logs/TwinKeys/*.log || true
+          exit $RESULT
       - name: Screenshots (light / dark)
         run: dist/TwinKeys.app/Contents/MacOS/TwinKeys --snapshot "$PWD/screenshots"
       - uses: actions/upload-artifact@v7
@@ -56,3 +68,4 @@ jobs:
           path: |
             screenshots/*.png
             memory.txt
+            e2e.txt
