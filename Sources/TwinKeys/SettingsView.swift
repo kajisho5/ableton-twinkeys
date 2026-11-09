@@ -61,15 +61,6 @@ struct SettingsView: View {
                     .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Section {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) { mappingButtons }
-                    VStack(alignment: .leading, spacing: 8) { mappingButtons }
-                }
-                Text(t.mappingHelp)
-                    .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .formStyle(.grouped)
         .frame(width: 600, height: 640)
@@ -92,10 +83,5 @@ struct SettingsView: View {
         return line
     }
 
-    @ViewBuilder private var mappingButtons: some View {
-        Button(t.showMappingFile) { model.revealSettingsFolder() }.buttonStyle(TKButtonStyle())
-        Button(t.reloadMapping) { model.reloadMapping() }.buttonStyle(TKButtonStyle())
-        Button(t.restoreMapping) { model.resetMapping() }.buttonStyle(TKButtonStyle())
-    }
 }
 #endif

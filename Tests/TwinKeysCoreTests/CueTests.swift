@@ -19,7 +19,7 @@ final class CueTests: XCTestCase {
     let down = KeyNames.down
 
     func make(_ id: UUID, _ name: String, _ s: AppSettings, _ midi: FakeMIDI, _ net: FakeNet, session: UInt32) -> Conductor {
-        let c = Conductor(instanceID: id, displayName: name, mapping: .default, settings: s, midi: midi, net: net,
+        let c = Conductor(instanceID: id, displayName: name, settings: s, midi: midi, net: net,
                           session: session, clock: { [unowned self] in now }, nanos: { [unowned self] in UInt64(now * 1e9) })
         c.setPairing(secret)
         return c
@@ -52,25 +52,39 @@ final class CueTests: XCTestCase {
         while now < end - 1e-9 { now += 0.05; main.tick(); backup.tick(); pump() }
     }
 
-    func cueOnsAtBackup(_ note: UInt8) -> Int { backupMIDI.sent.filter { $0 == [0x91, note, 127] }.count }
+    func cueOnsAtBackup(_ note: UInt8) -> Int { backupMIDI.sent.filter { $0 == [0x90, note, 127] }.count }
 
-    func testNewInstallUsesCueKeysOnlyOnChannel2() {
-        XCTAssertFalse(AppSettings().pianoKeys)
-        main.handleKey(KeyInput(keycode: 0x00, isDown: true))          // A: piano layout is off
+    func testOnlyCueKeysAreSentAtFullVelocity() {
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true))          // A is not a cue key by default
         XCTAssertTrue(mainMIDI.sent.isEmpty)
         main.handleKey(KeyInput(keycode: down, isDown: true))
         main.handleKey(KeyInput(keycode: down, isDown: true, isRepeat: true))
         main.handleKey(KeyInput(keycode: down, isDown: false))
-        XCTAssertEqual(mainMIDI.sent, [[0x91, 37, 127], [0x81, 37, 0]])
+        XCTAssertEqual(mainMIDI.sent, [[0x90, 37, 127], [0x80, 37, 0]])
     }
 
-    func testCueNoteDoesNotFollowOctave() {
-        var s = AppSettings(); s.pianoKeys = true
+    func testAddingLettersAndDigitsKeepsExistingNotes() {
+        let keys = CueKey.adding(CueKey.alphanumericKeyCodes, to: CueKey.defaults)
+        XCTAssertEqual(keys.count, 7 + 36)
+        XCTAssertEqual(Array(keys.prefix(7)), CueKey.defaults)
+        XCTAssertEqual(Set(keys.map(\.note)).count, keys.count)
+        XCTAssertEqual(keys.first { $0.keycode == 0x00 }?.label, "A")
+        XCTAssertEqual(keys.first { $0.keycode == 0x1D }?.label, "0")
+        XCTAssertEqual(CueKey.adding([0x00], to: keys), keys, "already there: nothing added")
         let mid = FakeMIDI()
+        var s = AppSettings(); s.cueKeys = keys
         let c = make(UUID(), "X", s, mid, FakeNet(), session: 9)
-        c.handleKey(KeyInput(keycode: 0x07, isDown: true)); c.handleKey(KeyInput(keycode: 0x07, isDown: false))   // X: octave up
+        c.handleKey(KeyInput(keycode: 0x00, isDown: true))
+        XCTAssertEqual(mid.sent, [[0x90, 43, 127]])
+    }
+
+    func testKeyRemovedWhileHeldStillEndsItsNote() {
+        let mid = FakeMIDI()
+        let c = make(UUID(), "X", AppSettings(), mid, FakeNet(), session: 9)
         c.handleKey(KeyInput(keycode: down, isDown: true))
-        XCTAssertEqual(mid.sent.last, [0x91, 37, 127])
+        c.setCueKeys([])                        // ends held notes right away
+        c.handleKey(KeyInput(keycode: down, isDown: false))
+        XCTAssertEqual(mid.sent, [[0x90, 37, 127], [0x80, 37, 0]])
     }
 
     func testCueWithModifierIsNotSentAndNotSwallowed() {
@@ -120,7 +134,7 @@ final class CueTests: XCTestCase {
         mainToBackupUp = true
         tick(0.25)
         XCTAssertEqual(cueOnsAtBackup(37), 1)
-        XCTAssertEqual(backupMIDI.sent.filter { $0 == [0x81, 37, 0] }.count, 1, "key already up: ends right away")
+        XCTAssertEqual(backupMIDI.sent.filter { $0 == [0x80, 37, 0] }.count, 1, "key already up: ends right away")
         if case .delivered = main.snapshot().lastCue!.delivery {} else { XCTFail("\(main.snapshot().lastCue!.delivery)") }
         tick(1)
         XCTAssertEqual(cueOnsAtBackup(37), 1)
@@ -159,7 +173,7 @@ final class CueTests: XCTestCase {
     func testCueWhileNotConnected() {
         main.handleKey(KeyInput(keycode: down, isDown: true))
         XCTAssertEqual(main.snapshot().lastCue!.delivery, .notConnected)
-        XCTAssertEqual(mainMIDI.sent, [[0x91, 37, 127]], "the main Mac's own Live still gets the cue")
+        XCTAssertEqual(mainMIDI.sent, [[0x90, 37, 127]], "the main Mac's own Live still gets the cue")
     }
 
     func testCountStartsAgainAfterReconnect() {
@@ -174,15 +188,15 @@ final class CueTests: XCTestCase {
         XCTAssertEqual(backup.snapshot().lastCue!.count, 1)
     }
 
-    func testHeldPacketForPianoDoesNotEndCueNotes() {
+    func testHeldCueKeyKeepsSoundingOnTheBackup() {
         connect()
         main.handleKey(KeyInput(keycode: down, isDown: true)); pump()
-        tick(2.5)   // heartbeats carry held lists for both channels
-        XCTAssertFalse(backupMIDI.sent.contains([0x81, 37, 0]))
+        tick(2.5)   // heartbeats carry the held list
+        XCTAssertFalse(backupMIDI.sent.contains([0x80, 37, 0]))
     }
 
     func testFreeNoteAndSanitize() {
-        XCTAssertEqual(CueKey.freeNote(in: CueKey.defaults), 41)
+        XCTAssertEqual(CueKey.freeNote(in: CueKey.defaults), 43)
         let keys = CueKey.sanitized([CueKey(keycode: down, note: 37), CueKey(keycode: down, note: 50),
                                      CueKey(keycode: KeyNames.up, note: 37), CueKey(keycode: 0x37, note: 60)])
         XCTAssertEqual(keys.map(\.note), [37])
@@ -191,7 +205,6 @@ final class CueTests: XCTestCase {
     func testSettingsFromOlderVersionKeepPianoLayout() throws {
         let old = #"{"version":1,"send_keys":true}"#.data(using: .utf8)!
         let s = try JSONDecoder().decode(AppSettings.self, from: old)
-        XCTAssertTrue(s.pianoKeys)
         XCTAssertEqual(s.cueKeys, CueKey.defaults)
         XCTAssertTrue(s.blockCueKeys)
         XCTAssertTrue(s.autoUpdate)
@@ -199,7 +212,7 @@ final class CueTests: XCTestCase {
         // Round trip.
         var n = AppSettings(); n.cueKeys = [CueKey(keycode: 0x7A, memo: "Stop", note: 40)]
         let back = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(n))
-        XCTAssertEqual(back.cueKeys, n.cueKeys); XCTAssertFalse(back.pianoKeys)
+        XCTAssertEqual(back.cueKeys, n.cueKeys)
     }
 
     func testNewPacketsRoundTrip() throws {

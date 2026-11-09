@@ -261,21 +261,6 @@ struct ContentView: View {
                     cueKeyLine
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                    if state.pianoKeys {
-                        Rectangle().fill(Theme.separator).frame(height: 1).padding(.leading, 14)
-                        ViewThatFits(in: .horizontal) {
-                            HStack(alignment: .top, spacing: 28) { valueBlocks }
-                            VStack(alignment: .leading, spacing: 8) { valueBlocks }
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.top, 10)
-                        Text(t.doubleNotesHint)
-                            .font(.system(size: Theme.caption))
-                            .foregroundStyle(Theme.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                    }
                 }
             }
         }
@@ -288,13 +273,18 @@ struct ContentView: View {
                 Text(t.cueKeysNone).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
             } else {
                 HStack(spacing: 6) {
-                    ForEach(state.cueKeys) { k in
+                    // Many keys (A–Z, 0–9…): show the first ones and a count.
+                    ForEach(Array(state.cueKeys.prefix(10))) { k in
                         Text(k.label)
                             .font(.system(size: Theme.caption, weight: .semibold))
                             .padding(.horizontal, 6).frame(minHeight: 20)
                             .background(RoundedRectangle(cornerRadius: 4).fill(Theme.windowBackground))
                             .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.buttonBorder, lineWidth: 1))
                             .help(k.memo.isEmpty ? noteName(k.note) : k.memo)
+                    }
+                    if state.cueKeys.count > 10 {
+                        Text("+\(state.cueKeys.count - 10)").font(.system(size: Theme.caption, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
                     }
                     Text(t.cueKeysChange).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
                         .lineLimit(1).padding(.leading, 6)
@@ -343,30 +333,6 @@ struct ContentView: View {
         if !state.sendKeys { return t.keyCaptureNotSending }
         if state.inputMonitoring != .granted { return t.keyCaptureNeedsPermission }
         return t.keyCaptureOn
-    }
-
-    @ViewBuilder private var valueBlocks: some View {
-        valueBlock(title: t.octave, value: "C\(state.octave)", keys: ("Z", "X"))
-        valueBlock(title: t.velocity, value: "\(state.velocity)", keys: ("C", "V"))
-        VStack(alignment: .leading, spacing: 2) {
-            Text(t.heldNotes).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
-            Text(state.heldNotes.isEmpty ? "—" : state.heldNotes.map(noteName).joined(separator: "  "))
-                .font(.system(size: Theme.body, weight: .medium, design: .monospaced))
-                .frame(minHeight: 22, alignment: .bottomLeading)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func valueBlock(title: String, value: String, keys: (String, String)) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(value).font(.system(size: Theme.value, weight: .semibold)).monospacedDigit()
-                Text("\(keys.0) / \(keys.1)").font(.system(size: Theme.caption, design: .monospaced)).foregroundStyle(Theme.textSecondary)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(t.changeWith(title, value, keys.0, keys.1))
     }
 
     // MARK: Permissions row

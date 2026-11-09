@@ -30,7 +30,6 @@ else
   done
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 fi
-cp Resources/mapping.default.json "$APP/Contents/Resources/mapping.default.json"
 # In-app help (works offline).
 mkdir -p "$APP/Contents/Resources/help"
 cp docs/help/en.md docs/help/ja.md "$APP/Contents/Resources/help/"

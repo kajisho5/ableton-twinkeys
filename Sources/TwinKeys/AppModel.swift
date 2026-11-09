@@ -47,8 +47,6 @@ final class AppModel: ObservableObject {
         var problems: [AppProblem] = []
         if let settingsProblem { problems.append(.settingsUnreadable(backup: settingsProblem)) }
         let log = FileLog(dir: store.paths.logsDir)
-        let (mapping, mappingProblem) = store.loadMapping()
-        if mappingProblem != nil { problems.append(.mappingUnreadable) }
 
         var port: VirtualMIDIPort?
         do {
@@ -64,7 +62,7 @@ final class AppModel: ObservableObject {
 
         let name = Host.current().localizedName ?? "Mac"
         let network = NetworkService(ownID: settings.instanceID.uuidString, serviceName: name)
-        let conductor = Conductor(instanceID: settings.instanceID, displayName: name, mapping: mapping,
+        let conductor = Conductor(instanceID: settings.instanceID, displayName: name,
                                   settings: settings, midi: port, net: network,
                                   clock: { ProcessInfo.processInfo.systemUptime },
                                   nanos: { DispatchTime.now().uptimeNanoseconds })
@@ -283,18 +281,6 @@ final class AppModel: ObservableObject {
         try? store.save(settings)
     }
 
-    func reloadMapping() {
-        let (m, problem) = store.loadMapping()
-        conductor.setMapping(m)
-        problems.removeAll { $0 == .mappingUnreadable }
-        if problem != nil { problems.append(.mappingUnreadable) }
-        refresh()
-    }
-
-    func resetMapping() {
-        try? store.writeDefaultMapping()
-        reloadMapping()
-    }
 
     /// Another Mac advertises our instance ID (its settings were copied from this Mac).
     /// Make a new ID; it takes effect after reopening TwinKeys.
@@ -376,11 +362,13 @@ final class AppModel: ObservableObject {
         refresh()
     }
 
-    func addCueKey(_ code: UInt16) {
-        guard !KeyNames.isModifier(code), !settings.cueKeys.contains(where: { $0.keycode == code }),
-              let note = CueKey.freeNote(in: settings.cueKeys) else { return }
-        setCueKeys(settings.cueKeys + [CueKey(keycode: code, note: note)])
-        log.write("Cue key added: \(KeyNames.label(for: code)) = \(noteName(note))")
+    func addCueKey(_ code: UInt16) { addCueKeys([code]) }
+
+    /// Adds keys that are not cue keys yet (each gets the next free note).
+    func addCueKeys(_ codes: [UInt16]) {
+        let before = settings.cueKeys.count
+        setCueKeys(CueKey.adding(codes, to: settings.cueKeys))
+        for k in settings.cueKeys.dropFirst(before) { log.write("Cue key added: \(k.label) = \(noteName(k.note))") }
     }
 
     func removeCueKey(_ code: UInt16) {
@@ -397,13 +385,6 @@ final class AppModel: ObservableObject {
     func setRecordingCueKey(_ on: Bool) {
         keyMonitor.paused = on
         if on { conductor.releaseHeldKeys() }
-    }
-
-    func setPianoKeys(_ on: Bool) {
-        settings.pianoKeys = on
-        conductor.setPianoKeys(on)
-        try? store.save(settings)
-        refresh()
     }
 
     func setBlockCueKeys(_ on: Bool) {
@@ -474,7 +455,7 @@ final class AppModel: ObservableObject {
     }
 
     func revealSettingsFolder() {
-        NSWorkspace.shared.activateFileViewerSelecting([store.paths.mappingFile])
+        NSWorkspace.shared.activateFileViewerSelecting([store.paths.settingsFile])
     }
 
     // MARK: State
@@ -502,8 +483,6 @@ final class AppModel: ObservableObject {
         s.keyCapture = snap.keyCapture
         s.inputMonitoring = hasInputMonitoring ? .granted : .denied
         s.localNetwork = peers.isEmpty ? localNetwork == .peersVisible ? .searching : localNetwork : .peersVisible
-        s.octave = snap.octave
-        s.velocity = snap.velocity
         s.heldNotes = snap.heldNotes
         s.midiPortReady = midi != nil
         s.problems = problems
@@ -519,7 +498,6 @@ final class AppModel: ObservableObject {
         s.sheet = sheet
         s.lastCue = snap.lastCue
         s.cueKeys = settings.cueKeys
-        s.pianoKeys = settings.pianoKeys
         s.blockCueKeys = settings.blockCueKeys
         s.cueKeysBlocked = keyMonitor.isBlocking
         s.accessibility = hasAccessibility ? .granted : .denied

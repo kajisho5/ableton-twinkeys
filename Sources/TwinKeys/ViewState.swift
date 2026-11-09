@@ -30,8 +30,6 @@ struct ViewState: Equatable {
     var keyCapture = true
     var inputMonitoring: PermissionState = .unknown
     var localNetwork: LocalNetworkState = .searching
-    var octave = 3
-    var velocity = 100
     var heldNotes: [UInt8] = []
     var midiPortReady = true
     var problems: [AppProblem] = []
@@ -50,7 +48,6 @@ struct ViewState: Equatable {
     /// The last cue sent (main) or received (backup).
     var lastCue: CueStatus?
     var cueKeys: [CueKey] = CueKey.defaults
-    var pianoKeys = false
     var blockCueKeys = true
     /// The key tap can keep cue keys from other apps right now.
     var cueKeysBlocked = false

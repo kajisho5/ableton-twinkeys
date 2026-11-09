@@ -22,15 +22,17 @@ final class ConductorTests: XCTestCase {
     var mainNet = FakeNet(), backupNet = FakeNet()
     var main: Conductor!, backup: Conductor!
     var mainToBackupUp = true
+    /// Keys A and D as cue keys on notes 60 and 64.
+    static let testKeys = [CueKey(keycode: 0x00, note: 60), CueKey(keycode: 0x02, note: 64)]
 
     override func setUp() {
         var s = AppSettings()
-        s.sendKeys = true; s.receiveNotes = true; s.pianoKeys = true
-        main = Conductor(instanceID: mainID, displayName: "Main", mapping: .default, settings: s,
+        s.sendKeys = true; s.receiveNotes = true; s.cueKeys = Self.testKeys
+        main = Conductor(instanceID: mainID, displayName: "Main", settings: s,
                          midi: mainMIDI, net: mainNet, session: 1,
                          clock: { [unowned self] in now }, nanos: { [unowned self] in UInt64(now * 1e9) })
-        var b = AppSettings(); b.sendKeys = false; b.pianoKeys = true
-        backup = Conductor(instanceID: backupID, displayName: "Backup", mapping: .default, settings: b,
+        var b = AppSettings(); b.sendKeys = false; b.cueKeys = Self.testKeys
+        backup = Conductor(instanceID: backupID, displayName: "Backup", settings: b,
                            midi: backupMIDI, net: backupNet, session: 2,
                            clock: { [unowned self] in now }, nanos: { [unowned self] in UInt64(now * 1e9) })
         main.setPairing(secret)
@@ -75,7 +77,7 @@ final class ConductorTests: XCTestCase {
         main.handleKey(KeyInput(keycode: 0x00, isDown: false))
         main.handleKey(KeyInput(keycode: 0x02, isDown: false))
         pump()
-        let expected: [[UInt8]] = [[0x90, 60, 100], [0x90, 64, 100], [0x80, 60, 0], [0x80, 64, 0]]
+        let expected: [[UInt8]] = [[0x90, 60, 127], [0x90, 64, 127], [0x80, 60, 0], [0x80, 64, 0]]
         XCTAssertEqual(mainMIDI.notes, expected)
         // Each note was sent twice on the wire, but arrives once.
         XCTAssertEqual(backupMIDI.notes, expected)
@@ -136,7 +138,7 @@ final class ConductorTests: XCTestCase {
         for _ in 0..<40 { now += 0.1; main.tick(); backup.tick(); pump() }   // 4 s of silence
         if case .connecting = backup.snapshot().link {} else { XCTFail("backup should be reconnecting") }
         XCTAssertEqual(backupMIDI.notes.last, [0x80, 60, 0])            // note from the main Mac was ended
-        XCTAssertEqual(mainMIDI.notes, [[0x90, 60, 100]])               // main's own note keeps sounding
+        XCTAssertEqual(mainMIDI.notes, [[0x90, 60, 127]])               // main's own note keeps sounding
         mainToBackupUp = true
         for _ in 0..<60 { now += 0.1; main.tick(); backup.tick(); pump() }
         XCTAssertTrue(main.snapshot().link == .connected(peer: backupID.uuidString))
@@ -187,7 +189,7 @@ final class ConductorTests: XCTestCase {
     func testHeldListEndsNoteWhoseNoteOffWasLostDuringOneWayOutage() {
         connect()
         main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
-        XCTAssertEqual(backupMIDI.notes.last, [0x90, 60, 100])
+        XCTAssertEqual(backupMIDI.notes.last, [0x90, 60, 127])
         // Main times out and drops the note-off; then the link recovers.
         mainToBackupUp = false
         step(3.5)
@@ -308,7 +310,7 @@ final class ConductorTests: XCTestCase {
         backup.prepareForQuit()
         let before = backupMIDI.sent.count
         main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
-        XCTAssertFalse(backupMIDI.sent.dropFirst(before).contains([0x90, 60, 100]))
+        XCTAssertFalse(backupMIDI.sent.dropFirst(before).contains([0x90, 60, 127]))
     }
 
     func testPeerNameControlCharactersAreRemoved() {
@@ -329,7 +331,7 @@ final class ConductorTests: XCTestCase {
     func testKeysAreIgnoredAfterQuitStarts() {
         main.prepareForQuit()
         main.handleKey(KeyInput(keycode: 0x00, isDown: true))
-        XCTAssertFalse(mainMIDI.sent.contains([0x90, 60, 100]))
+        XCTAssertFalse(mainMIDI.sent.contains([0x90, 60, 127]))
     }
 
     func testShortAutoOffDoesNotCutHeldNoteOnReceiver() {

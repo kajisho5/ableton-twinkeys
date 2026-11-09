@@ -41,7 +41,9 @@ extension Strings {
     var cueMemoColumn: String { s("Memo (your own name)", "メモ（自分用の名前）") }
     var cueMidiColumn: String { s("MIDI", "MIDI") }
     var addCueKey: String { s("Add Key…", "キーを追加…") }
-    var addCueKeyHint: String { s("Click Add, then press the key to add.", "追加を押して、登録したいキーを押します") }
+    var addCueKeyHint: String { s("Add Key…: press the keys to add, one after another. Any key works: letters, digits, arrows, Space, F1–F12…", "「キーを追加…」を押して、登録したいキーを続けて押します。英字・数字・矢印・スペース・F1〜F12 など、どのキーでも使えます。") }
+    var addLettersAndDigits: String { s("Add A–Z and 0–9", "英字と数字をまとめて追加") }
+    func addedKeys(_ list: String) -> String { s("Added: \(list)", "追加しました: \(list)") }
     func removeCueKey(_ label: String) -> String { s("Remove \(label)", "\(label) を削除") }
     func memoFor(_ label: String) -> String { s("Memo for \(label)", "\(label) のメモ") }
     var memoPlaceholder: String { s("e.g. Next scene", "例：次のシーン") }
@@ -50,17 +52,12 @@ extension Strings {
         s("Stops Live on the main Mac from also reacting to the arrows or Space, which would move it twice. Needs the Accessibility permission. Turn key capture off to use the keys normally.",
           "メインの Live が矢印キーやスペースにも反応して、2回動くのを防ぎます。「アクセシビリティ」の許可が必要です。キー入力をオフにすると、ふだんどおり使えます。")
     }
-    var pianoKeys: String { s("Also use the piano layout (A…; for notes, Z/X for octave)", "ピアノ配列のキーも使う（A〜; で音階、Z/X でオクターブ）") }
-    var pianoKeysHelp: String {
-        s("For playing instruments. Leave it off for cues, so a wrong key cannot change the notes.",
-          "楽器を鳴らすとき用です。キュー出しではオフにしておくと、押し間違いで音が変わりません。")
-    }
     var cueKeysFull: String { s("No free notes left.", "割り当てられるノートがもうありません。") }
 
     // MARK: Add key sheet
     var addKeyTitle: String { s("Add Key", "キーを追加") }
-    var pressKeyToAdd: String { s("Press the key to add", "登録したいキーを押してください") }
-    var pressKeyHint: String { s("Arrows, Space, Return, digits, F1–F12 and so on. Keys with ⌘ ⌃ ⌥ ⇧ are not used.", "矢印・スペース・リターン・数字・F1〜F12 などが使えます。⌘ ⌃ ⌥ ⇧ と一緒に押すキーは使いません") }
+    var pressKeyToAdd: String { s("Press the keys to add", "登録したいキーを押してください") }
+    var pressKeyHint: String { s("Press several keys in a row to add them all. Keys with ⌘ ⌃ ⌥ ⇧ are not used.", "続けて押すと、まとめて登録できます。⌘ ⌃ ⌥ ⇧ と一緒に押すキーは使いません") }
     func keyAlreadyUsed(_ label: String) -> String { s("\(label) is already a cue key.", "\(label) はもう登録されています。") }
 
     // MARK: Updates

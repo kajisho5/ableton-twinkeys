@@ -34,7 +34,7 @@ Both Macs need the same pairing code. Only Macs with the same code can connect, 
 5. Use the same mapping on both Macs (the same Set file is the safest way).
 6. If the same keys are mapped in Live's Key Map Mode (⌘K), remove them. Otherwise Live on the main Mac moves twice.
 7. Keep each clip's Launch Mode at Trigger (the default). Gate and Repeat stop the clip when the key is released, so when TwinKeys turns notes off (for example when the network drops) those clips would stop too.
-8. To play instruments with the piano layout, set the MIDI tracks to receive from TwinKeys (or All Ins) and, on the main Mac, turn off Live's Computer MIDI Keyboard (shortcut M). Otherwise each key plays twice.
+8. On the main Mac, turn off Live's Computer MIDI Keyboard (shortcut M). Otherwise letter keys also play notes in Live.
 
 ## Connecting
 
@@ -49,11 +49,14 @@ If the network drops, TwinKeys reconnects by itself (every second at first, slow
 
 ## Cue keys
 
-Choose the keys that fire cues in Settings (⌘,) > Cue Keys. ↑ ↓ Space Return Esc are there to begin with.
+Choose the keys that fire cues in Settings (⌘,) > Cue Keys. ↑ ↓ ← → Space Return Esc are there to begin with. Any key on the Mac can be a cue key.
 
-- Click Add Key… and press the key you want. Arrows, Space, Return, digits, F1–F12 and so on work.
+- Click Add Key… and press the keys you want, one after another. Letters, digits, arrows, Space, F1–F12: any key works.
+- "Add A–Z and 0–9" adds all letters and digits at once.
+- Remove a key with "−" at the right of its row.
 - Give each key a memo (for example "Next scene"). It is shown under Last cue.
-- Each cue key sends a fixed note on MIDI channel 2 (from C1 up). Changing the octave does not change it, and removing other keys does not change the notes of the keys left.
+- Each cue key sends its own fixed note (MIDI channel 1, from C1 up, velocity 127). Removing other keys does not change the notes of the keys left, so Live's mappings keep working.
+- Keys are matched by position, not by letter: JIS and US keyboards give the same cue for the same key.
 - Holding a key down sends it once. Keys pressed with ⌘, ⌃, ⌥ or Shift are not sent.
 - While "Keep cue keys from other apps (recommended)" is on, cue keys do not reach other apps, Live included. Live on the main Mac then reacts only to TwinKeys' MIDI, exactly like the backup. Turn Key capture off (⌃⌘K) to use the arrows and the other keys normally.
 
@@ -65,19 +68,6 @@ The Last cue box near the top of the window shows:
 - **Reached the backup** (green ✓): the backup received the cue.
 - **No confirmation** (red): no answer came even after sending the cue again every 0.1 s for about 0.3 s. Check that the cue fired on the backup. It is not sent again after that, because a cue that starts late would do more harm.
 - **Delivery cannot be checked**: the other Mac runs TwinKeys older than 1.0.0. Use 1.0.0 or later on both.
-
-## Piano layout (for playing instruments)
-
-Turn on "Also use the piano layout" in Settings to play notes with the keys below. For cues, leave it off so a wrong key cannot change the notes.
-
-The layout is the common DAW computer keyboard:
-
-- A S D F G H J K L ; — white keys (A is C3)
-- W E T Y U O P — black keys
-- Z / X — octave down / up
-- C / V — velocity down / up
-
-Keys are matched by position, not by letter, so JIS and US keyboards play the same notes. Keys pressed with ⌘, ⌃, ⌥ or Shift never play.
 
 Turn Key capture off (⌃⌘K) while typing in other apps.
 
@@ -141,14 +131,14 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 **Keys make no sound**
 - Check that Input Monitoring is allowed (shown at the bottom of the window).
 - Check that Send my keys and Key capture are on.
-- Check that the key is one of the cue keys. Piano layout keys (A and so on) work only while "Also use the piano layout" is on.
+- Check that the key is one of the cue keys.
 - Check that Track and Remote are on for TwinKeys in Live's MIDI settings.
 - While you type in a password field (macOS Secure Input), keys are hidden from TwinKeys. The window shows "Key capture: Paused", and held notes are ended when that starts.
 
 **"Different pairing code" next to the other Mac**
 - The two Macs use different codes. On one Mac, open Set Up Pairing Code… and use Enter Code… to type the other Mac's code.
 
-**Every note plays twice**
+**Only Live on the main Mac plays, or it moves twice**
 - Turn off Live's Computer MIDI Keyboard on the main Mac.
 
 **Key capture stopped working after an update**
@@ -160,7 +150,6 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 ## Files
 
 - Settings — ~/Library/Application Support/TwinKeys/settings.json
-- Key mapping — ~/Library/Application Support/TwinKeys/mapping.json (after editing, click Reload Mapping in Settings)
 - Logs — ~/Library/Logs/TwinKeys/ (open from the Help menu)
 
 ## Credits

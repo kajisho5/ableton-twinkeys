@@ -61,10 +61,10 @@ enum Snapshot {
         var updateReady = cue
         updateReady.link = .notConnected; updateReady.linkedPeerID = nil; updateReady.lastCue = nil
         updateReady.update = .ready(version: "1.0.1")
+        var many = cue
+        many.cueKeys = CueKey.adding(CueKey.alphanumericKeyCodes, to: CueKey.defaults)
         var leaking = cue
         leaking.accessibility = .denied; leaking.cueKeysBlocked = false; leaking.lastCue = nil
-        var piano = connected
-        piano.pianoKeys = true
 
         let shots: [(String, ViewState, CGSize)] = [
             ("main", connected, CGSize(width: 560, height: 420)),
@@ -78,7 +78,7 @@ enum Snapshot {
             ("cue-min-size", cue, Theme.minWindow),
             ("update-ready", updateReady, CGSize(width: 560, height: 520)),
             ("accessibility-needed", leaking, CGSize(width: 560, height: 520)),
-            ("piano", piano, CGSize(width: 560, height: 560)),
+            ("cue-many-keys", many, Theme.minWindow),
         ]
         for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
             for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {

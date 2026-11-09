@@ -22,8 +22,6 @@ public struct CueKey: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.note = note
     }
 
-    /// Cue keys are sent on MIDI channel 2 (0-based 1), apart from the piano keys.
-    public static let channel: UInt8 = 1
     /// Cue notes are given out from C1 (36) upwards.
     public static let firstNote: UInt8 = 36
     /// Every cue is sent at full velocity.
@@ -32,14 +30,33 @@ public struct CueKey: Codable, Equatable, Hashable, Sendable, Identifiable {
     public static let maxMemoBytes = 60
     public static let maxLabelBytes = 12
 
-    /// ↑ ↓ Space Return Esc, as suggested for a new install.
+    /// ↑ ↓ ← → Space Return Esc, as suggested for a new install.
     public static let defaults: [CueKey] = [
         CueKey(keycode: KeyNames.up, note: 36),
         CueKey(keycode: KeyNames.down, note: 37),
-        CueKey(keycode: KeyNames.space, note: 38),
-        CueKey(keycode: KeyNames.returnKey, note: 39),
-        CueKey(keycode: KeyNames.escape, note: 40),
+        CueKey(keycode: KeyNames.left, note: 38),
+        CueKey(keycode: KeyNames.right, note: 39),
+        CueKey(keycode: KeyNames.space, note: 40),
+        CueKey(keycode: KeyNames.returnKey, note: 41),
+        CueKey(keycode: KeyNames.escape, note: 42),
     ]
+
+    /// Letters A–Z and digits 0–9 (by key position), for adding them in one go.
+    public static let alphanumericKeyCodes: [UInt16] = [
+        0x00, 0x0B, 0x08, 0x02, 0x0E, 0x03, 0x05, 0x04, 0x22, 0x26, 0x28, 0x25, 0x2E,
+        0x2D, 0x1F, 0x23, 0x0C, 0x0F, 0x01, 0x11, 0x20, 0x09, 0x0D, 0x07, 0x10, 0x06,
+        0x1D, 0x12, 0x13, 0x14, 0x15, 0x17, 0x16, 0x1A, 0x1C, 0x19,
+    ]
+
+    /// Adds keys that are not cue keys yet, each with the next free note. Stops when notes run out.
+    public static func adding(_ codes: [UInt16], to keys: [CueKey]) -> [CueKey] {
+        var out = keys
+        for code in codes where !KeyNames.isModifier(code) && !out.contains(where: { $0.keycode == code }) {
+            guard let n = freeNote(in: out) else { break }
+            out.append(CueKey(keycode: code, note: n))
+        }
+        return out
+    }
 
     /// The lowest note from `firstNote` that no key in `keys` uses (nil when all are taken).
     public static func freeNote(in keys: [CueKey]) -> UInt8? {

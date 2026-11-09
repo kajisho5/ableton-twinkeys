@@ -130,7 +130,7 @@ Prepare the same set on both Macs: one MIDI track with an instrument, input from
 
 | # | Step | Expected | Live 11 | Live 12 | Notes |
 |---|---|---|---|---|---|
-| 9-1 | Fresh install. Open Settings. | Cue Keys lists ↑ ↓ Space Return Esc (ch 2 · C1 … E1). "Also use the piano layout" is off; pressing A plays nothing. | | | |
+| 9-1 | Fresh install. Open Settings. | Cue Keys lists ↑ ↓ ← → Space Return Esc (ch 1 · C1 … F#1). Pressing A plays nothing. "Add A–Z and 0–9" adds 36 keys; pressing A then sends G1 (velocity 127). | | | |
 | 9-2 | Live on both Macs: MIDI Map Mode (⌘M), map ↓ to scene down, ↑ to scene up, Return to launch the selected scene, Space to Play. | Pressing the keys on the main Mac moves and launches the same scenes on both Macs. | | | |
 | 9-3 | Accessibility allowed, "Keep cue keys from other apps" on, Live in front on the main Mac. Press ↓ once. | Live moves down exactly one scene on both Macs (not two on the main Mac). | | | |
 | 9-4 | Accessibility not allowed (or turned off). | The window shows the note about cue keys reaching other apps, with Open Accessibility Settings. | | | |
@@ -138,7 +138,7 @@ Prepare the same set on both Macs: one MIDI track with an instrument, input from
 | 9-6 | Press ↓ several times while connected. | Main: "Reached the backup" ✓ and "Cue n since connecting"; backup shows the same key, memo and number. | | | |
 | 9-7 | Pull the network cable on the backup, press ↓. | Within about half a second the main shows "No confirmation" in red. Reconnect: the count starts from 1. | | | |
 | 9-8 | Hold ↓ for 2 s. | One cue only (no auto-repeat). | | | |
-| 9-9 | Add a key (Settings > Add Key…, press F5) and give it a memo; remove Esc. | F5 gets the next free note; the other keys keep their notes; the memo shows on the backup when F5 is pressed. | | | |
+| 9-9 | Add keys (Settings > Add Key…, press F5 then F6 without closing) and give F5 a memo; remove Esc. | F5 gets the next free note; the other keys keep their notes; the memo shows on the backup when F5 is pressed. | | | |
 | 9-10 | One Mac on 0.5.0, the other on 1.0.0. | Cues still play on the backup; the main shows "Delivery cannot be checked". | | | |
 | 9-11 | After 1.0.1 is out: leave 1.0.0 running for a minute while connected. | Banner "TwinKeys 1.0.1 is ready" without Restart Now. Nothing is replaced while running. Quit: reopening shows 1.0.1. | | | |
 | 9-12 | Same, while not connected. | Restart Now is shown; clicking it reopens TwinKeys as 1.0.1. | | | |

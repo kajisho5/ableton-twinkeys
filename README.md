@@ -14,7 +14,7 @@ TwinKeys fires sound cues on two Macs at once. Press a key on the main Mac and *
 ## How it works
 
 - Each Mac runs TwinKeys. Each TwinKeys creates a virtual MIDI input called **TwinKeys**, so your music software sees it like a normal MIDI device. You do not need a forwarding track in your set.
-- On the main Mac (**Send my keys**), TwinKeys watches the keyboard, turns presses of its **cue keys** (↑ ↓ Space Return Esc to begin with; any key can be added) into fixed MIDI notes, plays them on its own TwinKeys port and sends them over the local network to the other Mac. Cue keys can be kept from other apps, so Live on the main Mac reacts only to TwinKeys' MIDI, just like the backup.
+- On the main Mac (**Send my keys**), TwinKeys watches the keyboard, turns presses of its **cue keys** (↑ ↓ ← → Space Return Esc to begin with; any key, letters and digits included, can be added) into fixed MIDI notes, plays them on its own TwinKeys port and sends them over the local network to the other Mac. Cue keys can be kept from other apps, so Live on the main Mac reacts only to TwinKeys' MIDI, just like the backup.
 - The backup answers every cue. The main Mac shows the last cue, a count both Macs share, and whether the backup confirmed it (sent again for up to 0.3 s, then shown in red).
 - On the backup Mac (**Receive notes**), TwinKeys plays the notes it receives on its own TwinKeys port.
 - Tempo and bar position are **not** handled by TwinKeys. Use Ableton Link (built into Live) for that.
@@ -51,15 +51,14 @@ Do this once per Mac, in Live 11 or Live 12:
 3. In the MIDI ports list, find the input **TwinKeys** and turn on **Track** (to play instruments) and **Remote** (to trigger mapped controls such as clips or scenes).
 4. Map your cues in **MIDI Map Mode** (⌘M): click a clip slot, scene up/down, launch selected scene, Play or Stop, press a cue key on the main Mac, and leave MIDI Map Mode. Use the same mapping on both Macs (the same Set file is the safest way). Remove the same keys from Live's Key Map Mode (⌘K).
 5. Keep each clip's **Launch Mode** at **Trigger** (the default). Gate and Repeat stop the clip on key release, so they would also stop when TwinKeys turns notes off after a network drop.
-6. To play instruments with the optional piano layout, set MIDI tracks to receive from **TwinKeys** (or "All Ins") and turn **off** Live's computer MIDI keyboard on the main Mac (shortcut M).
+6. On the main Mac, turn **off** Live's computer MIDI keyboard (shortcut M).
 
 ## Using TwinKeys
 
 1. Open TwinKeys on both Macs on the same network (a wired network or a dedicated router is the most reliable).
 2. On the main Mac, check **Send my keys**. On the backup Mac, check **Receive notes**. (Both can be on.)
 3. In **Nearby TwinKeys**, click **Connect** next to the other Mac. The header shows **Connected to …** and the latency (heartbeat round trip).
-4. Press cue keys. Each sends a fixed note on MIDI channel 2 (from C1 up), whatever the octave. Add keys and memos in **Settings → Cue Keys**.
-5. Optional piano layout (Settings → "Also use the piano layout", off on a new install): home row A S D F G H J K L ; = white keys, W E T Y U O P = black keys, **Z / X** = octave down / up, **C / V** = velocity down / up. Keys are matched by physical position, so JIS and US keyboards behave the same.
+4. Press cue keys. Each sends its own fixed note (MIDI channel 1, from C1 up, velocity 127). Add keys (one by one, or A–Z and 0–9 at once) and memos in **Settings → Cue Keys**. Keys are matched by physical position, so JIS and US keyboards behave the same.
 
 **Updates:** TwinKeys downloads new versions in the background and replaces itself **only when it quits** (never during a show). **Restart Now** appears only while not connected. **Menu bar:** a keyboard icon shows the link (filled = connected) and has a menu; closing the window keeps TwinKeys running. Open at Login and menu-bar-only are in Settings.
 
@@ -91,10 +90,9 @@ Keys pressed together with ⌘, ⌃, ⌥ or ⇧ never play notes, so shortcuts i
 | What | Where |
 |---|---|
 | Settings | `~/Library/Application Support/TwinKeys/settings.json` |
-| Key mapping | `~/Library/Application Support/TwinKeys/mapping.json` (created on first launch; Settings → Reload Mapping after editing) |
 | Logs | `~/Library/Logs/TwinKeys/TwinKeys-YYYY-MM-DD.log` |
 
-`mapping.json` uses macOS virtual key codes (positions, not characters). Example entry: `{ "keycode": 0, "label": "A", "semitone": 0 }`. Semitone 0 is C of the current octave; octave 3 makes the A key MIDI note 60 (shown as C3).
+Cue keys are stored in `settings.json` (`cue_keys`) with macOS virtual key codes (positions, not characters), for example `{ "keycode": 125, "label": "↓", "memo": "Next scene", "note": 37 }`.
 
 ## Constants you may want to change
 
@@ -174,7 +172,7 @@ TwinKeys は、音響のキュー出しを2台の Mac で同時に行う Mac ア
 ### 使い方の流れ
 
 - 各 Mac に仮想 MIDI 入力「TwinKeys」ができます。Live の設定（「Link, Tempo & MIDI」）で TwinKeys の「トラック」と「リモート」をオンにするだけで使えます。転送用のトラックはいりません。
-- キューを出すキーは「設定」の「キューのキー」で決めます（最初は ↑ ↓ Space Return Esc）。キーごとに決まったノート（MIDI チャンネル 2、C1 から順）を送ります。オクターブを変えても変わりません。
+- キューを出すキーは「設定」の「キューのキー」で決めます（最初は ↑ ↓ ← → Space Return Esc）。英字・数字を含め、Mac のどのキーでも登録できます。キーごとに決まったノート（MIDI チャンネル 1、C1 から順、ベロシティ 127）を送ります。
 - Live の MIDI 割り当てモード（⌘M）で、クリップ・シーンの上下・選んだシーンの再生・再生／停止などを、キューのキーに割り当てます。2台で同じ割り当てにしてください。クリップの起動モードは「トリガー」のままにしてください。
 - メインの Mac では「アクセシビリティ」で TwinKeys をオンにします。キューのキーがほかのアプリ（Live を含む）に届かなくなり、メインの Live が2回動くのを防ぎます。
 - 画面の「直前のキュー」に、押したキー・メモ・接続してからの回数と、バックアップに届いたか（✓／赤い「届いた確認がありません」）が出ます。
@@ -184,7 +182,7 @@ TwinKeys は、音響のキュー出しを2台の Mac で同時に行う Mac ア
 - 最初に一度だけ、2台で同じ「合言葉」を設定します。片方の Mac で「合言葉を設定…」>「新しく作る」を押し、出てきた10文字（例 `K7MQ2-WX9TP`）を、もう片方の Mac の「合言葉を入力…」に入れます。合言葉が同じ Mac どうしだけがつながり、通信の中身も暗号化されます。
 - メインの Mac で「キーを送信」、バックアップの Mac で「ノートを受信」にチェックを入れ、メインの Mac の一覧で相手の「接続」をクリックします。切れても自動でつなぎ直します。
 - 一覧に相手が出ないときは「IPアドレスで接続…」（⇧⌘K）から、相手の IP アドレスを入れてつなげます。
-- ピアノ配列のキー（A〜;）で楽器を鳴らすときは、「設定」で「ピアノ配列のキーも使う」をオンにし、メインの Mac の Live のコンピュータ MIDI キーボードをオフにしてください。
+- メインの Mac では、Live のコンピュータ MIDI キーボードをオフにしてください。
 - 赤い「オールノートオフ」ボタン（⌃⌘P）で、両方の Mac の音をすべて止められます。
 - 表示言語は「設定」（⌘,）の「言語」で、「システムに合わせる」「English」「日本語」から選べます。
 

@@ -22,10 +22,7 @@ final class SettingsTests: XCTestCase {
         let s2 = store.loadSettings()
         XCTAssertEqual(s1.instanceID, s2.instanceID)
         XCTAssertEqual(s2.autoNoteOffSeconds, 10)
-
-        let (m, err) = store.loadMapping()
-        XCTAssertNil(err); XCTAssertEqual(m, .default)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: store.paths.mappingFile.path))
+        XCTAssertEqual(s2.cueKeys, CueKey.defaults)
     }
 
     func testPartialSettingsFileUsesDefaults() throws {
@@ -56,14 +53,5 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(kept, broken)                     // the person's file is not lost
         XCTAssertEqual(s.midiChannel, 1)                  // defaults in use
         XCTAssertNil(store.loadSettingsReportingProblem().1)   // the new file reads fine
-    }
-
-    func testBrokenMappingFallsBackToDefault() throws {
-        let store = ConfigStore(paths: AppPaths(home: tmp))
-        try FileManager.default.createDirectory(at: store.paths.supportDir, withIntermediateDirectories: true)
-        try Data("{ not json".utf8).write(to: store.paths.mappingFile)
-        let (m, err) = store.loadMapping()
-        XCTAssertEqual(m, .default)
-        XCTAssertNotNil(err)
     }
 }

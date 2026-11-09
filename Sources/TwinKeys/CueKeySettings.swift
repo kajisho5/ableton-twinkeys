@@ -26,9 +26,14 @@ struct CueKeySettings: View {
                 Button(t.addCueKey) { adding = true }
                     .buttonStyle(TKButtonStyle(kind: .primary))
                     .disabled(CueKey.freeNote(in: model.state.cueKeys) == nil)
-                Text(CueKey.freeNote(in: model.state.cueKeys) == nil ? t.cueKeysFull : t.addCueKeyHint)
-                    .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                Button(t.addLettersAndDigits) { model.addCueKeys(CueKey.alphanumericKeyCodes) }
+                    .buttonStyle(TKButtonStyle())
+                    .disabled(CueKey.freeNote(in: model.state.cueKeys) == nil
+                              || CueKey.alphanumericKeyCodes.allSatisfy { c in model.state.cueKeys.contains { $0.keycode == c } })
             }
+            Text(CueKey.freeNote(in: model.state.cueKeys) == nil ? t.cueKeysFull : t.addCueKeyHint)
+                .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .sheet(isPresented: $adding) { AddCueKeySheet(model: model, onClose: { adding = false }) }
         Section {
@@ -44,14 +49,6 @@ struct CueKeySettings: View {
                 Button(t.openAccessibilitySettings) { model.actions.openAccessibilitySettings() }
                     .buttonStyle(TKButtonStyle())
             }
-            Toggle(isOn: Binding(get: { model.state.pianoKeys }, set: { model.setPianoKeys($0) })) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(t.pianoKeys)
-                    Text(t.pianoKeysHelp).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .toggleStyle(.checkbox)
         }
     }
 
@@ -104,6 +101,7 @@ struct AddCueKeySheet: View {
     let onClose: () -> Void
     @State private var monitor: Any?
     @State private var message: String?
+    @State private var added: [String] = []
     private var t: Strings { model.state.t }
 
     var body: some View {
@@ -120,9 +118,16 @@ struct AddCueKeySheet: View {
                 .foregroundStyle(message == nil ? Theme.textSecondary : Theme.warning)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+            if !added.isEmpty {
+                Text(t.addedKeys(added.joined(separator: "  ")))
+                    .font(.system(size: Theme.body, weight: .semibold))
+                    .foregroundStyle(Theme.ok)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 Spacer()
-                Button(t.cancel, action: close).buttonStyle(TKButtonStyle())
+                Button(t.done, action: close).buttonStyle(TKButtonStyle(kind: .primary))
             }
         }
         .padding(20)
@@ -142,8 +147,12 @@ struct AddCueKeySheet: View {
                 message = t.keyAlreadyUsed(existing.label)
                 return nil
             }
+            if KeyNames.isModifier(code) { return nil }
+            guard CueKey.freeNote(in: model.state.cueKeys) != nil else { message = t.cueKeysFull; return nil }
             model.addCueKey(code)
-            close()
+            // Stay open: several keys can be added one after another.
+            message = nil
+            added.append(KeyNames.label(for: code))
             return nil
         }
     }
