@@ -15,7 +15,7 @@ CI run with these results: https://github.com/kajisho5/ableton-twinkeys/actions/
 
 | Area | How it was checked | Result |
 |---|---|---|
-| Unit tests (52) | `swift test` on Linux and macOS | **Pass** (0 failures) |
+| Unit tests (58) | `swift test` on Linux and macOS | **Pass** (0 failures) |
 | Key → note mapping (layout, key codes, repeat, chords, modifiers, octave/velocity limits, JSON) | `MappingTests` | Pass |
 | Protocol encode/decode, bad packets, duplicate / reordered / wrap-around sequence numbers | `ProtocolTests` | Pass |
 | Reconnect state machine (handshake, 1 s heartbeat, 3 s timeout, 1→2→4→5 s retry, bye, manual disconnect) | `LinkTests` | Pass |
