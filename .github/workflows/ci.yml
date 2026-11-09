@@ -45,8 +45,13 @@ jobs:
           ls -la ~/Library/Logs/TwinKeys/ ~/Library/Application\ Support/TwinKeys/ || true
           cat ~/Library/Logs/TwinKeys/*.log || true
       - name: End-to-end check (network notes come out of the TwinKeys MIDI port)
+        # macOS Local Network privacy silently blocks Bonjour for an .app that nobody can
+        # answer the permission prompt for (CI has no user). The same build, run as a plain
+        # executable from the shell, is not subject to it, so the check uses that binary.
         run: |
-          dist/TwinKeys.app/Contents/MacOS/TwinKeys > e2e-app.log 2>&1 &
+          BIN=$(find .build -path '*Release/TwinKeys' -type f -perm +111 | head -1)
+          echo "Using $BIN"
+          "$BIN" > e2e-app.log 2>&1 &
           PID=$!
           sleep 3
           echo "--- Bonjour services seen by macOS (dns-sd, 5 s)"
