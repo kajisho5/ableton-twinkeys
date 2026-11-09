@@ -382,9 +382,21 @@ final class AppModel: ObservableObject {
         setCueKeys(keys)
     }
 
+    private var recordingToken = 0
+
     func setRecordingCueKey(_ on: Bool) {
         keyMonitor.paused = on
-        if on { conductor.releaseHeldKeys() }
+        recordingToken += 1
+        if on {
+            conductor.releaseHeldKeys()
+            // Safety net: never leave cue keys paused, even if the sheet goes away unnoticed.
+            let token = recordingToken
+            DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in
+                guard let self, self.recordingToken == token, self.keyMonitor.paused else { return }
+                self.keyMonitor.paused = false
+                self.log.write("Adding cue keys ended after 2 minutes; key capture resumed")
+            }
+        }
     }
 
     func setBlockCueKeys(_ on: Bool) {

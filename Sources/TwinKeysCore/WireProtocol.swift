@@ -27,7 +27,8 @@ public enum PacketBody: Equatable, Sendable {
     /// Notes the sender's keys are still holding. Sent with each heartbeat so the
     /// receiver's automatic note-off only fires when a note-off was really lost.
     case held(channel: UInt8, notes: [UInt8])
-    /// Since 1.0.0: what the sender understands (bit 0: cue delivery check). Sent with each
+    /// Since 1.0.0: what the sender understands (bit 0: cue delivery check; bit 1: the sender
+    /// has just (re)connected and starts counting cues from zero). Sent with each
     /// heartbeat. Older versions drop unknown packet types, so they simply never send it.
     case features(flags: UInt8)
     /// Since 1.0.0: "your note-on with this sequence number arrived".

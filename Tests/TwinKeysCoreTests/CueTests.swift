@@ -226,4 +226,52 @@ final class CueTests: XCTestCase {
                                                            memo: String(repeating: "い", count: 40))).encode()
         XCTAssertLessThanOrEqual(long.count + SecureChannel.tagSize, WireProtocol.maxPacketSize)
     }
+
+    func press() {
+        main.handleKey(KeyInput(keycode: down, isDown: true)); pump()
+        main.handleKey(KeyInput(keycode: down, isDown: false)); pump()
+    }
+
+    func testOneSidedReconnectKeepsBothCountsAndNames() {
+        main.setCueKeys([CueKey(keycode: down, memo: "Next", note: 37)])
+        connect(); tick(1.1)
+        for _ in 0..<3 { press() }
+        // Only main loses the link (backup -> main traffic is lost), then it comes back.
+        backupToMainUp = false
+        tick(3.5)
+        backupToMainUp = true
+        tick(2)
+        XCTAssertEqual(main.snapshot().link, .connected(peer: backupID.uuidString))
+        press()
+        XCTAssertEqual(main.snapshot().lastCue!.count, backup.snapshot().lastCue!.count)
+        XCTAssertEqual(backup.snapshot().lastCue!.label, "↓")
+        XCTAssertEqual(backup.snapshot().lastCue!.memo, "Next")
+    }
+
+    func testOneSidedReconnectOnTheBackupKeepsBothCounts() {
+        main.setCueKeys([CueKey(keycode: down, memo: "Next", note: 37)])
+        connect(); tick(1.1)
+        for _ in 0..<3 { press() }
+        mainToBackupUp = false
+        tick(3.5)
+        mainToBackupUp = true
+        tick(2)
+        press()
+        XCTAssertEqual(main.snapshot().lastCue!.count, backup.snapshot().lastCue!.count)
+        XCTAssertEqual(backup.snapshot().lastCue!.memo, "Next")
+    }
+
+    func testStaleSwallowEntryDoesNotEatTheNextPress() {
+        XCTAssertTrue(main.handleKey(KeyInput(keycode: down, isDown: true)))   // key-up never arrives
+        main.setBlockCueKeys(false)
+        XCTAssertFalse(main.handleKey(KeyInput(keycode: down, isDown: true)))
+        XCTAssertFalse(main.handleKey(KeyInput(keycode: down, isDown: true, isRepeat: true)))
+        XCTAssertFalse(main.handleKey(KeyInput(keycode: down, isDown: false)))
+        // releaseHeldKeys (tap paused, Secure Input) also forgets swallowed keys.
+        main.setBlockCueKeys(true)
+        XCTAssertTrue(main.handleKey(KeyInput(keycode: KeyNames.up, isDown: true)))
+        main.releaseHeldKeys()
+        main.setBlockCueKeys(false)
+        XCTAssertFalse(main.handleKey(KeyInput(keycode: KeyNames.up, isDown: false)))
+    }
 }

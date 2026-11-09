@@ -127,7 +127,8 @@ public final class Conductor: @unchecked Sendable {
     /// Names of the peer's cue keys by (channel, note).
     private var peerCueNames: [NoteGuard.Key: (label: String, memo: String)] = [:]
     /// Sequence numbers of the peer's cue note-ons already played (to never play a resend twice).
-    private var playedCueSeqs: [UInt32] = []
+    private var playedCueSeqs: [PlayedCue] = []
+    private struct PlayedCue: Equatable { var session: UInt32; var seq: UInt32 }
     private var heartbeatsSinceNames = 0
 
     public init(instanceID: UUID, displayName: String, settings: AppSettings,
@@ -161,6 +162,8 @@ public final class Conductor: @unchecked Sendable {
     public func handleKey(_ input: KeyInput) -> Bool {
         lock.lock(); defer { lock.unlock() }
         var swallow = false
+        // A fresh press starts over (an entry left from a key-up that never arrived is dropped).
+        if input.isDown, !input.isRepeat { swallowed.remove(input.keycode) }
         if !input.isDown, swallowed.remove(input.keycode) != nil { swallow = true }
         if input.isDown, input.isRepeat, swallowed.contains(input.keycode) { return true }
         guard keyCapture, sendKeys, !quitting else { return swallow }
@@ -256,18 +259,18 @@ public final class Conductor: @unchecked Sendable {
             link.receivedOther(from: peer, now: now)
             if receiveNotes {
                 emitLocal(.noteOn(channel: ch, note: note, velocity: vel), fromKeys: false)
-                playedCue(seq: packet.seq, channel: ch, note: note, from: peer)
+                playedCue(session: packet.session, seq: packet.seq, channel: ch, note: note, from: peer)
             }
         case let .cueResend(orig, ch, note, vel, released):
             guard link.peer == peer, link.isConnected else { return peer }
             link.receivedOther(from: peer, now: now)
             guard receiveNotes else { return peer }
-            if playedCueSeqs.contains(orig) {
+            if playedCueSeqs.contains(PlayedCue(session: packet.session, seq: orig)) {
                 sendBody(.noteAck(seq: orig), to: peer)      // our answer was lost: answer again
             } else {
                 emitLocal(.noteOn(channel: ch, note: note, velocity: vel), fromKeys: false)
                 if released { emitLocal(.noteOff(channel: ch, note: note), fromKeys: false) }
-                playedCue(seq: orig, channel: ch, note: note, from: peer)
+                playedCue(session: packet.session, seq: orig, channel: ch, note: note, from: peer)
                 log("Cue \(noteName(note)) arrived on a resend")
             }
         case let .noteAck(ackSeq):
@@ -284,6 +287,13 @@ public final class Conductor: @unchecked Sendable {
         case let .features(flags):
             guard link.peer == peer else { return peer }
             peerAnswersCues = flags & 1 != 0
+            // The other Mac (re)connected and started counting again, maybe without this Mac
+            // noticing a drop: start again too, and send our cue names (it forgot them).
+            if flags & 2 != 0, link.isConnected {
+                resetCues()
+                sendBody(.features(flags: 1), to: peer)
+                sendCueNames(to: peer)
+            }
         case let .cueName(ch, note, label, memo):
             guard link.peer == peer else { return peer }
             peerCueNames[NoteGuard.Key(channel: ch, note: note)] = (clean(label), clean(memo))
@@ -359,6 +369,8 @@ public final class Conductor: @unchecked Sendable {
     /// end notes of keys we think are down, here and on the peer.
     public func releaseHeldKeys() {
         lock.lock(); defer { lock.unlock() }
+        // Key-ups may never come: do not keep swallowing those keys.
+        swallowed.removeAll()
         guard !engine.heldNotes.isEmpty else { return }
         apply(.keyCaptureTurnedOff, peer: link.isConnected ? link.peer : nil)
         log("Released held keys (key events may have been missed)")
@@ -554,9 +566,9 @@ public final class Conductor: @unchecked Sendable {
     }
 
     /// The backup played a note-on from the peer: answer it, and show it if it is a cue.
-    private func playedCue(seq: UInt32, channel ch: UInt8, note: UInt8, from peer: String) {
+    private func playedCue(session: UInt32, seq: UInt32, channel ch: UInt8, note: UInt8, from peer: String) {
         sendBody(.noteAck(seq: seq), to: peer)
-        playedCueSeqs.append(seq)
+        playedCueSeqs.append(PlayedCue(session: session, seq: seq))
         if playedCueSeqs.count > 64 { playedCueSeqs.removeFirst() }
         let key = NoteGuard.Key(channel: ch, note: note)
         let named = peerCueNames[key]
@@ -581,12 +593,17 @@ public final class Conductor: @unchecked Sendable {
         guard up != wasConnected else { return }
         wasConnected = up
         guard up else { return }
-        cueCount = 0; sentCue = nil; receivedCue = nil; playedCueSeqs.removeAll()
+        resetCues()
         peerAnswersCues = false; peerCueNames.removeAll()
         if let p = link.peer {
-            sendBody(.features(flags: 1), to: p)
+            // Bit 2: "I start counting again": the other Mac does the same, so both counts match.
+            sendBody(.features(flags: 3), to: p)
             sendCueNames(to: p)
         }
+    }
+
+    private func resetCues() {
+        cueCount = 0; sentCue = nil; receivedCue = nil
     }
 
     private func clean(_ raw: String) -> String {

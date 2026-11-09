@@ -170,13 +170,22 @@ final class Updater {
         let old = app + ".old-\(ProcessInfo.processInfo.processIdentifier)"
         // A small shell script waits for TwinKeys to exit, swaps the bundles, and keeps the old
         // one if anything fails. Paths are passed as arguments, never pasted into the script.
+        // The new app is copied next to the old one first; then two renames swap them, so the
+        // app is missing for only a moment. Nothing is touched if TwinKeys is still running.
         let script = """
-        pid="$1"; app="$2"; new="$3"; old="$4"; relaunch="$5"
-        for i in $(seq 1 300); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
-        if mv "$app" "$old" && /usr/bin/ditto "$new" "$app"; then
+        pid="$1"; app="$2"; new="$3"; old="$4"; relaunch="$5"; tmp="$app.new-$$"
+        i=0
+        while kill -0 "$pid" 2>/dev/null; do
+          i=$((i+1)); [ "$i" -gt 300 ] && exit 0
+          sleep 0.1
+        done
+        rm -rf "$tmp"
+        /usr/bin/ditto "$new" "$tmp" || { rm -rf "$tmp"; exit 0; }
+        mv "$app" "$old" || { rm -rf "$tmp"; exit 0; }
+        if mv "$tmp" "$app"; then
           rm -rf "$old" "$new"
         else
-          rm -rf "$app"; mv "$old" "$app"
+          mv "$old" "$app"; rm -rf "$tmp"
         fi
         [ "$relaunch" = 1 ] && /usr/bin/open "$app"
         exit 0
@@ -204,7 +213,10 @@ final class Updater {
         guard team.allSatisfy({ $0.isLetter || $0.isNumber }) else { return false }
         var code: SecStaticCode?
         guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code else { return false }
-        let text = "anchor apple generic and identifier \"\(bundleID)\" and certificate leaf[subject.OU] = \"\(team)\""
+        // Developer ID Application certificate (Apple's Developer ID requirement), our app ID and team.
+        let text = "anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists"
+            + " and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"
+            + " and identifier \"\(bundleID)\" and certificate leaf[subject.OU] = \"\(team)\""
         var req: SecRequirement?
         guard SecRequirementCreateWithString(text as CFString, [], &req) == errSecSuccess, let req else { return false }
         let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSCheckNestedCode | kSecCSStrictValidate)
