@@ -1,0 +1,45 @@
+---
+import { getEntry, render } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import { t, type Lang } from '../lib/i18n';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const s = t[lang];
+const entry = await getEntry('help', lang);
+if (!entry) throw new Error(`docs/help/${lang}.md not found`);
+const { Content } = await render(entry);
+---
+<Base lang={lang} page="guide" title={s.guideDocTitle}>
+  <article class="wrap narrow prose guide">
+    <Content />
+  </article>
+</Base>
+
+<style>
+  .guide {
+    padding-top: 40px;
+    padding-bottom: 72px;
+  }
+  .guide :global(h1) {
+    margin: 0 0 16px;
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1.3;
+  }
+  .guide :global(h2) {
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+  }
+  @media (max-width: 760px) {
+    .guide {
+      padding-top: 28px;
+      padding-bottom: 48px;
+    }
+    .guide :global(h1) {
+      font-size: 28px;
+    }
+  }
+</style>
