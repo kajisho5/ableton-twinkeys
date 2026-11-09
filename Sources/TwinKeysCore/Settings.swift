@@ -89,7 +89,16 @@ struct Lenient<T: Decodable>: Decodable {
 /// File locations. `home` is injectable for tests.
 public struct AppPaths: Sendable {
     public var home: URL
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) { self.home = home }
+    public init(home: URL = AppPaths.defaultHome) { self.home = home }
+
+    /// The user's home folder (on iOS, which has no `homeDirectoryForCurrentUser`, the app's own folder).
+    public static var defaultHome: URL {
+        #if os(iOS)
+        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        #else
+        return FileManager.default.homeDirectoryForCurrentUser
+        #endif
+    }
 
     public var supportDir: URL { home.appendingPathComponent("Library/Application Support/TwinKeys", isDirectory: true) }
     public var logsDir: URL { home.appendingPathComponent("Library/Logs/TwinKeys", isDirectory: true) }
