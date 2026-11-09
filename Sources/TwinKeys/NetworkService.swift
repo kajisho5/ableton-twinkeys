@@ -46,6 +46,8 @@ final class NetworkService: PacketSink {
     var onProblem: ((String) -> Void)?
     /// Another running TwinKeys uses our instance ID (copied settings). Main queue.
     var onDuplicateID: (() -> Void)?
+    /// Diagnostic messages for the log file (listener / browser state). Any thread.
+    var onLog: ((String) -> Void)?
 
     init(ownID: String, serviceName: String) {
         self.ownID = ownID
@@ -78,8 +80,16 @@ final class NetworkService: PacketSink {
             let l = try NWListener(using: Self.parameters())
             l.service = service()
             l.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
+            l.serviceRegistrationUpdateHandler = { [weak self] change in
+                switch change {
+                case let .add(endpoint): self?.onLog?("Advertising on the network as \(endpoint)")
+                case let .remove(endpoint): self?.onLog?("No longer advertised: \(endpoint)")
+                @unknown default: break
+                }
+            }
             l.stateUpdateHandler = { [weak self, weak l] state in
                 guard let self else { return }
+                self.onLog?("Listener state: \(state)\(l?.port.map { " (UDP port \($0))" } ?? "")")
                 if case let .failed(error) = state {
                     self.report("Listening for other Macs failed (\(error)); retrying")
                     l?.cancel()
@@ -100,6 +110,7 @@ final class NetworkService: PacketSink {
         b.browseResultsChangedHandler = { [weak self] results, _ in self?.update(results) }
         b.stateUpdateHandler = { [weak self, weak b] state in
             guard let self else { return }
+            self.onLog?("Browser state: \(state)")
             switch state {
             case .ready:
                 // Access works now (it may have been granted after a refusal).

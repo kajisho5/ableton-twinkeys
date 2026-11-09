@@ -99,6 +99,8 @@ final class AppModel: ObservableObject {
         network.onDatagram = { bytes, known in conductor.receive(bytes, knownPeer: known) }
         network.onNewRoute = { peer in conductor.newRoute(to: peer) }
         network.onDuplicateID = { [weak self] in self?.handleDuplicateID() }
+        let log = self.log
+        network.onLog = { log.write($0) }
         network.onPeersChanged = { [weak self] list in
             guard let self else { return }
             self.peers = list
