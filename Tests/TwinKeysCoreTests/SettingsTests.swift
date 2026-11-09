@@ -47,7 +47,7 @@ final class SettingsTests: XCTestCase {
     func testBrokenSettingsAreKeptAsBackup() throws {
         let store = ConfigStore(paths: AppPaths(home: tmp))
         try FileManager.default.createDirectory(at: store.paths.supportDir, withIntermediateDirectories: true)
-        let broken = #"{"instance_id": "11111111-2222-3333-4444-555555555555", "midi_channel": 2,}"#
+        let broken = #"{"instance_id": "11111111-2222-3333-4444-555555555555", "midi_channel": 2"#   // missing closing brace
         try Data(broken.utf8).write(to: store.paths.settingsFile)
         let (s, problem) = store.loadSettingsReportingProblem()
         let name = try XCTUnwrap(problem)
