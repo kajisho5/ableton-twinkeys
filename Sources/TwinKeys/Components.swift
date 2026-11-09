@@ -66,7 +66,8 @@ struct SectionLabel: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
-        Text(text.uppercased())
+        // Small caps style for English only; Japanese headings stay as written.
+        Text(text.unicodeScalars.allSatisfy(\.isASCII) ? text.uppercased() : text)
             .font(.system(size: Theme.caption, weight: .semibold))
             .foregroundStyle(Theme.textSecondary)
             .padding(.leading, 4)
