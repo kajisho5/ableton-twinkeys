@@ -117,3 +117,58 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  ios:
+    name: iPhone and iPad app (TwinKeys Remote)
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: XcodeGen 2.46.0 (checked against its SHA-256)
+        run: |
+          curl -sSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  /tmp/xcodegen.zip" | shasum -a 256 -c
+          unzip -q /tmp/xcodegen.zip -d /tmp
+          /tmp/xcodegen/bin/xcodegen --version
+      - name: Generate the Xcode project
+        run: cd iOS && /tmp/xcodegen/bin/xcodegen generate
+      - name: Build for the simulator
+        run: |
+          xcodebuild -version
+          xcodebuild -project iOS/TwinKeysRemote.xcodeproj -scheme TwinKeysRemote -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build | tail -n 40
+          test -d build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app
+      - name: Screenshots with sample data (iPhone and iPad, light and dark)
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          APP=build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app
+          mkdir -p ios-screenshots
+          pick() { xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for r in d.values() for x in r if x['name'].startswith(sys.argv[1])))" "$1"; }
+          for kind in "iPhone 17 Pro" "iPad Pro 13"; do
+            UDID=$(pick "$kind" || pick "${kind%% *}")
+            echo "== $kind: $UDID"
+            xcrun simctl boot "$UDID" || true
+            xcrun simctl bootstatus "$UDID" -b
+            xcrun simctl install "$UDID" "$APP"
+            for look in light dark; do
+              xcrun simctl ui "$UDID" appearance $look
+              for pane in session mixer cues; do
+                xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
+                xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane $pane
+                sleep 4
+                xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-$pane-$look.png"
+              done
+            done
+            xcrun simctl shutdown "$UDID" || true
+          done
+          ls -la ios-screenshots
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ios-screenshots
+          path: ios-screenshots/*.png
+          if-no-files-found: ignore
+

@@ -6,3 +6,7 @@ dist/
 xcuserdata/
 .DS_Store
 design/icon/out/
+
+# iOS (generated project and build output)
+iOS/TwinKeysRemote.xcodeproj/
+build/
