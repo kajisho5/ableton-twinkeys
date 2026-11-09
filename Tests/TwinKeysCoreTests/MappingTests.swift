@@ -108,3 +108,11 @@ final class MappingTests: XCTestCase {
         XCTAssertEqual(MIDIMessage.allNotesOffBytes[15], [0xBF, 123, 0])
     }
 }
+
+final class ShippedFilesTests: XCTestCase {
+    func testShippedDefaultMappingMatchesBuiltIn() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: root.appendingPathComponent("Resources/mapping.default.json"))
+        XCTAssertEqual(try KeyMapping.decode(data), KeyMapping.default)
+    }
+}

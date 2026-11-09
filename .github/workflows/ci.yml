@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: Build, test and package (macOS)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Unit tests
+        run: swift test
+      - name: Build universal .app
+        run: scripts/build-app.sh "0.0.0-ci.${GITHUB_RUN_NUMBER}" "${GITHUB_RUN_NUMBER}"
+      - name: Check bundle
+        run: |
+          plutil -p dist/TwinKeys.app/Contents/Info.plist
+          ls -l dist/TwinKeys.app/Contents/Resources
+      - name: Launch smoke test (starts, stays up 5 s, quits)
+        run: |
+          dist/TwinKeys.app/Contents/MacOS/TwinKeys > smoke.log 2>&1 &
+          PID=$!
+          sleep 5
+          if ! kill -0 $PID 2>/dev/null; then echo "TwinKeys exited early"; cat smoke.log; exit 1; fi
+          ps -o rss=,command= -p $PID | awk '{printf "Resident memory: %.1f MB\n", $1/1024}' | tee memory.txt
+          kill -TERM $PID || true
+          sleep 1
+          cat smoke.log || true
+          ls -la ~/Library/Logs/TwinKeys/ ~/Library/Application\ Support/TwinKeys/ || true
+          cat ~/Library/Logs/TwinKeys/*.log || true
+      - name: Screenshots (light / dark)
+        run: dist/TwinKeys.app/Contents/MacOS/TwinKeys --snapshot "$PWD/screenshots"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: TwinKeys-app
+          path: dist/*.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: |
+            screenshots/*.png
+            memory.txt

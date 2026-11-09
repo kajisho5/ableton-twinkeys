@@ -1,0 +1,249 @@
+#if os(macOS)
+import AppKit
+import Combine
+import SwiftUI
+import TwinKeysCore
+
+@MainActor
+final class AppModel: ObservableObject {
+    @Published private(set) var state = ViewState()
+
+    private let store = ConfigStore()
+    private(set) var settings: AppSettings
+    private let log: FileLog
+    private let midi: VirtualMIDIPort?
+    private let network: NetworkService
+    private let conductor: Conductor
+    private let keyMonitor = KeyMonitor()
+    private var peers: [PeerInfo] = []
+    private var localNetwork: LocalNetworkState = .searching
+    private var problems: [String] = []
+    private var tickTimer: DispatchSourceTimer?
+    private var uiTimer: Timer?
+    private var started = false
+
+    init() {
+        let store = ConfigStore()
+        var settings = store.loadSettings()
+        var problems: [String] = []
+        let (mapping, mappingProblem) = store.loadMapping()
+        if let mappingProblem { problems.append(mappingProblem) }
+
+        var port: VirtualMIDIPort?
+        do {
+            port = try VirtualMIDIPort(name: "TwinKeys", uniqueID: settings.midiUniqueID)
+        } catch {
+            problems.append("MIDI port error: \(error)")
+        }
+        if let port, settings.midiUniqueID != port.uniqueID {
+            settings.midiUniqueID = port.uniqueID
+            try? store.save(settings)
+        }
+
+        let name = Host.current().localizedName ?? "Mac"
+        let log = FileLog(dir: store.paths.logsDir)
+        let network = NetworkService(ownID: settings.instanceID.uuidString, serviceName: name)
+        let conductor = Conductor(instanceID: settings.instanceID, displayName: name, mapping: mapping,
+                                  settings: settings, midi: port, net: network,
+                                  clock: { ProcessInfo.processInfo.systemUptime },
+                                  nanos: { DispatchTime.now().uptimeNanoseconds })
+        conductor.log = { log.write($0) }
+        log.write("TwinKeys started (\(name))")
+
+        self.settings = settings
+        self.log = log
+        self.midi = port
+        self.network = network
+        self.conductor = conductor
+        self.problems = problems
+        var initial = ViewState()
+        initial.midiPortReady = port != nil
+        initial.problems = problems
+        initial.sendKeys = settings.sendKeys
+        initial.receiveNotes = settings.receiveNotes
+        initial.keyCapture = settings.keyCapture
+        self.state = initial
+    }
+
+    var actions: ViewActions {
+        ViewActions(
+            connect: { [weak self] id in self?.connect(id) },
+            disconnect: { [weak self] in self?.conductor.disconnect(); self?.refresh() },
+            panic: { [weak self] in self?.conductor.panic(); self?.refresh() },
+            setSendKeys: { [weak self] on in self?.setSendKeys(on) },
+            setReceiveNotes: { [weak self] on in self?.setReceiveNotes(on) },
+            setKeyCapture: { [weak self] on in self?.setKeyCapture(on) },
+            openInputMonitoringSettings: { [weak self] in self?.openInputMonitoringSettings() },
+            openLocalNetworkSettings: { Self.openSettingsPane("Privacy_LocalNetwork") },
+            recheckPermissions: { [weak self] in self?.checkPermissions() }
+        )
+    }
+
+    func start() {
+        guard !started else { return }
+        started = true
+        let conductor = self.conductor
+        network.onDatagram = { bytes, known in conductor.receive(bytes, knownPeer: known) }
+        network.onPeersChanged = { [weak self] list in
+            guard let self else { return }
+            self.peers = list
+            for p in list { conductor.setPeerName(p.name, for: p.id) }
+            self.refresh()
+        }
+        network.onLocalNetworkState = { [weak self] s in self?.localNetwork = s; self?.refresh() }
+        network.onProblem = { [weak self] msg in
+            self?.problems.append(msg); self?.log.write(msg); self?.refresh()
+        }
+        network.start(sends: settings.sendKeys, receives: settings.receiveNotes)
+
+        keyMonitor.onKey = { input in conductor.handleKey(input) }
+        checkPermissions()
+
+        // Link timing (heartbeats, timeouts, auto note-off) runs off the main thread.
+        let t = DispatchSource.makeTimerSource(queue: network.queue)
+        t.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100), leeway: .milliseconds(10))
+        t.setEventHandler { conductor.tick() }
+        t.resume()
+        tickTimer = t
+
+        uiTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+    }
+
+    func shutdown() {
+        log.write("TwinKeys quitting: All Notes Off")
+        conductor.prepareForQuit()
+        network.flush(timeout: 0.15)
+        keyMonitor.stop()
+        network.stop()
+        try? store.save(settings)
+    }
+
+    // MARK: Actions
+
+    func connect(_ id: String) {
+        conductor.connect(to: id)
+        settings.lastPeerID = id
+        try? store.save(settings)
+        refresh()
+    }
+
+    func toggleConnection() {
+        if state.linkedPeerID != nil { conductor.disconnect() }
+        else if peers.count == 1 { connect(peers[0].id) }
+        refresh()
+    }
+
+    private func setSendKeys(_ on: Bool) {
+        conductor.setSendKeys(on)
+        settings.sendKeys = on
+        persistModes()
+    }
+
+    private func setReceiveNotes(_ on: Bool) {
+        conductor.setReceiveNotes(on)
+        settings.receiveNotes = on
+        persistModes()
+    }
+
+    private func setKeyCapture(_ on: Bool) {
+        conductor.setKeyCapture(on)
+        settings.keyCapture = on
+        try? store.save(settings)
+        log.write("Key capture \(on ? "on" : "off")")
+        refresh()
+    }
+
+    private func persistModes() {
+        network.updateModes(sends: settings.sendKeys, receives: settings.receiveNotes)
+        try? store.save(settings)
+        refresh()
+    }
+
+    func setAutoNoteOff(_ seconds: Double) {
+        settings.autoNoteOffSeconds = seconds
+        conductor.setAutoNoteOff(seconds: seconds)
+        try? store.save(settings)
+    }
+
+    func reloadMapping() {
+        let (m, problem) = store.loadMapping()
+        conductor.setMapping(m)
+        problems.removeAll { $0.hasPrefix("mapping.json") }
+        if let problem { problems.append(problem) }
+        refresh()
+    }
+
+    func resetMapping() {
+        try? store.writeDefaultMapping()
+        reloadMapping()
+    }
+
+    func checkPermissions() {
+        if KeyMonitor.hasPermission {
+            if !keyMonitor.isRunning, !keyMonitor.start() {
+                problems.append("Key capture could not start even though permission is granted. Try quitting and reopening TwinKeys.")
+            }
+        }
+        refresh()
+    }
+
+    private func openInputMonitoringSettings() {
+        // The first request shows the system dialog and adds TwinKeys to the list.
+        KeyMonitor.requestPermission()
+        Self.openSettingsPane("Privacy_ListenEvent")
+    }
+
+    static func openSettingsPane(_ anchor: String) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func openHelp() {
+        if let url = URL(string: "https://github.com/kajisho5/ableton-twinkeys#readme") { NSWorkspace.shared.open(url) }
+    }
+
+    func revealLogs() {
+        try? FileManager.default.createDirectory(at: store.paths.logsDir, withIntermediateDirectories: true)
+        NSWorkspace.shared.activateFileViewerSelecting([store.paths.logsDir])
+    }
+
+    func revealSettingsFolder() {
+        NSWorkspace.shared.activateFileViewerSelecting([store.paths.mappingFile])
+    }
+
+    // MARK: State
+
+    private func refresh() {
+        let snap = conductor.snapshot()
+        var s = ViewState()
+        let nameFor: (String) -> String = { id in
+            snap.peerNames[id] ?? self.peers.first { $0.id == id }?.name ?? "another Mac"
+        }
+        switch snap.link {
+        case .idle: s.link = .notConnected
+        case let .connecting(p, attempt, _): s.link = .connecting(name: nameFor(p), attempt: attempt); s.linkedPeerID = p
+        case let .connected(p): s.link = .connected(name: nameFor(p), latencyMs: snap.latencyMs); s.linkedPeerID = p
+        }
+        s.peers = peers
+        // A peer that connected to us but is not (yet) in the Bonjour list still gets a row.
+        if let id = s.linkedPeerID, !peers.contains(where: { $0.id == id }) {
+            s.peers.append(PeerInfo(id: id, name: nameFor(id), sends: true, receives: false))
+        }
+        s.sendKeys = snap.sendKeys
+        s.receiveNotes = snap.receiveNotes
+        s.keyCapture = snap.keyCapture
+        s.inputMonitoring = KeyMonitor.hasPermission ? .granted : .denied
+        s.localNetwork = peers.isEmpty ? localNetwork == .peersVisible ? .searching : localNetwork : .peersVisible
+        s.octave = snap.octave
+        s.velocity = snap.velocity
+        s.heldNotes = snap.heldNotes
+        s.midiPortReady = midi != nil
+        s.problems = problems
+        if s != state { state = s }
+        if KeyMonitor.hasPermission && !keyMonitor.isRunning { _ = keyMonitor.start() }
+    }
+}
+#endif
