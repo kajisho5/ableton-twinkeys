@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>TwinKeys Remote A</title>
+  <!-- A: two keycaps, main (solid) and backup (outlined), joined: one press, two Macs -->
+  <rect x="20" y="64" width="100" height="128" rx="22" fill="#000"/>
+  <path fill="#000" fill-rule="evenodd" d="M158 64h56a22 22 0 0 1 22 22v84a22 22 0 0 1-22 22h-56a22 22 0 0 1-22-22v-84a22 22 0 0 1 22-22zM160 88v80h52v-80z"/>
+  <rect x="116" y="118" width="24" height="20" fill="#000"/>
+</svg>

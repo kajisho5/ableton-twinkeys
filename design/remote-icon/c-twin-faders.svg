@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>TwinKeys Remote</title>
+  <!-- C: two fader tracks, both caps at the same height: the two Macs always move together -->
+  <rect x="80" y="40" width="16" height="176" rx="8" fill="#000"/>
+  <rect x="160" y="40" width="16" height="176" rx="8" fill="#000"/>
+  <rect x="52" y="104" width="72" height="40" rx="10" fill="#000"/>
+  <rect x="132" y="104" width="72" height="40" rx="10" fill="#000"/>
+  <rect x="64" y="121" width="48" height="6" rx="3" fill="#fff"/>
+  <rect x="144" y="121" width="48" height="6" rx="3" fill="#fff"/>
+</svg>
