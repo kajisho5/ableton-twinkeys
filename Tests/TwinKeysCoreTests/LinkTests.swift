@@ -47,7 +47,7 @@ final class LinkTests: XCTestCase {
         XCTAssertEqual(l.tick(now: 3.9), [.sendHeartbeat(peer: "B")])   // 2.9s silence: still connected
         XCTAssertTrue(l.isConnected)
         let a = l.tick(now: 4.0)                                        // 3.0s silence
-        XCTAssertEqual(a, [.releaseNotesFromPeer, .log("Lost connection to B; reconnecting"), .sendHello(peer: "B")])
+        XCTAssertEqual(a, [.safety(.connectionLost, peer: "B"), .log("Lost connection to B; reconnecting"), .sendHello(peer: "B")])
         XCTAssertEqual(l.state, .connecting(peer: "B", attempt: 1, nextRetryAt: 5))
         XCTAssertNil(l.latencyMs)
         // The peer comes back by itself (it also retries): its hello reconnects us.
@@ -59,8 +59,8 @@ final class LinkTests: XCTestCase {
         var l = L()
         _ = l.connect(to: "B", now: 0); _ = l.receivedHelloAck(from: "B", now: 0)
         l.receivedOther(from: "B", now: 2.5)
-        XCTAssertFalse(l.tick(now: 5.0).contains(.releaseNotesFromPeer))
-        XCTAssertTrue(l.tick(now: 5.5).contains(.releaseNotesFromPeer))
+        XCTAssertFalse(l.tick(now: 5.0).contains(.safety(.connectionLost, peer: "B")))
+        XCTAssertTrue(l.tick(now: 5.5).contains(.safety(.connectionLost, peer: "B")))
     }
 
     func testIncomingHelloWhenIdleConnectsPassively() {
@@ -81,16 +81,32 @@ final class LinkTests: XCTestCase {
     func testManualDisconnectSendsNotesOffBothSidesAndBye() {
         var l = L()
         _ = l.connect(to: "B", now: 0); _ = l.receivedHelloAck(from: "B", now: 0)
-        XCTAssertEqual(l.disconnect(), [.sendAllNotesOff(peer: "B"), .allNotesOffLocal, .sendBye(peer: "B"), .log("Disconnected from B")])
+        XCTAssertEqual(l.disconnect(), [.safety(.manualDisconnect, peer: "B"), .sendBye(peer: "B"), .log("Disconnected from B")])
         XCTAssertEqual(l.state, .idle)
         XCTAssertEqual(l.tick(now: 100), [])   // no reconnect after a manual disconnect
         XCTAssertEqual(l.disconnect(), [])
     }
 
+    func testManualDisconnectIsNotUndoneByLateHellos() {
+        var l = L()
+        _ = l.connect(to: "B", now: 0); _ = l.receivedHelloAck(from: "B", now: 0)
+        _ = l.disconnect()
+        // The Bye was lost and B keeps retrying: answer with Bye, stay idle.
+        XCTAssertEqual(l.receivedHello(from: "B", now: 5), [.sendBye(peer: "B"), .log("Ignored hello from B after a manual disconnect")])
+        XCTAssertEqual(l.state, .idle)
+        // Another Mac can still connect.
+        XCTAssertEqual(l.receivedHello(from: "C", now: 6), [.sendHelloAck(peer: "C"), .log("Connected to C")])
+        _ = l.disconnect()
+        // Connecting again by hand clears the block.
+        _ = l.connect(to: "B", now: 7)
+        _ = l.receivedHelloAck(from: "B", now: 7.1)
+        XCTAssertTrue(l.isConnected)
+    }
+
     func testByeStopsWithoutReconnect() {
         var l = L()
         _ = l.receivedHello(from: "A", now: 0)
-        XCTAssertEqual(l.receivedBye(from: "A"), [.releaseNotesFromPeer, .log("A disconnected")])
+        XCTAssertEqual(l.receivedBye(from: "A"), [.safety(.peerSaidBye, peer: "A"), .log("A disconnected")])
         XCTAssertEqual(l.state, .idle)
         XCTAssertEqual(l.tick(now: 10), [])
     }
@@ -99,7 +115,7 @@ final class LinkTests: XCTestCase {
         var l = L()
         _ = l.connect(to: "B", now: 0); _ = l.receivedHelloAck(from: "B", now: 0)
         XCTAssertEqual(l.connect(to: "C", now: 1),
-                       [.sendAllNotesOff(peer: "B"), .allNotesOffLocal, .sendBye(peer: "B"), .sendHello(peer: "C")])
+                       [.safety(.manualDisconnect, peer: "B"), .sendBye(peer: "B"), .sendHello(peer: "C")])
     }
 
     func testStaleAckFromOtherPeerIgnored() {

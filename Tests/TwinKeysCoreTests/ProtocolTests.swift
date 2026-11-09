@@ -20,6 +20,8 @@ final class ProtocolTests: XCTestCase {
         try roundTrip(.allNotesOff)
         try roundTrip(.heartbeat(timestampNanos: 0x0123_4567_89AB_CDEF))
         try roundTrip(.heartbeatAck(timestampNanos: UInt64.max))
+        try roundTrip(.held(channel: 3, notes: [60, 64, 67]))
+        try roundTrip(.held(channel: 0, notes: []))
     }
 
     func testHeaderLayout() {

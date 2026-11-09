@@ -111,8 +111,8 @@ final class ConductorTests: XCTestCase {
     func testQuitSendsAllNotesOffAndByeSoPeerStops() {
         connect()
         main.prepareForQuit(); pump()
-        XCTAssertEqual(mainMIDI.allNotesOffCount, 32)   // panic + disconnect
-        XCTAssertGreaterThanOrEqual(backupMIDI.allNotesOffCount, 16)
+        XCTAssertEqual(mainMIDI.allNotesOffCount, 16)     // once, not twice
+        XCTAssertEqual(backupMIDI.allNotesOffCount, 16)
         XCTAssertEqual(backup.snapshot().link, .idle)
         XCTAssertEqual(main.snapshot().link, .idle)
     }
@@ -132,14 +132,52 @@ final class ConductorTests: XCTestCase {
         XCTAssertNotNil(main.snapshot().latencyMs)
     }
 
-    func testAutoNoteOffOnReceiverAfterTenSeconds() {
+    func step(_ seconds: Double) {
+        for _ in 0..<Int(seconds * 10) { now += 0.1; main.tick(); backup.tick(); pump() }
+    }
+
+    func testLongHeldNoteKeepsSoundingOnBothMacs() {
         connect()
         main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
-        // Heartbeats keep the link up; the note-off never comes.
-        for _ in 0..<99 { now += 0.1; main.tick(); backup.tick(); pump() }
+        step(15)   // longer than the 10 s auto note-off
+        XCTAssertFalse(mainMIDI.sent.contains([0x80, 60, 0]))
         XCTAssertFalse(backupMIDI.sent.contains([0x80, 60, 0]))
-        for _ in 0..<3 { now += 0.1; main.tick(); backup.tick(); pump() }
+        main.handleKey(KeyInput(keycode: 0x00, isDown: false)); pump()
+        XCTAssertEqual(mainMIDI.notes.last, [0x80, 60, 0])
+        XCTAssertEqual(backupMIDI.notes.last, [0x80, 60, 0])
+    }
+
+    func testAutoNoteOffOnReceiverWhenNoteOffIsLost() {
+        connect()
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
+        // The key-up happens while packets are being lost (short of the 3 s timeout).
+        mainToBackupUp = false
+        main.handleKey(KeyInput(keycode: 0x00, isDown: false)); pump()
+        step(1)
+        mainToBackupUp = true
+        XCTAssertTrue(backup.snapshot().link == .connected(peer: mainID.uuidString))
+        XCTAssertFalse(backupMIDI.sent.contains([0x80, 60, 0]))
+        step(9.5)   // 10 s after the last sign that the key was held
         XCTAssertTrue(backupMIDI.sent.contains([0x80, 60, 0]))
+    }
+
+    func testManualDisconnectStaysDisconnectedWhenByeIsLost() {
+        connect()
+        mainToBackupUp = false
+        step(4)                       // backup times out and keeps sending hellos
+        main.disconnect(); pump()     // the Bye is lost
+        mainToBackupUp = true
+        step(10)
+        XCTAssertEqual(main.snapshot().link, .idle)
+        XCTAssertEqual(backup.snapshot().link, .idle)   // main answered its hello with Bye
+    }
+
+    func testLogUsesPeerNames() {
+        var lines: [String] = []
+        main.log = { lines.append($0) }
+        connect()
+        main.disconnect()
+        XCTAssertTrue(lines.contains("Disconnected from Backup"), "\(lines)")
     }
 
     func testPacketsFromUnknownRouteAreIgnoredUnlessHello() {

@@ -33,11 +33,15 @@ jobs:
       - name: Decide the version
         env:
           GH_TOKEN: ${{ github.token }}
+          # Passed through the environment, never pasted into the script (no script injection).
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          elif [ "${{ github.ref_type }}" = "tag" ]; then
-            TAG="${{ github.ref_name }}"
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            TAG="$REF_NAME"
           else
             TAG="v$(tr -d '[:space:]' < VERSION)"
           fi
@@ -46,7 +50,7 @@ jobs:
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           # A VERSION push for a version that is already released does nothing.
-          if [ "${{ github.ref_type }}" = "branch" ] && [ -z "${{ github.event.inputs.tag }}" ] \
+          if [ "$REF_TYPE" = "branch" ] && [ -z "$INPUT_TAG" ] \
              && gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG already exists; nothing to do."
             echo "SKIP=1" >> "$GITHUB_ENV"

@@ -15,12 +15,9 @@ public struct LinkStateMachine: Sendable {
         case sendHeartbeat(peer: String)
         case sendHeartbeatAck(peer: String, timestampNanos: UInt64)
         case sendBye(peer: String)
-        case sendAllNotesOff(peer: String)
-        /// All Notes Off on this Mac's port (every note, including ones from our own keys).
-        case allNotesOffLocal
-        /// Note-offs only for notes that arrived from the peer. Used when the link drops:
-        /// notes played on this Mac's own keys must keep sounding during a network blip.
-        case releaseNotesFromPeer
+        /// Turn notes off as `Safety.plan(for:)` says for this trigger. `peer` is the peer
+        /// the link was with (for sending All Notes Off to it).
+        case safety(SafetyTrigger, peer: String)
         case log(String)
     }
 
@@ -33,6 +30,9 @@ public struct LinkStateMachine: Sendable {
     public private(set) var lastHeard: Double = 0
     private var lastHeartbeatSent: Double = -.infinity
     private var rtts: [Double] = []
+    /// Peer the person disconnected from. Its hellos are answered with Bye until
+    /// the person connects again, so a lost Bye cannot undo a manual disconnect.
+    public private(set) var declined: String?
 
     public init() {}
 
@@ -63,6 +63,7 @@ public struct LinkStateMachine: Sendable {
     public mutating func connect(to peer: String, now: Double) -> [Action] {
         var actions: [Action] = []
         if let old = self.peer, old != peer { actions += leave(old) }
+        declined = nil
         state = .connecting(peer: peer, attempt: 1, nextRetryAt: now + Self.retryDelay(attempt: 1))
         rtts.removeAll()
         actions.append(.sendHello(peer: peer))
@@ -74,16 +75,20 @@ public struct LinkStateMachine: Sendable {
         guard let p = peer else { return [] }
         state = .idle
         rtts.removeAll()
+        declined = p
         return leave(p) + [.log("Disconnected from \(p)")]
     }
 
     /// Notes off on both sides, then say goodbye so the peer does not reconnect.
     private func leave(_ p: String) -> [Action] {
-        [.sendAllNotesOff(peer: p), .allNotesOffLocal, .sendBye(peer: p)]
+        [.safety(.manualDisconnect, peer: p), .sendBye(peer: p)]
     }
 
     /// A hello arrived (the peer connects to us, or reconnects after a drop).
     public mutating func receivedHello(from peer: String, now: Double) -> [Action] {
+        if declined == peer, peer != self.peer {
+            return [.sendBye(peer: peer), .log("Ignored hello from \(peer) after a manual disconnect")]
+        }
         switch state {
         case let .connected(p) where p == peer:
             lastHeard = now
@@ -117,7 +122,7 @@ public struct LinkStateMachine: Sendable {
         guard self.peer == peer else { return [] }
         state = .idle
         rtts.removeAll()
-        return [.releaseNotesFromPeer, .log("\(peer) disconnected")]
+        return [.safety(.peerSaidBye, peer: peer), .log("\(peer) disconnected")]
     }
 
     public mutating func receivedHeartbeat(from peer: String, timestampNanos: UInt64, now: Double) -> [Action] {
@@ -148,7 +153,7 @@ public struct LinkStateMachine: Sendable {
             if now - lastHeard >= Self.timeout {
                 state = .connecting(peer: p, attempt: 1, nextRetryAt: now + Self.retryDelay(attempt: 1))
                 rtts.removeAll()
-                return [.releaseNotesFromPeer, .log("Lost connection to \(p); reconnecting"), .sendHello(peer: p)]
+                return [.safety(.connectionLost, peer: p), .log("Lost connection to \(p); reconnecting"), .sendHello(peer: p)]
             }
             if now - lastHeartbeatSent >= Self.heartbeatInterval {
                 lastHeartbeatSent = now

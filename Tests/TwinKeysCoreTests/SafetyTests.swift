@@ -47,6 +47,18 @@ final class SafetyTests: XCTestCase {
         XCTAssertEqual(g.expire(now: 18), [.noteOff(channel: 0, note: 60)])
     }
 
+    func testKeepAndTouch() {
+        var g = NoteGuard(timeout: 10)
+        g.record(.noteOn(channel: 0, note: 60, velocity: 100), now: 0)
+        g.record(.noteOn(channel: 0, note: 62, velocity: 100), now: 0)
+        XCTAssertEqual(g.expire(now: 11, keep: [NoteGuard.Key(channel: 0, note: 60)]), [.noteOff(channel: 0, note: 62)])
+        g.touch(channel: 0, note: 60, now: 11)
+        XCTAssertEqual(g.expire(now: 20), [])
+        XCTAssertEqual(g.expire(now: 21), [.noteOff(channel: 0, note: 60)])
+        g.touch(channel: 0, note: 99, now: 0)   // unknown note: ignored
+        XCTAssertTrue(g.active.isEmpty)
+    }
+
     func testZeroTimeoutDisablesAutoOff() {
         var g = NoteGuard(timeout: 0)
         g.record(.noteOn(channel: 0, note: 60, velocity: 100), now: 0)

@@ -7,12 +7,11 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case system, en, ja
     var id: String { rawValue }
 
-    /// The language actually used for text.
-    var resolved: AppLanguage {
-        guard self == .system else { return self }
+    /// The macOS language, read once at launch (macOS asks to reopen apps after a language change).
+    static let systemResolved: AppLanguage = {
         let first = Locale.preferredLanguages.first ?? "en"
         return first.hasPrefix("ja") ? .ja : .en
-    }
+    }()
 }
 
 /// All user-facing text in English and Japanese.
@@ -20,7 +19,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 /// and keeps sentences short.
 struct Strings {
     let lang: AppLanguage
-    init(_ lang: AppLanguage) { self.lang = lang.resolved }
+    init(_ lang: AppLanguage) { self.lang = lang == .system ? AppLanguage.systemResolved : lang }
     private func s(_ en: String, _ ja: String) -> String { lang == .ja ? ja : en }
 
     // MARK: Header
@@ -52,6 +51,9 @@ struct Strings {
 
     func problem(_ p: AppProblem) -> String {
         switch p {
+        case let .settingsUnreadable(backup):
+            return s("settings.json could not be read. It was kept as \(backup) and default settings are in use.",
+                     "settings.json を読み込めなかったため、\(backup) として残し、初期設定で起動しました。")
         case .mappingUnreadable:
             return s("mapping.json could not be read. Using the default mapping.", "mapping.json を読み込めなかったため、初期のキー配置を使っています。")
         case .midiPort:
@@ -178,6 +180,7 @@ struct Strings {
 
 /// Problems shown in the window, translated at display time.
 enum AppProblem: Hashable {
+    case settingsUnreadable(backup: String)
     case mappingUnreadable
     case midiPort
     case listenFailed

@@ -65,14 +65,25 @@ public struct ConfigStore: Sendable {
     public var paths: AppPaths
     public init(paths: AppPaths = AppPaths()) { self.paths = paths }
 
-    public func loadSettings() -> AppSettings {
-        if let data = try? Data(contentsOf: paths.settingsFile),
-           let s = try? JSONDecoder().decode(AppSettings.self, from: data) {
-            return s
+    public func loadSettings() -> AppSettings { loadSettingsReportingProblem().0 }
+
+    /// Loads settings. If settings.json exists but cannot be read, it is kept as
+    /// settings.broken-<time>.json (never silently lost), defaults are used, and the
+    /// backup's name is returned as the problem.
+    public func loadSettingsReportingProblem() -> (AppSettings, String?) {
+        let fm = FileManager.default
+        if let data = try? Data(contentsOf: paths.settingsFile) {
+            if let s = try? JSONDecoder().decode(AppSettings.self, from: data) { return (s, nil) }
+            let stamp = Int(Date().timeIntervalSince1970)
+            let backup = paths.supportDir.appendingPathComponent("settings.broken-\(stamp).json")
+            try? fm.moveItem(at: paths.settingsFile, to: backup)
+            let s = AppSettings()
+            try? save(s)
+            return (s, backup.lastPathComponent)
         }
         let s = AppSettings()
         try? save(s)
-        return s
+        return (s, nil)
     }
 
     public func save(_ s: AppSettings) throws {

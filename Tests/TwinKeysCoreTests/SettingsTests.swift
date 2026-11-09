@@ -44,6 +44,20 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(bad.language, "system")
     }
 
+    func testBrokenSettingsAreKeptAsBackup() throws {
+        let store = ConfigStore(paths: AppPaths(home: tmp))
+        try FileManager.default.createDirectory(at: store.paths.supportDir, withIntermediateDirectories: true)
+        let broken = #"{"instance_id": "11111111-2222-3333-4444-555555555555", "midi_channel": 2,}"#
+        try Data(broken.utf8).write(to: store.paths.settingsFile)
+        let (s, problem) = store.loadSettingsReportingProblem()
+        let name = try XCTUnwrap(problem)
+        XCTAssertTrue(name.hasPrefix("settings.broken-"))
+        let kept = try String(contentsOf: store.paths.supportDir.appendingPathComponent(name), encoding: .utf8)
+        XCTAssertEqual(kept, broken)                     // the person's file is not lost
+        XCTAssertEqual(s.midiChannel, 1)                  // defaults in use
+        XCTAssertNil(store.loadSettingsReportingProblem().1)   // the new file reads fine
+    }
+
     func testBrokenMappingFallsBackToDefault() throws {
         let store = ConfigStore(paths: AppPaths(home: tmp))
         try FileManager.default.createDirectory(at: store.paths.supportDir, withIntermediateDirectories: true)

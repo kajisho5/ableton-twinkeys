@@ -134,15 +134,17 @@ public final class Conductor: @unchecked Sendable {
         case let .noteOff(ch, note):
             guard link.peer == peer, link.isConnected else { return peer }
             link.receivedOther(from: peer, now: now)
-            // Always deliver note-offs for notes we played, even if receiving was just turned off.
-            if receiveNotes || peerGuard.active[NoteGuard.Key(channel: ch, note: note)] != nil {
-                emitLocal(.noteOff(channel: ch, note: note), fromKeys: false)
-            }
+            if receiveNotes { emitLocal(.noteOff(channel: ch, note: note), fromKeys: false) }
+        case let .held(ch, notes):
+            guard link.peer == peer, link.isConnected else { return peer }
+            link.receivedOther(from: peer, now: now)
+            // The sender's keys are still down: these notes are meant to keep sounding.
+            for n in notes { peerGuard.touch(channel: ch, note: n, now: now) }
         case .allNotesOff:
             guard link.peer == peer else { return peer }
             link.receivedOther(from: peer, now: now)
             localAllNotesOff()
-            log("All Notes Off received from \(peerNames[peer] ?? peer)")
+            log("All Notes Off received from \(name(of: peer))")
         }
         return peer
     }
@@ -152,7 +154,9 @@ public final class Conductor: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         let now = clock()
         perform(link.tick(now: now))
-        for m in keysGuard.expire(now: now) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m))") }
+        // Notes whose keys are still down are not stuck: only the key-up ends them.
+        let down = Set(engine.heldNotes.map { NoteGuard.Key(channel: engine.channel, note: $0) })
+        for m in keysGuard.expire(now: now, keep: down) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m))") }
         for m in peerGuard.expire(now: now) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m)) (from peer)") }
     }
 
@@ -168,28 +172,32 @@ public final class Conductor: @unchecked Sendable {
 
     public func panic() {
         lock.lock(); defer { lock.unlock() }
-        apply(.panicButton)
+        apply(.panicButton, peer: link.isConnected ? link.peer : nil)
         log("Panic: All Notes Off")
     }
 
     /// Clean shutdown: notes off everywhere and tell the peer we are leaving.
     public func prepareForQuit() {
         lock.lock(); defer { lock.unlock() }
-        apply(.appWillQuit)
-        perform(link.disconnect())
+        if link.peer != nil {
+            // Disconnect turns notes off here and on the peer, then says goodbye.
+            perform(link.disconnect())
+        } else {
+            apply(.appWillQuit, peer: nil)
+        }
     }
 
     public func setSendKeys(_ on: Bool) {
         lock.lock(); defer { lock.unlock() }
         guard on != sendKeys else { return }
-        if !on { apply(.sendingTurnedOff) }
+        if !on { apply(.sendingTurnedOff, peer: link.isConnected ? link.peer : nil) }
         sendKeys = on
     }
 
     public func setKeyCapture(_ on: Bool) {
         lock.lock(); defer { lock.unlock() }
         guard on != keyCapture else { return }
-        if !on { apply(.keyCaptureTurnedOff) }
+        if !on { apply(.keyCaptureTurnedOff, peer: link.isConnected ? link.peer : nil) }
         keyCapture = on
     }
 
@@ -223,17 +231,18 @@ public final class Conductor: @unchecked Sendable {
 
     // MARK: - Internals (call with lock held)
 
-    private func apply(_ trigger: SafetyTrigger) {
-        let plan = Safety.plan(for: trigger, connected: link.isConnected)
+    /// `peer`: the peer to notify (nil when there is no link).
+    private func apply(_ trigger: SafetyTrigger, peer: String?) {
+        let plan = Safety.plan(for: trigger, connected: peer != nil)
         switch plan.local {
         case .none: break
         case .all:
             localAllNotesOff()
-            if plan.remote, let p = link.peer { sendBody(.allNotesOff, to: p, copies: redundancy) }
+            if plan.remote, let p = peer { sendBody(.allNotesOff, to: p, copies: redundancy) }
         case .notesFromKeys:
             for m in engine.releaseAll() {
                 emitLocal(m, fromKeys: true)
-                if plan.remote { sendRemote(m) }
+                if plan.remote, let p = peer { send(m, to: p) }
             }
         case .notesFromPeer:
             for m in peerGuard.releaseAll() { midi?.send(m.bytes) }
@@ -254,6 +263,10 @@ public final class Conductor: @unchecked Sendable {
 
     private func sendRemote(_ m: MIDIMessage) {
         guard link.isConnected, let p = link.peer else { return }
+        send(m, to: p)
+    }
+
+    private func send(_ m: MIDIMessage, to p: String) {
         switch m {
         case let .noteOn(ch, n, v): sendBody(.noteOn(channel: ch, note: n, velocity: v), to: p, copies: redundancy)
         case let .noteOff(ch, n): sendBody(.noteOff(channel: ch, note: n), to: p, copies: redundancy)
@@ -276,21 +289,23 @@ public final class Conductor: @unchecked Sendable {
                 sendBody(.helloAck(instanceID: instanceID, name: displayName), to: p)
             case let .sendHeartbeat(p):
                 sendBody(.heartbeat(timestampNanos: nanos()), to: p)
+                if sendKeys, keyCapture, !engine.heldNotes.isEmpty {
+                    sendBody(.held(channel: engine.channel, notes: engine.heldNotes), to: p)
+                }
             case let .sendHeartbeatAck(p, t):
                 sendBody(.heartbeatAck(timestampNanos: t), to: p)
             case let .sendBye(p):
                 sendBody(.bye, to: p, copies: redundancy)
-            case let .sendAllNotesOff(p):
-                sendBody(.allNotesOff, to: p, copies: redundancy)
-            case .allNotesOffLocal:
-                localAllNotesOff()
-            case .releaseNotesFromPeer:
-                for m in peerGuard.releaseAll() { midi?.send(m.bytes) }
+            case let .safety(trigger, p):
+                apply(trigger, peer: p)
             case let .log(s):
-                log(s.replacingOccurrences(of: link.peer ?? "\u{0}", with: peerNames[link.peer ?? ""] ?? link.peer ?? ""))
+                // Show peer names instead of instance IDs.
+                log(peerNames.reduce(s) { $0.replacingOccurrences(of: $1.key, with: $1.value) })
             }
         }
     }
+
+    private func name(of peer: String) -> String { peerNames[peer] ?? peer }
 
     private func noteNameFor(_ m: MIDIMessage) -> String {
         switch m { case let .noteOn(_, n, _), let .noteOff(_, n): return noteName(n) }

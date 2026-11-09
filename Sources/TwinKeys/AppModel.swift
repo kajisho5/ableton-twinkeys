@@ -21,11 +21,19 @@ final class AppModel: ObservableObject {
     private var tickTimer: DispatchSourceTimer?
     private var uiTimer: Timer?
     private var started = false
+    /// Input Monitoring state, refreshed once per second (not on every UI tick).
+    private var hasInputMonitoring = KeyMonitor.hasPermission
+    private var lastPermissionCheck = 0.0
+    private var lastTapAttempt = 0.0
 
     init() {
         let store = ConfigStore()
-        var settings = store.loadSettings()
+        let loaded = store.loadSettingsReportingProblem()
+        var settings = loaded.0
+        let settingsProblem = loaded.1
         var problems: [AppProblem] = []
+        if let settingsProblem { problems.append(.settingsUnreadable(backup: settingsProblem)) }
+        let log = FileLog(dir: store.paths.logsDir)
         let (mapping, mappingProblem) = store.loadMapping()
         if mappingProblem != nil { problems.append(.mappingUnreadable) }
 
@@ -34,7 +42,7 @@ final class AppModel: ObservableObject {
             port = try VirtualMIDIPort(name: "TwinKeys", uniqueID: settings.midiUniqueID)
         } catch {
             problems.append(.midiPort)
-            FileLog(dir: store.paths.logsDir).write("MIDI port error: \(error)")
+            log.write("MIDI port error: \(error)")
         }
         if let port, settings.midiUniqueID != port.uniqueID {
             settings.midiUniqueID = port.uniqueID
@@ -42,7 +50,6 @@ final class AppModel: ObservableObject {
         }
 
         let name = Host.current().localizedName ?? "Mac"
-        let log = FileLog(dir: store.paths.logsDir)
         let network = NetworkService(ownID: settings.instanceID.uuidString, serviceName: name)
         let conductor = Conductor(instanceID: settings.instanceID, displayName: name, mapping: mapping,
                                   settings: settings, midi: port, net: network,
@@ -203,12 +210,33 @@ final class AppModel: ObservableObject {
     }
 
     func checkPermissions() {
-        if KeyMonitor.hasPermission {
+        hasInputMonitoring = KeyMonitor.hasPermission
+        lastPermissionCheck = ProcessInfo.processInfo.systemUptime
+        if hasInputMonitoring {
+            lastTapAttempt = lastPermissionCheck
             if !keyMonitor.isRunning, !keyMonitor.start() {
                 if !problems.contains(.keyCaptureFailed) { problems.append(.keyCaptureFailed) }
             }
         }
+        if keyMonitor.isRunning { problems.removeAll { $0 == .keyCaptureFailed } }
         refresh()
+    }
+
+    /// Light-weight permission upkeep for the 100 ms UI tick.
+    private func maintainKeyMonitor() {
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - lastPermissionCheck >= 1 {
+            lastPermissionCheck = now
+            hasInputMonitoring = KeyMonitor.hasPermission
+        }
+        // Start the tap once permission appears; retry at most every 2 s.
+        if hasInputMonitoring, !keyMonitor.isRunning, now - lastTapAttempt >= 2 {
+            lastTapAttempt = now
+            _ = keyMonitor.start()
+        }
+        if keyMonitor.isRunning, problems.contains(.keyCaptureFailed) {
+            problems.removeAll { $0 == .keyCaptureFailed }
+        }
     }
 
     private func openInputMonitoringSettings() {
@@ -239,6 +267,7 @@ final class AppModel: ObservableObject {
     // MARK: State
 
     private func refresh() {
+        maintainKeyMonitor()
         let snap = conductor.snapshot()
         var s = ViewState()
         let nameFor: (String) -> String = { id in
@@ -257,7 +286,7 @@ final class AppModel: ObservableObject {
         s.sendKeys = snap.sendKeys
         s.receiveNotes = snap.receiveNotes
         s.keyCapture = snap.keyCapture
-        s.inputMonitoring = KeyMonitor.hasPermission ? .granted : .denied
+        s.inputMonitoring = hasInputMonitoring ? .granted : .denied
         s.localNetwork = peers.isEmpty ? localNetwork == .peersVisible ? .searching : localNetwork : .peersVisible
         s.octave = snap.octave
         s.velocity = snap.velocity
@@ -266,7 +295,6 @@ final class AppModel: ObservableObject {
         s.problems = problems
         s.language = language
         if s != state { state = s }
-        if KeyMonitor.hasPermission && !keyMonitor.isRunning { _ = keyMonitor.start() }
     }
 }
 #endif

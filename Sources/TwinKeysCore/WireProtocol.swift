@@ -23,6 +23,9 @@ public enum PacketBody: Equatable, Sendable {
     case allNotesOff
     case heartbeat(timestampNanos: UInt64)
     case heartbeatAck(timestampNanos: UInt64)
+    /// Notes the sender's keys are still holding. Sent with each heartbeat so the
+    /// receiver's automatic note-off only fires when a note-off was really lost.
+    case held(channel: UInt8, notes: [UInt8])
 
     var typeCode: UInt8 {
         switch self {
@@ -34,6 +37,7 @@ public enum PacketBody: Equatable, Sendable {
         case .allNotesOff: return 0x20
         case .heartbeat: return 0x30
         case .heartbeatAck: return 0x31
+        case .held: return 0x12
         }
     }
 }
@@ -53,6 +57,8 @@ public enum DecodeError: Error, Equatable {
 
 /// Maximum bytes of a peer name carried in hello packets.
 let maxNameBytes = 32
+/// Maximum notes listed in one held packet.
+let maxHeldNotes = 32
 
 extension Packet {
     public func encode() -> [UInt8] {
@@ -72,6 +78,9 @@ extension Packet {
             b += [ch & 0x0F, note & 0x7F]
         case let .heartbeat(t), let .heartbeatAck(t):
             b.appendBE(t)
+        case let .held(ch, notes):
+            let list = Array(notes.prefix(maxHeldNotes))
+            b += [ch & 0x0F, UInt8(list.count)] + list.map { $0 & 0x7F }
         }
         return b
     }
@@ -99,6 +108,11 @@ extension Packet {
             guard p.count >= 2, p[0] < 16, p[1] < 128 else { throw DecodeError.badPayload }
             body = .noteOff(channel: p[0], note: p[1])
         case 0x20: body = .allNotesOff
+        case 0x12:
+            guard p.count >= 2, p[0] < 16, Int(p[1]) <= maxHeldNotes, p.count >= 2 + Int(p[1]) else { throw DecodeError.badPayload }
+            let notes = Array(p[2..<(2 + Int(p[1]))])
+            guard notes.allSatisfy({ $0 < 128 }) else { throw DecodeError.badPayload }
+            body = .held(channel: p[0], notes: notes)
         case 0x30, 0x31:
             guard p.count >= 8 else { throw DecodeError.badPayload }
             let t = (UInt64(p.readBE32(at: 0)) << 32) | UInt64(p.readBE32(at: 4))
