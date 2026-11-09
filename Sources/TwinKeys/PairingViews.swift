@@ -27,7 +27,7 @@ struct PairingPanel: View {
                 Text(t.thisMacCode).font(.system(size: Theme.caption, weight: .semibold)).foregroundStyle(Theme.textSecondary)
                 Spacer()
                 Text(t.thisMacAddress(addressText))
-                    .font(.system(size: Theme.caption, design: .monospaced)).foregroundStyle(Theme.textSecondary)
+                    .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
                     .textSelection(.enabled)
             }
             Text(state.pairingCode ?? t.noCodeYet)

@@ -17,7 +17,7 @@ TwinKeys plays the same MIDI notes on two Macs at once. Press keys on the main M
 - On the main Mac (**Send my keys**), TwinKeys watches the keyboard, turns key presses into notes, plays them on its own TwinKeys port and sends them over the local network to the other Mac.
 - On the backup Mac (**Receive notes**), TwinKeys plays the notes it receives on its own TwinKeys port.
 - Tempo and bar position are **not** handled by TwinKeys. Use Ableton Link (built into Live) for that.
-- The two Macs find each other automatically with Bonjour. A small UDP protocol carries note on/off, heartbeats and All Notes Off. Each note is sent twice; duplicates and out-of-order packets are dropped.
+- The two Macs find each other automatically with Bonjour (or by IP address). A small UDP protocol carries note on/off, heartbeats and All Notes Off, signed and encrypted with keys from a shared pairing code. Each note is sent twice; duplicates and out-of-order packets are dropped.
 
 ## Download and first launch
 
@@ -29,6 +29,16 @@ TwinKeys plays the same MIDI notes on two Macs at once. Press keys on the main M
 If the window shows **Local Network: Not allowed**, TwinKeys could not announce itself on the network: turn TwinKeys on in **System Settings → Privacy & Security → Local Network** and reopen it.
 
 Releases up to 0.3.0 were not notarized. If you still have one of those, replace it with the current release.
+
+## Pairing code (both Macs, once)
+
+Only Macs with the same pairing code can connect, and their traffic is encrypted.
+
+1. On one Mac, click **Set Up Pairing Code…** (or Settings → Pairing Code) and then **Make New Code**. A 10-character code such as `K7MQ2-WX9TP` appears.
+2. On the other Mac, click **Enter Code…** and type the same code. Case and hyphens do not matter.
+3. The code is stored in the keychain, so you do this only once. A Mac with a different code is shown as **Different pairing code** and cannot connect.
+
+If the other Mac is not listed (for example on a network that blocks Bonjour, or across subnets), use **Connect by IP Address…** (⇧⌘K) and type its IP address, shown on the other Mac under Settings → Pairing Code. TwinKeys listens on UDP port 47801.
 
 ## Setting up Live (both Macs)
 
@@ -56,6 +66,7 @@ If the network drops, TwinKeys keeps retrying (every 1 s, slowing to every 5 s) 
 | Connect / Disconnect | ⌘K (connects when only one other Mac is listed) |
 | Key capture on / off | ⌃⌘K |
 | All Notes Off (panic) | ⌃⌘P |
+| Connect by IP Address | ⇧⌘K |
 | TwinKeys Help | ⌘? |
 | Settings | ⌘, |
 
@@ -90,6 +101,8 @@ Keys pressed together with ⌘, ⌃, ⌥ or ⇧ never play notes, so shortcuts i
 | Copies of each note packet | 2 | `Sources/TwinKeysCore/Conductor.swift` (`redundancy`) |
 | Default auto note-off | 10 s | `Sources/TwinKeysCore/Settings.swift` |
 | Default MIDI channel | 1 | `settings.json` (`midi_channel`) |
+| UDP port | 47801 (falls back to any free port) | `Sources/TwinKeys/NetworkService.swift` (`fixedPort`) |
+| Pairing key derivation | PBKDF2-HMAC-SHA256, 100 000 rounds | `Sources/TwinKeysCore/Pairing.swift` |
 | App icon | made with fresnel | source: `design/icon/` (`twinkeys.spec.json`, `TwinKeys.icon`); built `.icns`: `Resources/AppIcon.icns` |
 
 ## Building from source
@@ -113,7 +126,8 @@ The platform-independent logic (`Sources/TwinKeysCore`) also builds and tests on
 - One-to-one link (one main, one backup) in v1.
 - TwinKeys cannot know whether your music software has the TwinKeys port turned on; it only knows the port exists.
 - Key capture does not see keys typed while macOS Secure Input is on (most password fields, and Terminal with Secure Keyboard Entry). TwinKeys ends held notes when that starts.
-- TwinKeys trusts the local network: it only accepts Macs that are visible as TwinKeys on the network, but anyone on the same network can appear as one. There is no pairing code yet (planned for 0.5.0). Use it on a network you control.
+- Security: hellos are signed with a key derived from the pairing code (PBKDF2-HMAC-SHA256, 100 000 rounds) and all other traffic is encrypted with ChaCha20-Poly1305 using per-launch keys (details: [docs/design-pairing.md](docs/design-pairing.md)). Anyone who learns the pairing code can connect: make a new code if it leaks.
+- TwinKeys 0.5.0 and later cannot connect to 0.4.x (protocol version 2). Use the same version on both Macs.
 - Wi-Fi adds variable delay that TwinKeys cannot control. Prefer a wired network.
 
 ## Credits
@@ -153,7 +167,9 @@ TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らす Mac ア
 
 - 各 Mac に仮想 MIDI 入力「TwinKeys」ができます。Live の設定（「Link, Tempo & MIDI」）で TwinKeys の「トラック」と「リモート」をオンにするだけで使えます。転送用のトラックはいりません。
 - テンポと小節の位置は Ableton Link（Live に内蔵）で合わせてください。TwinKeys は扱いません。
+- 最初に一度だけ、2台で同じ「合言葉」を設定します。片方の Mac で「合言葉を設定…」>「新しく作る」を押し、出てきた10文字（例 `K7MQ2-WX9TP`）を、もう片方の Mac の「合言葉を入力…」に入れます。合言葉が同じ Mac どうしだけがつながり、通信の中身も暗号化されます。
 - メインの Mac で「キーを送信」、バックアップの Mac で「ノートを受信」にチェックを入れ、メインの Mac の一覧で相手の「接続」をクリックします。切れても自動でつなぎ直します。
+- 一覧に相手が出ないときは「IPアドレスで接続…」（⇧⌘K）から、相手の IP アドレスを入れてつなげます。
 - メインの Mac では、Live のコンピュータ MIDI キーボードをオフにしてください。オンのままだと同じ音が2回鳴ります。
 - 赤い「オールノートオフ」ボタン（⌃⌘P）で、両方の Mac の音をすべて止められます。
 - 表示言語は「設定」（⌘,）の「言語」で、「システムに合わせる」「English」「日本語」から選べます。
@@ -161,5 +177,6 @@ TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らす Mac ア
 ### 注意
 
 - 音声そのものの自動切り替え（オーディオフェイルオーバー）は対象外です。専用の機材が必要です。
-- つなげるのは、同じネットワーク上で TwinKeys として見えている Mac だけです。ただし同じネットワークにいれば誰でも TwinKeys のふりができ、合言葉（ペアリング）の仕組みはまだありません（0.5.0 で追加予定）。自分で管理しているネットワークで使ってください。
+- つなげるのは、同じ合言葉を設定した Mac だけです。合言葉が漏れたときは「新しく作る」で作り直してください。
+- 0.5.0 からは 0.4.x 以前の TwinKeys とはつながりません。2台とも同じバージョンにしてください。
 - Wi-Fi は遅れが揺れやすいので、有線ネットワークをおすすめします。

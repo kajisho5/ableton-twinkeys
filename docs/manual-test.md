@@ -112,3 +112,16 @@ Prepare the same set on both Macs: one MIDI track with an instrument, input from
 | 7-6 | Copy ~/Library/Application Support/TwinKeys/settings.json from main to backup and open TwinKeys on both. | One Mac shows that a new ID was made and asks to reopen TwinKeys; after reopening, both see each other. | | | |
 | 7-7 | Run an older TwinKeys (with another protocol version, if available) on one Mac. | The other Mac lists it with "Different TwinKeys version" and Connect is unavailable. | | | |
 
+## 8. Pairing code and connect by IP (added in 0.5.0)
+
+| # | Step | Expected | Live 11 | Live 12 | Notes |
+|---|---|---|---|---|---|
+| 8-1 | Fresh install on both Macs. | Window shows "To connect, both Macs need the same pairing code." Connect buttons are unavailable. | | | |
+| 8-2 | Mac A: Set Up Pairing Code… > Make New Code. Mac B: Enter Code… and type it (try lower case and without the hyphen). | Both show the same code. Connect works; notes play on both. | | | |
+| 8-3 | Mac B: Make New Code (confirm). | Link ends. Mac A shows Mac B with "Different pairing code"; Connect does not link. Enter the new code on Mac A: works again. | | | |
+| 8-4 | Quit and reopen TwinKeys on both. | Code is remembered (keychain); connect works without entering it again. | | | |
+| 8-5 | Network where Bonjour is blocked, or Macs on different subnets: Mac A > Connect by IP Address (⇧⌘K) with Mac B's address from its Settings. | Links; the row shows Mac B's name after connecting; notes play. | | | |
+| 8-6 | Type an invalid address (e.g. "abc") in Connect by IP Address. | "Type an IP address such as 192.168.1.20." No crash. | | | |
+| 8-7 | One Mac on 0.4.x, the other on 0.5.0. | The newer Mac lists the older one with "Different TwinKeys version"; no connection. | | | |
+| 8-8 | Optional, with a packet capture tool: capture the UDP traffic on port 47801 while playing. | Note numbers are not readable in the packets (encrypted). | | | |
+

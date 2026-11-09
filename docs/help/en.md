@@ -16,6 +16,14 @@ Unofficial third-party tool. Not affiliated with Ableton.
 2. When macOS asks about the local network, click Allow.
 3. On the main Mac, click Open System Settings… in the box at the top of the window and turn on TwinKeys under Input Monitoring. Come back and click Check Again.
 
+## Pairing code (once)
+
+Both Macs need the same pairing code. Only Macs with the same code can connect, and their traffic is encrypted.
+
+1. On one Mac, click Set Up Pairing Code… and then Make New Code. A code such as K7MQ2-WX9TP appears.
+2. On the other Mac, click Set Up Pairing Code… > Enter Code… and type the same 10 characters. Case and hyphens do not matter.
+3. The code is kept in the keychain. You do this only once.
+
 ## Live settings (both Macs)
 
 1. Open Live's Settings (Preferences in Live 11) and choose the Link, Tempo & MIDI tab.
@@ -30,6 +38,8 @@ Unofficial third-party tool. Not affiliated with Ableton.
 2. Check Send my keys on the main Mac and Receive notes on the backup Mac.
 3. When the other Mac appears under Nearby TwinKeys on the main Mac, click Connect.
 4. The top of the window shows Connected to … and the latency.
+
+If the other Mac is not listed, use Connect by IP Address… (⇧⌘K) and type its IP address. The other Mac shows its address under Settings > Pairing Code.
 
 If the network drops, TwinKeys reconnects by itself (every second at first, slowing to every 5 seconds).
 
@@ -51,6 +61,7 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 - Connect / Disconnect — ⌘K (when only one other Mac is listed; otherwise click Connect in the list)
 - Key capture on / off — ⌃⌘K
 - All Notes Off — ⌃⌘P
+- Connect by IP Address — ⇧⌘K
 - Settings — ⌘,
 - This guide — ⌘?
 
@@ -88,6 +99,9 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 - Check that Send my keys and Key capture are on.
 - Check that Track is on for TwinKeys in Live's MIDI settings.
 - While you type in a password field (macOS Secure Input), keys are hidden from TwinKeys. The window shows "Key capture: Paused", and held notes are ended when that starts.
+
+**"Different pairing code" next to the other Mac**
+- The two Macs use different codes. On one Mac, open Set Up Pairing Code… and use Enter Code… to type the other Mac's code.
 
 **Every note plays twice**
 - Turn off Live's Computer MIDI Keyboard on the main Mac.
