@@ -165,6 +165,14 @@ jobs:
           grep -q "source=Notarized Developer ID" spctl.txt
           test -f "$app/Contents/Resources/help/ja.md"
           test -f "$app/Contents/Resources/AppIcon.icns"
+          # The updater's signature check: the notarized app passes, a re-signed copy does not.
+          team=$(codesign -dvv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+          "$app/Contents/MacOS/TwinKeys" --check-update-signature "$app" "$team"
+          cp -R "$app" fake.app && codesign --force --deep -s - fake.app
+          if "$app/Contents/MacOS/TwinKeys" --check-update-signature "$PWD/fake.app" "$team"; then
+            echo "::error::The updater accepted an app that is not signed by the team"; exit 1
+          fi
+          rm -rf fake.app
           sudo rm -rf /Applications/TwinKeys.app
           sudo ditto "$app" /Applications/TwinKeys.app
           hdiutil detach "$mnt" > /dev/null

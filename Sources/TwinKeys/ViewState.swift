@@ -47,6 +47,17 @@ struct ViewState: Equatable {
     var localAddresses: [String] = []
     var lastManualAddress = ""
     var sheet: AppSheet?
+    /// The last cue sent (main) or received (backup).
+    var lastCue: CueStatus?
+    var cueKeys: [CueKey] = CueKey.defaults
+    var pianoKeys = false
+    var blockCueKeys = true
+    /// The key tap can keep cue keys from other apps right now.
+    var cueKeysBlocked = false
+    var accessibility: PermissionState = .unknown
+    var update: UpdateState = .idle
+    var appVersion = ""
+    var autoUpdate = true
 
     var t: Strings { Strings(language) }
 
@@ -58,6 +69,15 @@ struct ViewState: Equatable {
     }
 
     var keyCaptureActive: Bool { keyCapture && sendKeys && inputMonitoring == .granted }
+
+    /// Cue keys are set to stay away from other apps but still reach them (no Accessibility).
+    var cueKeysLeaking: Bool { blockCueKeys && !cueKeys.isEmpty && keyCaptureActive && !cueKeysBlocked }
+
+    /// "Restart Now" is offered only while not connected: never during a show.
+    var canRestartForUpdate: Bool {
+        if case .ready = update, linkedPeerID == nil { return true }
+        return false
+    }
 
     var headline: String {
         switch link {
@@ -110,6 +130,9 @@ struct ViewActions {
     var copyPairingCode: () -> Void = {}
     /// Returns false if the address is not valid.
     var connectByAddress: (String) -> Bool = { _ in false }
+    var openAccessibilitySettings: () -> Void = {}
+    var restartForUpdate: () -> Void = {}
+    var openReleasePage: () -> Void = {}
 }
 
 enum AppSheet: Equatable { case pairing, connectByIP, help }

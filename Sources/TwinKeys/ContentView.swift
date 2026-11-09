@@ -17,6 +17,9 @@ struct ContentView: View {
                     if !state.isPaired { pairingBanner }
                     if state.inputMonitoring != .granted && state.sendKeys { permissionBanner }
                     if !state.midiPortReady || !state.problems.isEmpty { problemBanner }
+                    UpdateBanner(state: state, actions: actions)
+                    if state.cueKeysLeaking { cueLeakBanner }
+                    if !state.cueKeys.isEmpty || state.lastCue != nil { CuePanel(state: state) }
                     peersSection
                     modeSection
                     permissionRow
@@ -87,6 +90,19 @@ struct ContentView: View {
                             .buttonStyle(TKButtonStyle())
                     }
                 }
+            }
+            .padding(12)
+        }
+    }
+
+    private var cueLeakBanner: some View {
+        TKGroup(border: Theme.warning) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(t.cueKeysPassThrough)
+                    .font(.system(size: 12, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(t.openAccessibilitySettings, action: actions.openAccessibilitySettings)
+                    .buttonStyle(TKButtonStyle(kind: .primary))
             }
             .padding(12)
         }
@@ -242,21 +258,50 @@ struct ContentView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     Rectangle().fill(Theme.separator).frame(height: 1).padding(.leading, 14)
-                    ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .top, spacing: 28) { valueBlocks }
-                        VStack(alignment: .leading, spacing: 8) { valueBlocks }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
-                    Text(t.doubleNotesHint)
-                        .font(.system(size: Theme.caption))
-                        .foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    cueKeyLine
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
+                    if state.pianoKeys {
+                        Rectangle().fill(Theme.separator).frame(height: 1).padding(.leading, 14)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .top, spacing: 28) { valueBlocks }
+                            VStack(alignment: .leading, spacing: 8) { valueBlocks }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.top, 10)
+                        Text(t.doubleNotesHint)
+                            .font(.system(size: Theme.caption))
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                    }
                 }
             }
         }
+    }
+
+    private var cueKeyLine: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(t.cueKeysTitle).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+            if state.cueKeys.isEmpty {
+                Text(t.cueKeysNone).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(state.cueKeys) { k in
+                        Text(k.label)
+                            .font(.system(size: Theme.caption, weight: .semibold))
+                            .padding(.horizontal, 6).frame(minHeight: 20)
+                            .background(RoundedRectangle(cornerRadius: 4).fill(Theme.windowBackground))
+                            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.buttonBorder, lineWidth: 1))
+                            .help(k.memo.isEmpty ? noteName(k.note) : k.memo)
+                    }
+                    Text(t.cueKeysChange).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1).padding(.leading, 6)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder private var modeToggles: some View {
@@ -355,6 +400,14 @@ struct ContentView: View {
         HStack(spacing: 6) { StatusDot(color: ln.0); Text(ln.1) }
             .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
             .accessibilityElement(children: .combine)
+        if state.blockCueKeys && !state.cueKeys.isEmpty && state.sendKeys {
+            HStack(spacing: 6) {
+                StatusDot(color: state.accessibility == .granted ? Theme.ok : Theme.warning)
+                Text(state.accessibility == .granted ? t.accessibilityAllowed : t.accessibilityNotAllowed)
+            }
+            .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+            .accessibilityElement(children: .combine)
+        }
     }
 }
 #endif

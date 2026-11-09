@@ -20,7 +20,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 struct Strings {
     let lang: AppLanguage
     init(_ lang: AppLanguage) { self.lang = lang == .system ? AppLanguage.systemResolved : lang }
-    private func s(_ en: String, _ ja: String) -> String { lang == .ja ? ja : en }
+    func s(_ en: String, _ ja: String) -> String { lang == .ja ? ja : en }
 
     // MARK: Header
     var notConnected: String { s("Not connected", "未接続") }

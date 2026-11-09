@@ -5,6 +5,9 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var model: AppModel?
 
+    /// Closing the window keeps TwinKeys running (it stays in the menu bar).
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated { model?.shutdown() }
     }
@@ -26,6 +29,7 @@ struct TwinKeysApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button(model.state.t.aboutMenu) { model.showAbout() }
+                Button(model.state.t.checkForUpdates) { model.checkForUpdates() }
             }
             CommandGroup(replacing: .newItem) {}
             CommandMenu(model.state.t.connectionMenu) {
@@ -58,6 +62,15 @@ struct TwinKeysApp: App {
         Settings {
             SettingsView(model: model)
         }
+
+        // Always in the menu bar: TwinKeys keeps running when the window is closed.
+        MenuBarExtra {
+            MenuBarMenu(model: model)
+        } label: {
+            Image(nsImage: MenuBarIcon.image(model.state.menuBarIconKind))
+                .accessibilityLabel("TwinKeys: \(model.state.headline)")
+        }
+        .menuBarExtraStyle(.menu)
     }
 }
 #endif

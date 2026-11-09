@@ -2,6 +2,7 @@
 import AppKit
 import Carbon.HIToolbox
 import Combine
+import ServiceManagement
 import SwiftUI
 import TwinKeysCore
 
@@ -33,6 +34,10 @@ final class AppModel: ObservableObject {
     private var listenPort: UInt16?
     private var localAddresses: [String] = []
     private var lastAddressCheck = -10.0
+    let updater = Updater()
+    private var hasAccessibility = KeyMonitor.hasAccessibility
+    /// "Restart Now" was clicked: open the new version after the swap.
+    private var relaunchAfterQuit = false
 
     init() {
         let store = ConfigStore()
@@ -105,7 +110,10 @@ final class AppModel: ObservableObject {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(code, forType: .string)
             },
-            connectByAddress: { [weak self] address in self?.connectByAddress(address) ?? false }
+            connectByAddress: { [weak self] address in self?.connectByAddress(address) ?? false },
+            openAccessibilitySettings: { [weak self] in self?.openAccessibilitySettings() },
+            restartForUpdate: { [weak self] in self?.restartForUpdate() },
+            openReleasePage: { [weak self] in if let u = self?.updater.releasePage { NSWorkspace.shared.open(u) } }
         )
     }
 
@@ -140,6 +148,11 @@ final class AppModel: ObservableObject {
         network.start(sends: settings.sendKeys, receives: settings.receiveNotes)
 
         keyMonitor.onKey = { input in conductor.handleKey(input) }
+        let log2 = self.log
+        updater.log = { log2.write($0) }
+        updater.onChange = { [weak self] in self?.refresh() }
+        updater.start(enabled: settings.autoUpdate)
+        applyMenuBarOnly()
         keyMonitor.onEventsMissed = { conductor.releaseHeldKeys() }
         checkPermissions()
 
@@ -165,6 +178,7 @@ final class AppModel: ObservableObject {
         network.flush(timeout: 0.3)
         network.stop()
         try? store.save(settings)
+        updater.installOnQuit(relaunch: relaunchAfterQuit)
     }
 
     // MARK: Actions
@@ -298,7 +312,7 @@ final class AppModel: ObservableObject {
         lastPermissionCheck = ProcessInfo.processInfo.systemUptime
         if hasInputMonitoring {
             lastTapAttempt = lastPermissionCheck
-            if !keyMonitor.isRunning, !keyMonitor.start() {
+            if !keyMonitor.isRunning, !keyMonitor.start(blocking: settings.blockCueKeys) {
                 if !problems.contains(.keyCaptureFailed) { problems.append(.keyCaptureFailed) }
             }
         }
@@ -318,6 +332,12 @@ final class AppModel: ObservableObject {
                 keyMonitor.stop()
                 conductor.releaseHeldKeys()
             }
+            // Accessibility appeared (or went away): make the tap blocking (or not) again.
+            let ax = KeyMonitor.hasAccessibility
+            if ax != hasAccessibility {
+                hasAccessibility = ax
+                restartKeyMonitor()
+            }
             // Secure Input (password fields) hides key events, including key-ups.
             let secure = IsSecureEventInputEnabled()
             if secure, !secureInputOn { conductor.releaseHeldKeys() }
@@ -326,11 +346,114 @@ final class AppModel: ObservableObject {
         // Start the tap once permission appears; retry at most every 2 s.
         if hasInputMonitoring, !keyMonitor.isRunning, now - lastTapAttempt >= 2 {
             lastTapAttempt = now
-            _ = keyMonitor.start()
+            _ = keyMonitor.start(blocking: settings.blockCueKeys)
         }
         if keyMonitor.isRunning, problems.contains(.keyCaptureFailed) {
             problems.removeAll { $0 == .keyCaptureFailed }
         }
+    }
+
+    /// Recreates the key tap (blocking or listen-only, as the settings and permissions allow).
+    private func restartKeyMonitor() {
+        guard keyMonitor.isRunning || hasInputMonitoring else { return }
+        keyMonitor.stop()
+        conductor.releaseHeldKeys()
+        lastTapAttempt = ProcessInfo.processInfo.systemUptime
+        _ = keyMonitor.start(blocking: settings.blockCueKeys)
+    }
+
+    private func openAccessibilitySettings() {
+        KeyMonitor.requestAccessibility()
+        Self.openSettingsPane("Privacy_Accessibility")
+    }
+
+    // MARK: Cue keys
+
+    func setCueKeys(_ keys: [CueKey]) {
+        settings.cueKeys = CueKey.sanitized(keys)
+        conductor.setCueKeys(settings.cueKeys)
+        try? store.save(settings)
+        refresh()
+    }
+
+    func addCueKey(_ code: UInt16) {
+        guard !KeyNames.isModifier(code), !settings.cueKeys.contains(where: { $0.keycode == code }),
+              let note = CueKey.freeNote(in: settings.cueKeys) else { return }
+        setCueKeys(settings.cueKeys + [CueKey(keycode: code, note: note)])
+        log.write("Cue key added: \(KeyNames.label(for: code)) = \(noteName(note))")
+    }
+
+    func removeCueKey(_ code: UInt16) {
+        setCueKeys(settings.cueKeys.filter { $0.keycode != code })
+    }
+
+    func setCueMemo(_ memo: String, for code: UInt16) {
+        guard let i = settings.cueKeys.firstIndex(where: { $0.keycode == code }), settings.cueKeys[i].memo != memo else { return }
+        var keys = settings.cueKeys
+        keys[i].memo = memo
+        setCueKeys(keys)
+    }
+
+    func setRecordingCueKey(_ on: Bool) {
+        keyMonitor.paused = on
+        if on { conductor.releaseHeldKeys() }
+    }
+
+    func setPianoKeys(_ on: Bool) {
+        settings.pianoKeys = on
+        conductor.setPianoKeys(on)
+        try? store.save(settings)
+        refresh()
+    }
+
+    func setBlockCueKeys(_ on: Bool) {
+        settings.blockCueKeys = on
+        conductor.setBlockCueKeys(on)
+        try? store.save(settings)
+        if on && !hasAccessibility { KeyMonitor.requestAccessibility() }
+        restartKeyMonitor()
+        refresh()
+    }
+
+    // MARK: Updates, login, menu bar
+
+    func setAutoUpdate(_ on: Bool) {
+        settings.autoUpdate = on
+        try? store.save(settings)
+        updater.start(enabled: on)
+        refresh()
+    }
+
+    func checkForUpdates() { updater.check() }
+
+    /// Quits and opens the new version. Only while not connected (never during a show).
+    private func restartForUpdate() {
+        guard state.canRestartForUpdate else { return }
+        relaunchAfterQuit = true
+        NSApp.terminate(nil)
+    }
+
+    var launchAtLogin: Bool { SMAppService.mainApp.status == .enabled }
+
+    func setLaunchAtLogin(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            log.write("Open at login \(on ? "on" : "off")")
+        } catch {
+            log.write("Open at login could not be changed: \(error)")
+        }
+        objectWillChange.send()
+    }
+
+    func setMenuBarOnly(_ on: Bool) {
+        settings.menuBarOnly = on
+        try? store.save(settings)
+        applyMenuBarOnly()
+        objectWillChange.send()
+    }
+
+    private func applyMenuBarOnly() {
+        NSApp.setActivationPolicy(settings.menuBarOnly ? .accessory : .regular)
     }
 
     private func openInputMonitoringSettings() {
@@ -394,6 +517,15 @@ final class AppModel: ObservableObject {
         s.localAddresses = localAddresses
         s.lastManualAddress = settings.manualAddress ?? ""
         s.sheet = sheet
+        s.lastCue = snap.lastCue
+        s.cueKeys = settings.cueKeys
+        s.pianoKeys = settings.pianoKeys
+        s.blockCueKeys = settings.blockCueKeys
+        s.cueKeysBlocked = keyMonitor.isBlocking
+        s.accessibility = hasAccessibility ? .granted : .denied
+        s.update = updater.state
+        s.appVersion = updater.currentVersion
+        s.autoUpdate = settings.autoUpdate
         if s != state { state = s }
     }
 }

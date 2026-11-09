@@ -9,9 +9,39 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            CueKeySettings(model: model)
             Section(t.pairingTitle) {
                 PairingPanel(state: model.state, actions: model.actions)
                     .padding(.vertical, 4)
+            }
+            Section(t.updatesSection) {
+                Toggle(isOn: Binding(get: { model.state.autoUpdate }, set: { model.setAutoUpdate($0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(t.autoUpdate)
+                        Text(t.autoUpdateHelp).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.checkbox)
+                HStack {
+                    Text(updateLine).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button(t.checkNow) { model.checkForUpdates() }
+                        .buttonStyle(TKButtonStyle())
+                        .disabled(model.state.update == .checking)
+                }
+            }
+            Section(t.menuBarSection) {
+                Toggle(isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(t.launchAtLogin)
+                        Text(t.launchAtLoginHelp).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                .toggleStyle(.checkbox)
+                Toggle(t.menuBarOnly, isOn: Binding(get: { model.settings.menuBarOnly }, set: { model.setMenuBarOnly($0) }))
+                    .toggleStyle(.checkbox)
             }
             Section {
                 Picker(t.language, selection: Binding(get: { model.language }, set: { model.setLanguage($0) })) {
@@ -42,9 +72,24 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520)
+        .frame(width: 600, height: 640)
         .padding(.vertical, 8)
         .onAppear { seconds = model.settings.autoNoteOffSeconds }
+    }
+
+    private var updateLine: String {
+        let s = model.state
+        var line = t.currentVersion(s.appVersion)
+        switch s.update {
+        case .checking: line += "  ·  " + t.updateChecking
+        case .upToDate: line += "  ·  " + t.updateUpToDate
+        case .failed: line += "  ·  " + t.updateFailed
+        case let .downloading(v): line += "  ·  " + t.updateDownloading(v)
+        case let .ready(v): line += "  ·  " + t.updateReady(v)
+        case let .manual(v, _): line += "  ·  " + t.updateManual(v)
+        case .idle: break
+        }
+        return line
     }
 
     @ViewBuilder private var mappingButtons: some View {
