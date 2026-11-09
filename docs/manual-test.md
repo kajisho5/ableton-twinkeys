@@ -145,3 +145,23 @@ Prepare the same set on both Macs: one MIDI track with an instrument, input from
 | 9-13 | Menu bar icon: not connected / connected / pull the cable. | Outline / filled / outline with "!". Visible on light and dark menu bars. | | | |
 | 9-14 | Close the window. Use the menu bar menu: All Notes Off, Open TwinKeys, Quit. | TwinKeys keeps running after closing; the menu items work. | | | |
 | 9-15 | Settings: Open at Login on, log out and in. Menu bar only on. | TwinKeys opens at login. No Dock icon while menu bar only is on. | | | |
+
+## 10. TwinKeys Remote (iPhone and iPad, added in 2.0)
+
+Needs both Macs on 2.0, TwinKeysBridge chosen as a Control Surface in Live on both, and TwinKeys Remote from TestFlight. Use a test set with fictional names only.
+
+| # | Step | Expected | Live 11 | Live 12 | Notes |
+|---|---|---|---|---|---|
+| 10-1 | Settings → Live → Install into Live, restart Live, choose TwinKeysBridge as a Control Surface. | Live's status bar shows "TwinKeys Bridge: listening on 127.0.0.1:47811"; TwinKeys Settings shows "Live: Connected". | | | |
+| 10-2 | Main Mac: Allow TwinKeys Remote to connect. iPhone: type the pairing code, Save, Connect. | iPhone and Mac show the same 4 digits; Allow on the Mac connects; the device appears under Allowed devices. | | | |
+| 10-3 | Type a wrong pairing code on the iPhone. | "The pairing code does not match the Mac."; nothing appears on the Mac. | | | |
+| 10-4 | Click Don't Allow on the Mac. | iPhone: "The Mac did not allow this iPhone." | | | |
+| 10-5 | iPhone in landscape: launch a clip, a scene, an empty slot. | The same clip/scene launches on both Macs; the empty slot stops that track on both. The time left counts down on the playing clip. | | | |
+| 10-6 | Play; Stop with a short tap, then a long press. | Play works; a short tap does nothing; a long press stops both. | | | |
+| 10-7 | Mixer: drag a column, M, S. | Volume, mute and solo change on both Macs. With "Faders stop at 0 dB" on, the volume stops at the dashed line. | | | |
+| 10-8 | Show lock on; try tempo and the mixer; then clips and cues; hold the lock 1 s. | Tempo and mixer do not move; clips, scenes and cues work; holding unlocks. | | | |
+| 10-9 | Cues pane: press ↓. | Same as ↓ on the main Mac's keyboard; last cue shows ✓ when the backup confirms. | | | |
+| 10-10 | All Notes Off on the iPhone while notes are held. | All notes stop on both Macs. | | | |
+| 10-11 | Turn Wi-Fi off and on on the iPhone. | The app shows "Connection lost. Retrying…" and reconnects without asking for approval again. | | | |
+| 10-12 | Remove the device on the Mac, reopen the app. | The Mac asks for approval again. | | | |
+| 10-13 | iPad landscape and an open iPhone Duo. | Three columns (iPad) / two columns (Duo); nothing cut off. | | | |

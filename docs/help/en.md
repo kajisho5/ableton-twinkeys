@@ -102,6 +102,46 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 - A note whose note-off never arrives stops after 10 seconds (notes whose keys are still held keep playing). Change this in Settings; 0 turns it off. Even at 1–2 seconds, notes received from the other Mac wait at least 3 seconds.
 - When the network drops, only notes that came from the other Mac stop. Notes you are playing on the main Mac keep sounding.
 
+## Controlling Live from an iPhone or iPad (TwinKeys Remote)
+
+TwinKeys Remote controls both Lives from an iPhone or iPad: scenes and clips, play and stop, tempo, the mixer (volume, pan, mute, solo), your cue keys and All Notes Off. The iPhone connects to the main Mac, and the main Mac sends the same action to the backup Mac.
+
+### What you need
+
+- TwinKeys 2.0 or later on both Macs
+- An iPhone or iPad with iOS 17 or later (TestFlight for now)
+- The iPhone or iPad on the same network as the Macs
+
+### On the Macs (both)
+
+1. Open TwinKeys Settings.
+2. Under Live, click **Install into Live**. This puts a small Live part (TwinKeysBridge) into Live's folder.
+3. Restart Live. In **Settings > Link, Tempo & MIDI**, choose **TwinKeysBridge** in a free **Control Surface** slot. Input and Output can stay at None.
+4. TwinKeys Settings shows **Live: Connected** when it works.
+5. On the main Mac, turn on **Allow TwinKeys Remote to connect** under iPhone and iPad (TwinKeys Remote).
+
+### Connecting the iPhone (once)
+
+1. Open TwinKeys Remote, type the same pairing code as on the Macs and tap **Save**.
+2. If iOS asks to find devices on your local network, tap **Allow**.
+3. When the main Mac appears under **TwinKeys nearby**, tap **Connect**.
+4. The iPhone shows 4 digits and the Mac asks **Allow this iPhone?** with a code. Click **Allow** on the Mac only if the digits match.
+5. From then on the app connects when you open it. To take the permission back, click **Remove** under Allowed devices in the Mac's Settings.
+
+### The screens
+
+- **Top bar**: link status (main Mac, latency to the backup), play, stop, tempo, position, All Notes Off and the show lock.
+- **Session**: the clip grid. Tap a clip to launch it, an empty slot to stop that track, ▶ at the right to launch the scene. Playing clips show the time left.
+- **Mixer**: drag anywhere in a column to set the volume (or pan). The dashed line is 0 dB. M is mute, S is solo.
+- **Cues**: the same buttons as the cue keys on the Mac, plus the last cue and whether it reached the backup.
+- The iPhone is meant to be held sideways. In landscape the screen switcher is at the right edge. On an iPad or an open iPhone Duo the screen spreads into two or three columns.
+
+### Safety during the show
+
+- **Stop** and **Stop all clips** need a long press.
+- The **show lock** (the lock button) freezes tempo and the mixer. Play, stop, clips, scenes and cues still work. Hold the lock for 1 second to unlock.
+- With **Faders stop at 0 dB** on (in Settings), the volume never goes above 0 dB.
+
 ## Troubleshooting
 
 **"Local Network: Not allowed" is shown**
@@ -146,6 +186,18 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 
 **"Different TwinKeys version" next to the other Mac**
 - Install the same version on both Macs.
+
+**The Mac does not appear on the iPhone**
+- Check that the iPhone and the Mac are on the same network.
+- On the iPhone, turn on TwinKeys Remote in Settings > Privacy & Security > Local Network.
+- On the main Mac, check that **Allow TwinKeys Remote to connect** is on.
+
+**The iPhone says the pairing code does not match the Mac**
+- Use the same pairing code on the iPhone as in the Mac's Settings > Pairing Code.
+
+**Nothing happens in Live when you use the iPhone**
+- The Mac's Settings should show **Live: Connected**. If not, check that **TwinKeysBridge** is chosen as a Control Surface in Live.
+- While the show lock is on, tempo and the mixer do not move.
 
 ## Files
 
