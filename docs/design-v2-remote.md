@@ -2,7 +2,7 @@
 
 - 状態：**確認待ち**（この設計書と `docs/design/remote-*` の図を承認いただいてから実装）
 - 作成日：2026-11-09
-- 対象版：TwinKeys 2.0.0（Mac）＋ TwinKeys Remote 1.0（iPhone）
+- 対象版：TwinKeys 2.0.0（Mac）＋ TwinKeys Remote 1.0（iPhone・iPad・iPhone Duo）
 - ご指定：Live をほぼ丸ごと操作／iPhone アプリ（TestFlight・App Store）／合言葉＋iPhone ごとの許可
 
 凡例：**[事実]** 一次情報で確認済み／**[推測]** 未確認（実装時に確認）
@@ -67,10 +67,30 @@ Live を外から操作するには、Live の中で動く部品（Remote Script
 
 **A（ご指定どおり）で作ります。** Mac 版の暗号・通信のコード（TwinKeysCore）をそのまま共有できるのが大きな理由です。
 
-- 対応：iOS 17 以降の iPhone（縦向き。iPad でもそのまま動く）**[推測：最新の iOS と Xcode の版は実装時に確認]**
+- 対応：**iPhone・iPad・iPhone Duo**（1つのアプリで全部）。iOS／iPadOS 17 以降 **[推測：最低版は実装時に見直す]**
+- **iOS 27.1 SDK（Xcode 27.1）でビルド**する。iPhone Duo で画面いっぱいに表示し、開閉に合わせて形が変わるのは iOS 27.1 SDK 以降 **[事実]** https://developer.apple.com/iphone-duo/prepare/ （iOS 26 SDK 以前だと、開いたとき真ん中に小さく出るだけ）
+- 2027年4月からは App Store への提出に iOS 27 SDK 以降が必要 **[事実：Apple の告知を報じた記事。Apple のページで実装時に再確認]**
+- runway の TestFlight ワークフローは Xcode を `xcode` 入力で選べる（今の初期値は 26）。27.1 を指定する **[事実]** runway/.github/workflows/apple-testflight.yml。GitHub の Mac ランナーに Xcode 27.1 が入っているかは **[推測：実装時に確認]**
 - ビルドと配布：kajisho5/runway の `apple-testflight.yml` を使う。Mac は不要。iPhone の GitHub アプリから実行できる **[事実]** runway/README.md
 - Xcode のプロジェクトは XcodeGen 2.46.0 で設定ファイルから作る（Mac がなくても編集できるように）**[事実]** https://github.com/yonaskolb/XcodeGen （タグ 2.46.0）
 - アプリ ID（案）：`io.github.kajisho5.twinkeys.remote`。名前（案）：TwinKeys Remote
+
+### 4.1 画面の大きさへの対応（iPad・iPhone Duo）
+
+iPhone Duo は閉じると 5.4 インチ、開くと 7.6 インチ（1878×2670 ピクセル）**[事実]** https://www.apple.com/iphone-duo/specs/ 。開閉したとき、アプリは止まらずにその場で形が変わる **[事実]** https://developer.apple.com/forums/thread/847644 。Apple は「機種や向き（iPhone か iPad か、縦か横か）で画面の作りを決めず、**今使える広さ**で決める」ように求めている **[事実]** https://developer.apple.com/iphone-duo/prepare/
+
+そこで、**使える横幅だけ**で次の3つの形を切り替える（機種名では分けない）。
+
+| 横幅 | 主な機種 | 形 |
+|---|---|---|
+| 狭い（〜599pt） | iPhone、閉じた iPhone Duo、Split View の iPad | 今の図どおり。下のタブで「セッション／ミキサー／キュー／設定」を切り替える |
+| 中くらい（600〜999pt） | 開いた iPhone Duo、縦の iPad | 2列。左にセッション（シーン一覧＋クリップのます目を広く、8トラックまで）、右にキューと状態。ミキサーはタブ |
+| 広い（1000pt〜） | 横の iPad | 3列。シーン一覧／クリップのます目／ミキサー（縦の細いフェーダー）。キューと状態は右上の小窓、オールノートオフは常に右下 |
+
+- オールノートオフと本番ロックは、どの形でも常に見える場所に置く
+- 開閉や回転、iPad で幅を変えたときも、押している途中の操作（フェーダーを動かしている最中など）は途切れさせない。形が変わる前に指を離したものとして扱い、最後の値を送る
+- テストは Xcode 27.1 の iPhone Duo シミュレーターと、大きさを自由に変えられるシミュレーター（Device Hub）で、CI のスクリーンショットとして3つの形を毎回撮る **[事実：ツール名は上の Apple のページ]**
+- App Store には iPhone Duo のスクリーンショットも出す（Duo 対応の印が付く）**[事実]** 同上
 
 ## 5. 安全（合言葉＋iPhone ごとの許可）
 
@@ -117,6 +137,8 @@ Live を外から操作するには、Live の中で動く部品（Remote Script
 | `remote-mixer-*` | iPhone：ミキサー |
 | `remote-cues-*` | iPhone：キューと状態（2台の接続、届いたか） |
 | `remote-pair-*` | iPhone：合言葉の入力と、Mac 側の「この iPhone を許可しますか？」 |
+| `remote-duo-open-*` | 開いた iPhone Duo（中くらいの幅）：セッションとキューの2列 |
+| `remote-ipad-*` | 横の iPad（広い幅）：シーン／ます目／ミキサーの3列 |
 
 デザインの決まりは Mac 版と同じ色（青 #0060C7／#5AA9FF、赤のオールノートオフ）。押せる場所は最小 44×44pt（Apple の目安）**[推測：HIG の該当箇所は実装時に確認]**
 
@@ -151,3 +173,4 @@ Live を外から操作するには、Live の中で動く部品（Remote Script
 4. iPhone はメインの Mac にだけつなぎ、倒れたら手で「バックアップに切り替え」、でよいか
 5. 図の画面でよいか
 6. アプリ名「TwinKeys Remote」でよいか
+7. iPad・iPhone Duo では、横幅に合わせて2列・3列に広げる形でよいか（図 `remote-duo-open-*`、`remote-ipad-*`）
