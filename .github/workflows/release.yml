@@ -32,8 +32,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # 0.x versions and versions with a suffix (e.g. 1.0.0-beta.1) are marked as pre-releases.
+          PRE=""
+          case "$TAG" in v0.*|*-*) PRE="--prerelease" ;; esac
+          cat > notes.md <<'NOTES'
+          Universal build for Apple silicon and Intel Macs (macOS 13 Ventura or later).
+
+          **Unofficial third-party tool.** Not made or endorsed by Ableton.
+
+          - Not notarized. First launch: see README > Download and first launch (macOS 15 or later: System Settings > Privacy & Security > Open Anyway).
+          - The main Mac needs Input Monitoring; both Macs need Local Network access (macOS 15 or later).
+          - Turn off the DAW's own computer MIDI keyboard on the main Mac.
+          NOTES
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/*.zip --clobber
           else
-            gh release create "$TAG" dist/*.zip --title "TwinKeys $TAG" --notes "Universal build (Apple silicon and Intel). Not notarized: see README > First launch."
+            gh release create "$TAG" dist/*.zip $PRE --title "TwinKeys $TAG" --notes-file notes.md
           fi
