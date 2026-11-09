@@ -38,7 +38,9 @@ CI run with these results: https://github.com/kajisho5/ableton-twinkeys/actions/
 | No peer found (empty state) | Screenshot `min-size-light.png` / `min-size-dark.png` | Pass (layout) |
 | Dark mode | Screenshots `*-dark.png`; all text colors are WCAG AA (design.md 3.5) | Pass |
 | Minimum window size 440×330 | Screenshots `min-size-*.png`: status, All Notes Off, Connect/Disconnect visible | Pass |
-| Virtual port visible in Audio MIDI Setup / Live 11 / Live 12 | Needs real Mac + Live | Not checked → manual-test 0-2, 0-3 |
+| Virtual MIDI source "TwinKeys" exists | CI end-to-end check (`scripts/e2e-midi.swift`): lists CoreMIDI sources while TwinKeys runs | **Pass**: sources = ["TwinKeys"] |
+| Receiving side end to end: Bonjour discovery → hello/ack → note-on/off over UDP → same notes out of the TwinKeys MIDI source | Same script acts as a second Mac on the macOS runner | **Pass**: received [0x90 60 100], [0x80 60 0]. Runs the plain executable, because macOS blocks Bonjour for the .app until someone answers the Local Network prompt (no user on CI) |
+| Port visible in Audio MIDI Setup / Live 11 / Live 12 | Needs real Mac + Live | Not checked → manual-test 0-2, 0-3 |
 | Two-Mac discovery, latency, reconnect over a real network | Needs two Macs | Not checked → manual-test 2, 4 |
 | Added latency ≤ 5 ms | Code path: key event → local port and network send happen right away on the key thread (no UI hop). Real measurement needs two Macs | Not checked → manual-test 3-9 |
 | Network edge cases (hellos from unknown Macs, route takeover, lost note-off repaired by the held list, peer switching, previous-session packets) | `ConductorTests`, `LinkTests`, `ProtocolTests` | Pass |

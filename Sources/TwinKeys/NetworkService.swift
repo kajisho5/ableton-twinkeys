@@ -20,6 +20,9 @@ final class NetworkService: PacketSink {
     private var listener: NWListener?
     private var browser: NWBrowser?
     private var stopped = false
+    /// Set once Bonjour confirms our advertisement. macOS Local Network privacy blocks it
+    /// silently (no error) when permission is missing, so its absence is the best signal.
+    private var advertised = false
 
     // Accessed only on `queue`.
     private var routes: [String: NWConnection] = [:]          // peer ID -> connection we send on
@@ -82,7 +85,9 @@ final class NetworkService: PacketSink {
             l.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
             l.serviceRegistrationUpdateHandler = { [weak self] change in
                 switch change {
-                case let .add(endpoint): self?.onLog?("Advertising on the network as \(endpoint)")
+                case let .add(endpoint):
+                    self?.advertised = true
+                    self?.onLog?("Advertising on the network as \(endpoint)")
                 case let .remove(endpoint): self?.onLog?("No longer advertised: \(endpoint)")
                 @unknown default: break
                 }
@@ -98,6 +103,11 @@ final class NetworkService: PacketSink {
             }
             l.start(queue: queue)
             listener = l
+            queue.asyncAfter(deadline: .now() + 10) { [weak self] in
+                guard let self, !self.stopped, !self.advertised else { return }
+                self.onLog?("Not advertised after 10 s: Local Network access is probably not allowed")
+                DispatchQueue.main.async { self.onLocalNetworkState?(.denied) }
+            }
         } catch {
             report("Could not start listening for other Macs: \(error)")
             queue.asyncAfter(deadline: .now() + 5) { [weak self] in self?.startListener() }
