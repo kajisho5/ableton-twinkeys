@@ -63,6 +63,9 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 
 ## Troubleshooting
 
+**"Local Network: Not allowed" is shown**
+- TwinKeys could not announce itself on the network. Turn TwinKeys on in System Settings > Privacy & Security > Local Network, then reopen TwinKeys.
+
 **The other Mac does not appear**
 - Check that both Macs are on the same network.
 - Check that TwinKeys is on in System Settings > Privacy & Security > Local Network.

@@ -26,6 +26,8 @@ TwinKeys plays the same MIDI notes on two Macs at once. Press keys on the main M
 3. **Local Network** (both Macs, macOS 15 or later): when macOS asks whether TwinKeys may find devices on your local network, click **Allow**. If you clicked Don't Allow, turn it on in **System Settings → Privacy & Security → Local Network**.
 4. **Firewall:** if macOS asks whether TwinKeys may accept incoming network connections, click **Allow**.
 
+If the window shows **Local Network: Not allowed**, TwinKeys could not announce itself on the network: turn TwinKeys on in **System Settings → Privacy & Security → Local Network** and reopen it.
+
 Releases up to 0.3.0 were not notarized. If you still have one of those, replace it with the current release.
 
 ## Setting up Live (both Macs)
@@ -63,7 +65,8 @@ Keys pressed together with ⌘, ⌃, ⌥ or ⇧ never play notes, so shortcuts i
 
 - **All Notes Off** (the red button) stops notes on this Mac and the connected Mac.
 - All Notes Off is also sent when you quit TwinKeys or click Disconnect.
-- A note that never receives its note-off is stopped automatically after 10 seconds (change in Settings, 0 turns it off).
+- A note that never receives its note-off is stopped automatically after 10 seconds (change in Settings, 0 turns it off). Notes whose keys are still held keep sounding.
+- When the link drops, only notes that came from the other Mac stop; notes played on this Mac keep sounding.
 - TwinKeys does **not** switch audio between Macs. Automatic audio failover needs dedicated hardware and is out of scope.
 
 ## Files
@@ -91,18 +94,18 @@ Keys pressed together with ⌘, ⌃, ⌥ or ⇧ never play notes, so shortcuts i
 
 ## Building from source
 
-Requires macOS with Xcode 16 or later.
+Requires macOS 13 or later with Xcode 16 or later (CI uses Xcode 26.6 on macOS 26).
 
 ```sh
 swift test                      # unit tests
-scripts/build-app.sh 1.0.0 1    # builds dist/TwinKeys.app (universal) and a zip
+scripts/build-app.sh            # builds dist/TwinKeys.app (universal, ad-hoc signed) and a zip; version from VERSION
 ```
 
 The platform-independent logic (`Sources/TwinKeysCore`) also builds and tests on Linux with Swift 6.
 
 ### Releases (GitHub Actions)
 
-- Every push runs **CI** on a macOS runner: tests, universal build, launch check and screenshots (downloadable from the run page).
+- Every push runs **CI** on a macOS runner: tests, universal build, launch and memory check, an end-to-end check (`scripts/e2e-midi.swift`: a fake second Mac sends notes over the network and they must come out of the TwinKeys MIDI port) and screenshots (downloadable from the run page).
 - **Release:** signing with a Developer ID and Apple notarization are done by [kajisho5/runway](https://github.com/kajisho5/runway) (`mac-notarize.yml`); this repository is listed in runway's `repos.txt`, which gives it the signing secrets. Change the `VERSION` file (for example to `0.2.0`) and push. GitHub Actions builds the app, signs and notarizes it, checks the .dmg on a clean Mac, creates the tag `v0.2.0` on that commit and publishes a release with `TwinKeys-0.2.0.dmg`. Versions 0.x and versions with a suffix such as `1.0.0-beta.1` are marked as pre-releases. Pushing a `v*` tag or running the workflow by hand also works.
 
 ## Limitations
@@ -129,16 +132,32 @@ Not planned: Windows, audio processing, automatic audio failover, setlist manage
 
 ## 日本語の概要
 
-TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らすための小さな Mac アプリです。制作は Shogo Kajiyama / SEVENTHWELL です。メイン機のキーボードを押すと、メイン機とバックアップ機の両方の音楽ソフトに同じノートが届きます。ライブでメインとバックアップの2台を並べて動かす構成向けです。
+TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らす Mac アプリです。メインの Mac でキーを押すと、メインとバックアップ両方の音楽ソフトに同じノートが届きます。ライブでメインとバックアップの2台を並べて動かす構成向けです。制作は Shogo Kajiyama / SEVENTHWELL です。
 
 > **非公式のサードパーティ製ツールです。** Ableton 社ほか DAW メーカーとは関係ありません。「Ableton」「Live」は Ableton AG の商標で、対応状況の説明のためにだけ記載しています。
 
-- 各 Mac に仮想 MIDI 入力「TwinKeys」ができます。Live の設定で TwinKeys の **Track** と **Remote** を ON にするだけで使えます（転送用トラックは不要）。
-- テンポと小節位置は Ableton Link（Live 内蔵）で合わせてください。TwinKeys は扱いません。
-- 2台は同じネットワーク上で自動的に見つかります。「Connect」を押すだけで接続し、切れても自動で再接続します。
-- 赤い **All Notes Off** ボタン（⌃⌘P）で、両方の Mac の音をすべて止められます。
-- 初回起動は、上の「Download and first launch」の手順（右クリック→開く、または「このまま開く」）に従ってください。メイン機では「入力監視」、両方の Mac で「ローカルネットワーク」の許可が必要です。
-- メイン機では Live 本体のコンピュータMIDIキーボードを OFF にしてください（ON のままだと同じ音が2回鳴ります）。
-- 音声そのものの自動切り替え（オーディオフェイルオーバー）は対象外です。
+**詳しい使い方：** [使い方（日本語）](docs/help/ja.md)。アプリの「ヘルプ」>「TwinKeysヘルプ」（⌘?）でも、ネットにつながっていなくても読めます。
+
+### 入れ方
+
+1. [リリースのページ](https://github.com/kajisho5/ableton-twinkeys/releases)から `TwinKeys-<版>.dmg` をダウンロードして開き、TwinKeys を「アプリケーション」にドラッグします。Apple の公証を通っているので、そのまま開けます。
+2. メインの Mac では、TwinKeys の画面にある「システム設定を開く…」から「入力監視」で TwinKeys をオンにし、「もう一度確認」をクリックします。
+3. 両方の Mac で、ローカルネットワークの利用を確認されたら「許可」をクリックします（macOS 15 以降）。
+4. ファイアウォールから受信接続を許可するか聞かれたら「許可」をクリックします。
+
+0.3.0 までの版は公証を通していません。手元にある場合は、新しい版に入れ替えてください。
+
+### 使い方の流れ
+
+- 各 Mac に仮想 MIDI 入力「TwinKeys」ができます。Live の設定（「Link, Tempo & MIDI」）で TwinKeys の「トラック」と「リモート」をオンにするだけで使えます。転送用のトラックはいりません。
+- テンポと小節の位置は Ableton Link（Live に内蔵）で合わせてください。TwinKeys は扱いません。
+- メインの Mac で「キーを送信」、バックアップの Mac で「ノートを受信」にチェックを入れ、メインの Mac の一覧で相手の「接続」をクリックします。切れても自動でつなぎ直します。
+- メインの Mac では、Live のコンピュータ MIDI キーボードをオフにしてください。オンのままだと同じ音が2回鳴ります。
+- 赤い「オールノートオフ」ボタン（⌃⌘P）で、両方の Mac の音をすべて止められます。
 - 表示言語は「設定」（⌘,）の「言語」で、「システムに合わせる」「English」「日本語」から選べます。
-- 詳しい使い方は [使い方（日本語）](docs/help/ja.md) にあります。アプリの「ヘルプ」>「TwinKeys ヘルプ」（⌘?）でも、ネットにつながっていなくても読めます。
+
+### 注意
+
+- 音声そのものの自動切り替え（オーディオフェイルオーバー）は対象外です。専用の機材が必要です。
+- つなげるのは、同じネットワーク上で TwinKeys として見えている Mac だけです。ただし合言葉（ペアリング）の仕組みはまだないので、自分で管理しているネットワークで使ってください。
+- Wi-Fi は遅れが揺れやすいので、有線ネットワークをおすすめします。
