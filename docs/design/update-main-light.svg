@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="460" viewBox="0 0 600 460">
+<rect x="0" y="0" width="600" height="460" rx="0" fill="#D9DCE3"/>
+<g transform="translate(20,20)">
+<rect x="0" y="0" width="560" height="420" rx="10" fill="#ECECEC" stroke="#D1D1D6"/>
+<path d="M0.5 10.5 a10 10 0 0 1 10 -10 H549.5 a10 10 0 0 1 10 10 V28 H0.5 Z" fill="#E3E3E3"/>
+<line x1="0" y1="28" x2="560" y2="28" stroke="#D1D1D6"/>
+<circle cx="14" cy="14" r="6" fill="#FF5F57"/>
+<circle cx="34" cy="14" r="6" fill="#FEBC2E"/>
+<circle cx="54" cy="14" r="6" fill="#28C840"/>
+<text x="280.0" y="18.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">TwinKeys</text>
+<circle cx="24" cy="54" r="5" fill="#1B7A31"/>
+<text x="36" y="50" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="start">Backup Stage Mac に接続済み</text>
+<text x="36" y="67" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">遅延 2 ms  ·  送信・受信中</text>
+<rect x="424" y="40" width="120" height="28" rx="6" fill="#C0241A"/><text x="484.0" y="58.5" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">オールノートオフ</text>
+<line x1="0" y1="80" x2="560" y2="80" stroke="#D1D1D6"/>
+<rect x="16" y="96" width="528" height="62" rx="8" fill="#FFFFFF" stroke="#D1D1D6"/>
+<text x="32" y="120" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="start">TwinKeys 0.6.0 の準備ができました</text>
+<text x="32" y="140" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">TwinKeys を終了したときに入れ替わります。本番中には入れ替えません。</text>
+<rect x="414.5" y="113.5" width="117" height="27" rx="6" fill="#FFFFFF" stroke="#8E8E93"/><text x="473.0" y="131.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="middle">いま再起動</text>
+<text x="20" y="186" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">近くの TwinKeys</text>
+<rect x="16" y="194" width="528" height="44" rx="8" fill="#FFFFFF" stroke="#D1D1D6"/>
+<path d="M17 202 a7 7 0 0 1 7 -7 H536 a7 7 0 0 1 7 7 V230 a7 7 0 0 1 -7 7 H24 a7 7 0 0 1 -7 -7 Z" fill="#DCE9FA"/>
+<circle cx="32" cy="216" r="4" fill="#1B7A31"/>
+<text x="46" y="213" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="500" text-anchor="start">Backup Stage Mac</text>
+<text x="46" y="228" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">受信  ·  2 ms</text>
+<rect x="440.5" y="202.5" width="91" height="27" rx="6" fill="#FFFFFF" stroke="#8E8E93"/><text x="486.0" y="220.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="middle">接続解除</text>
+</g>
+</svg>

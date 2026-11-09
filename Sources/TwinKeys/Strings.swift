@@ -20,7 +20,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 struct Strings {
     let lang: AppLanguage
     init(_ lang: AppLanguage) { self.lang = lang == .system ? AppLanguage.systemResolved : lang }
-    private func s(_ en: String, _ ja: String) -> String { lang == .ja ? ja : en }
+    func s(_ en: String, _ ja: String) -> String { lang == .ja ? ja : en }
 
     // MARK: Header
     var notConnected: String { s("Not connected", "未接続") }
@@ -57,8 +57,6 @@ struct Strings {
         case .duplicateID:
             return s("Another Mac was using the same TwinKeys ID (its settings were copied from this Mac). A new ID was made: quit and reopen TwinKeys.",
                      "ほかの Mac が同じ TwinKeys の ID を使っていました（この Mac から設定がコピーされたためです）。新しい ID を作成したので、TwinKeys を終了してから開き直してください。")
-        case .mappingUnreadable:
-            return s("mapping.json could not be read. Using the default mapping.", "mapping.json を読み込めなかったため、初期のキー配置を使っています。")
         case .midiPort:
             return midiPortFailed
         case .listenFailed:
@@ -100,7 +98,7 @@ struct Strings {
     // MARK: Mode and keyboard
     var modeAndKeyboard: String { s("Mode and Keyboard", "モードとキーボード") }
     var sendMyKeys: String { s("Send my keys", "キーを送信") }
-    var sendMyKeysHint: String { s("Keys you press play notes here and on the connected Mac", "押したキーの音を、この Mac と接続先の Mac で鳴らします") }
+    var sendMyKeysHint: String { s("Cue keys you press go to this Mac and to the connected Mac", "押したキューのキーを、この Mac と接続先の Mac に送ります") }
     var receiveNotes: String { s("Receive notes", "ノートを受信") }
     var receiveNotesHint: String { s("Notes from the connected Mac play on this Mac", "接続先の Mac から届いたノートを、この Mac で鳴らします") }
     var keyCapture: String { s("Key capture", "キー入力") }
@@ -115,16 +113,6 @@ struct Strings {
     var keyCapturePaused: String { s("Key capture: Paused (password field)", "キー入力: 一時停止中（パスワード入力中）") }
     var valuePaused: String { s("Paused", "一時停止中") }
     var keyCaptureHelp: String { s("Turn key capture on or off (⌃⌘K)", "キー入力のオン／オフ（⌃⌘K）") }
-    var octave: String { s("Octave", "オクターブ") }
-    var velocity: String { s("Velocity", "ベロシティ") }
-    var heldNotes: String { s("Held notes", "発音中のノート") }
-    func changeWith(_ title: String, _ value: String, _ a: String, _ b: String) -> String {
-        s("\(title) \(value). Change with \(a) and \(b)", "\(title) \(value)。\(a) と \(b) で変更")
-    }
-    var doubleNotesHint: String {
-        s("Turn off the computer MIDI keyboard in your music software to avoid double notes.",
-          "音が二重に鳴らないよう、音楽ソフト側のコンピュータ MIDI キーボードはオフにしてください。")
-    }
 
     // MARK: Permissions row
     var inputMonitoringAllowed: String { s("Input Monitoring: Allowed", "入力監視: 許可済み") }
@@ -159,10 +147,6 @@ struct Strings {
     var autoNoteOffDisabled: String { s("Automatic note-off: Off", "自動ノートオフ: オフ") }
     var autoNoteOffHelp: String { s("Protects against stuck notes if a note-off is lost. Notes from the other Mac wait at least 3 s. 0 turns it off.", "ノートオフが届かなかったときに、音が鳴り続けるのを防ぎます。相手の Mac から届いた音は最低 3 秒待ちます。0 にするとオフになります。") }
     var autoNoteOffHint: String { s("A note that never receives its note-off is stopped after this time. 0 turns it off.", "ノートオフが届かない音を、この時間で止めます。0 でオフ。") }
-    var showMappingFile: String { s("Show Mapping File in Finder", "キー配置ファイルをFinderで表示") }
-    var reloadMapping: String { s("Reload Mapping", "キー配置を再読み込み") }
-    var restoreMapping: String { s("Restore Default Mapping", "キー配置を初期状態に戻す") }
-    var mappingHelp: String { s("Edit mapping.json to change which physical keys play which notes.", "どのキーでどの音を鳴らすかは、mapping.json で変更できます。") }
     var language: String { s("Language", "言語") }
     func languageName(_ l: AppLanguage) -> String {
         switch l {
@@ -227,7 +211,6 @@ struct Strings {
 enum AppProblem: Hashable {
     case settingsUnreadable(backup: String)
     case duplicateID
-    case mappingUnreadable
     case midiPort
     case listenFailed
     case keyCaptureFailed

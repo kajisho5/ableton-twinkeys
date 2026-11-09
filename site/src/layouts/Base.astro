@@ -1,0 +1,96 @@
+---
+import '../styles/global.css';
+import { t, url, pageUrl, REPO_URL, DOWNLOAD_URL, LICENSE_URL, type Lang, type PageKey } from '../lib/i18n';
+
+interface Props {
+  lang: Lang;
+  page: PageKey;
+  title: string;
+  description?: string;
+}
+
+const { lang, page, title, description } = Astro.props;
+const s = t[lang];
+const other = s.switchLang;
+const canonical = new URL(pageUrl(lang, page), Astro.site);
+const alternates = (['en', 'ja'] as const).map((l) => ({ l, href: new URL(pageUrl(l, page), Astro.site).href }));
+const nav = [
+  { key: 'guide' as const, label: s.navGuide, href: pageUrl(lang, 'guide') },
+  { key: 'releases' as const, label: s.navReleases, href: pageUrl(lang, 'releases') },
+];
+---
+<!doctype html>
+<html lang={s.htmlLang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)" />
+    <title>{title}</title>
+    <meta name="description" content={description ?? s.siteDescription} />
+    <link rel="canonical" href={canonical.href} />
+    {alternates.map(({ l, href }) => <link rel="alternate" hreflang={l} href={href} />)}
+    <link rel="alternate" hreflang="x-default" href={alternates[0].href} />
+    <link rel="icon" type="image/png" sizes="32x32" href={url('favicon-32.png')} />
+    <link rel="apple-touch-icon" href={url('apple-touch-icon.png')} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description ?? s.siteDescription} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:image" content={new URL(url('images/icon-512.png'), Astro.site).href} />
+    <meta property="og:locale" content={lang === 'ja' ? 'ja_JP' : 'en_US'} />
+  </head>
+  <body>
+    <a class="skip" href="#main">{s.skip}</a>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href={pageUrl(lang, 'home')}>
+          <picture>
+            <source srcset={url('images/icon-dark-64.png')} media="(prefers-color-scheme: dark)" />
+            <img src={url('images/icon-light-64.png')} width="32" height="32" alt="" />
+          </picture>
+          <span>TwinKeys</span>
+        </a>
+        <nav class="nav-desktop" aria-label={lang === 'ja' ? 'メイン' : 'Main'}>
+          <ul>
+            {nav.map((n) => (
+              <li><a href={n.href} aria-current={n.key === page ? 'page' : undefined}>{n.label}</a></li>
+            ))}
+            <li><a href={DOWNLOAD_URL}>{s.navDownload}</a></li>
+            <li><a href={REPO_URL}>GitHub</a></li>
+            <li><a href={pageUrl(other, page)} hreflang={s.switchHreflang} lang={s.switchHreflang}>{s.switchLabel}</a></li>
+          </ul>
+        </nav>
+        <div class="nav-mobile">
+          <details class="menu">
+            <summary>{s.navMenu}</summary>
+            <ul>
+              {nav.map((n) => (
+                <li><a href={n.href} aria-current={n.key === page ? 'page' : undefined}>{n.label}</a></li>
+              ))}
+              <li><a href={DOWNLOAD_URL}>{s.navDownload}</a></li>
+              <li><a href={REPO_URL}>GitHub</a></li>
+            </ul>
+          </details>
+          <a href={pageUrl(other, page)} hreflang={s.switchHreflang} lang={s.switchHreflang}>{s.switchLabel}</a>
+        </div>
+      </div>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="wrap">
+        <ul class="footer-links">
+          <li><a href={pageUrl(lang, 'guide')}>{s.navGuide}</a></li>
+          <li><a href={pageUrl(lang, 'releases')}>{s.navReleases}</a></li>
+          <li><a href={DOWNLOAD_URL}>{s.navDownload}</a></li>
+          <li><a href={REPO_URL}>GitHub</a></li>
+        </ul>
+        <p>{s.footerMade}{lang === 'ja' ? ' ・ ' : ' · '}<a href={LICENSE_URL}>{s.footerLicense}</a></p>
+        <p class="small">{s.footerTrademark}</p>
+      </div>
+    </footer>
+  </body>
+</html>

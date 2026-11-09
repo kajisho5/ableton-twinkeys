@@ -127,6 +127,8 @@ print("PASS: TwinKeys found on Bonjour: \(endpoint)")
 
 let conn = NWConnection(to: endpoint, using: .udp)
 let acked = DispatchSemaphore(value: 0)
+/// Since 1.0.0 TwinKeys answers each note-on it plays (packet type 0x14, the delivery check).
+let noteAnswered = NSMutableArray()
 func receiveLoop() {
     conn.receiveMessage { data, _, _, error in
         // HelloAck: check its signature, then take the peer's nonce from it.
@@ -138,6 +140,9 @@ func receiveLoop() {
             } else {
                 print("   HelloAck with a bad signature (different pairing code?)")
             }
+        }
+        if let d = data, d.count >= 12 + 4 + 16, d[3] == 0x14 {
+            DispatchQueue.main.async { noteAnswered.add(1) }
         }
         if error == nil { receiveLoop() }
     }
@@ -172,7 +177,10 @@ func sendUntil(_ data: () -> Data, _ expected: [UInt8], _ what: String) {
 }
 sendUntil({ packet(0x10, [0, 60, 100]) }, [0x90, 60, 100], "note on")
 sendUntil({ packet(0x11, [0, 60]) }, [0x80, 60, 0], "note off")
-conn.send(content: packet(0x03, []), completion: .idempotent)              // bye
 print("Received from TwinKeys port: \(got())")
 print("PASS: note on/off from the network came out of the TwinKeys MIDI source")
+for _ in 0..<20 where noteAnswered.count == 0 { _ = got() }
+guard noteAnswered.count > 0 else { fail("TwinKeys did not answer the note-on (delivery check)") }
+print("PASS: TwinKeys answered the note-on (delivery check)")
+conn.send(content: packet(0x03, []), completion: .idempotent)              // bye
 exit(0)

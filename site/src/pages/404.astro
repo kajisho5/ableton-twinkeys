@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import { pageUrl } from '../lib/i18n';
+---
+<Base lang="en" page="home" title="Page not found — TwinKeys">
+  <div class="wrap narrow page-head" style="padding-bottom: 72px">
+    <h1>Page not found</h1>
+    <p class="lead">This page does not exist. <a href={pageUrl('en', 'home')}>Go to the TwinKeys home page</a> · <a href={pageUrl('ja', 'home')} lang="ja">日本語のトップページへ</a></p>
+  </div>
+</Base>

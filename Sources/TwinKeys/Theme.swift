@@ -32,6 +32,8 @@ enum Theme {
     static let ok = Color.dynamic(light: 0x1B7A31, dark: 0x4FD06A)
     static let warning = Color.dynamic(light: 0x8A5A00, dark: 0xF2B13A)
     static let dangerFill = Color.dynamic(light: 0xC0241A, dark: 0xC0241A)
+    /// Red text and borders ("No confirmation"): 6.0:1 on white, 5.3:1 on the dark group background.
+    static let dangerText = Color.dynamic(light: 0xC0241A, dark: 0xFF6B5E)
     static let selectedRow = Color.dynamic(light: 0xDCE9FA, dark: 0x23364F)
     static let buttonBackground = Color.dynamic(light: 0xFFFFFF, dark: 0x3A3A3C)
     static let buttonHover = Color.dynamic(light: 0xF0F0F2, dark: 0x48484A)

@@ -74,6 +74,11 @@ jobs:
           wait $PID || true
           echo "--- TwinKeys log"; cat ~/Library/Logs/TwinKeys/*.log || true
           exit $RESULT
+      - name: Updater signature check rejects an app without the team's signature
+        run: |
+          if dist/TwinKeys.app/Contents/MacOS/TwinKeys --check-update-signature "$PWD/dist/TwinKeys.app" ABCDE12345; then
+            echo "::error::accepted an unsigned app"; exit 1
+          fi
       - name: Screenshots (light / dark)
         timeout-minutes: 3
         run: dist/TwinKeys.app/Contents/MacOS/TwinKeys --snapshot "$PWD/screenshots"

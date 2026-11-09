@@ -66,6 +66,10 @@ jobs:
           fi
           release=$publish_requested
           if [ "$release" = true ]; then
+            # Every release needs plain-language release notes (shown on GitHub and on the website).
+            for l in en ja; do
+              [ -f "release-notes/$l/$ver.md" ] || { echo "::error::Missing release-notes/$l/$ver.md"; exit 1; }
+            done
             # Only commits on main are released.
             git fetch -q origin main
             if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
@@ -161,6 +165,14 @@ jobs:
           grep -q "source=Notarized Developer ID" spctl.txt
           test -f "$app/Contents/Resources/help/ja.md"
           test -f "$app/Contents/Resources/AppIcon.icns"
+          # The updater's signature check: the notarized app passes, a re-signed copy does not.
+          team=$(codesign -dvv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+          "$app/Contents/MacOS/TwinKeys" --check-update-signature "$app" "$team"
+          cp -R "$app" fake.app && codesign --force --deep -s - fake.app
+          if "$app/Contents/MacOS/TwinKeys" --check-update-signature "$PWD/fake.app" "$team"; then
+            echo "::error::The updater accepted an app that is not signed by the team"; exit 1
+          fi
+          rm -rf fake.app
           sudo rm -rf /Applications/TwinKeys.app
           sudo ditto "$app" /Applications/TwinKeys.app
           hdiutil detach "$mnt" > /dev/null
@@ -182,6 +194,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: release-notes
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: TwinKeys-notarized
@@ -199,21 +215,19 @@ jobs:
           if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then
             echo "::error::$TAG now points at $tag_sha, not $GITHUB_SHA. Not publishing."; exit 1
           fi
-          # 0.x versions and versions with a suffix (e.g. 1.0.0-beta.1) are marked as pre-releases.
+          # Only versions with a suffix (e.g. 1.0.0-beta.1) are pre-releases; 1.0.0 and later are full releases.
           PRE=""
-          case "$TAG" in v0.*|*-*) PRE="--prerelease" ;; esac
-          cat > notes.md <<'NOTES'
-          Universal build for Apple silicon and Intel Macs (macOS 13 Ventura or later).
-          Signed with a Developer ID and notarized by Apple: open the .dmg and drag TwinKeys to Applications.
-
-          **Unofficial third-party tool.** Not made or endorsed by Ableton.
-
-          - The main Mac needs Input Monitoring; both Macs need Local Network access (macOS 15 or later).
-          - Turn off the DAW's own computer MIDI keyboard on the main Mac.
-          - Guide: docs/help/en.md (English) / docs/help/ja.md (日本語), also in the app under Help.
-
-          Made by Shogo Kajiyama / SEVENTHWELL. MIT License.
-          NOTES
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac
+          # Release notes come from release-notes/{ja,en}/<version>.md (front matter removed).
+          body() { awk 'BEGIN{n=0} /^---$/{n++; next} n>=2' "release-notes/$1/$VERSION.md"; }
+          {
+            echo "## 日本語"; body ja; echo
+            echo "## English"; body en; echo
+            echo "---"
+            echo "Universal (Apple silicon / Intel), macOS 13 or later. Signed with a Developer ID and notarized by Apple: open the .dmg and drag TwinKeys to Applications."
+            echo "**Unofficial third-party tool.** Not made or endorsed by Ableton. Made by Shogo Kajiyama / SEVENTHWELL. MIT License."
+            echo "Release notes for every version: https://kajisho5.github.io/ableton-twinkeys/releases/"
+          } > notes.md
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/*.dmg --clobber --repo "$GITHUB_REPOSITORY"
           else

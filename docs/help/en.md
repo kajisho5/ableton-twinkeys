@@ -1,6 +1,6 @@
 # Using TwinKeys
 
-TwinKeys plays the notes you type on the main Mac on a backup Mac at the same time. Open the same Live set on both Macs, and every key you press on the main Mac plays on both.
+TwinKeys fires your sound cues on two Macs at once. Open the same Live set on both Macs and map clips to keys: each key you press on the main Mac launches the same clip on the backup Mac too. If the main Mac fails, you can switch to the backup straight away.
 
 Unofficial third-party tool. Not affiliated with Ableton.
 
@@ -15,6 +15,7 @@ Unofficial third-party tool. Not affiliated with Ableton.
 1. On both Macs, open the TwinKeys .dmg and drag TwinKeys to Applications, then open it.
 2. When macOS asks about the local network, click Allow.
 3. On the main Mac, click Open System Settings… in the box at the top of the window and turn on TwinKeys under Input Monitoring. Come back and click Check Again.
+4. On the main Mac, also turn on TwinKeys under Accessibility (System Settings > Privacy & Security > Accessibility). It is used to keep cue keys from other apps. Without it, the window shows a note.
 
 ## Pairing code (once)
 
@@ -27,10 +28,13 @@ Both Macs need the same pairing code. Only Macs with the same code can connect, 
 ## Live settings (both Macs)
 
 1. Open Live's Settings (Preferences in Live 11) and choose the Link, Tempo & MIDI tab.
-2. Turn on Link. Link keeps tempo and bar position in sync.
+2. If your set plays to tempo or bars, turn on Link (it keeps tempo and bar position in sync).
 3. In the MIDI ports list, turn on Track and Remote for the input TwinKeys.
-4. On the main Mac, turn off Live's Computer MIDI Keyboard (shortcut M). Otherwise each key plays twice.
-5. Set the MIDI tracks you want to play to receive from TwinKeys (or All Ins).
+4. Map your cues: press MIDI at the top right of Live (⌘M) to enter MIDI Map Mode. Click what you want to control (a clip slot, scene up/down, launch the selected scene, the Play or Stop button…), then press one of TwinKeys' cue keys (↓ and so on) on the main Mac. Press MIDI again to finish.
+5. Use the same mapping on both Macs (the same Set file is the safest way).
+6. If the same keys are mapped in Live's Key Map Mode (⌘K), remove them. Otherwise Live on the main Mac moves twice.
+7. Keep each clip's Launch Mode at Trigger (the default). Gate and Repeat stop the clip when the key is released, so when TwinKeys turns notes off (for example when the network drops) those clips would stop too.
+8. On the main Mac, turn off Live's Computer MIDI Keyboard (shortcut M). Otherwise letter keys also play notes in Live.
 
 ## Connecting
 
@@ -43,16 +47,27 @@ If the other Mac is not listed, use Connect by IP Address… (⇧⌘K) and type 
 
 If the network drops, TwinKeys reconnects by itself (every second at first, slowing to every 5 seconds).
 
-## Playing
+## Cue keys
 
-The layout is the common DAW computer keyboard:
+Choose the keys that fire cues in Settings (⌘,) > Cue Keys. ↑ ↓ ← → Space Return Esc are there to begin with. Any key on the Mac can be a cue key.
 
-- A S D F G H J K L ; — white keys (A is C3)
-- W E T Y U O P — black keys
-- Z / X — octave down / up
-- C / V — velocity down / up
+- Click Add Key… and press the keys you want, one after another. Letters, digits, arrows, Space, F1–F12: any key works.
+- "Add A–Z and 0–9" adds all letters and digits at once.
+- Remove a key with "−" at the right of its row.
+- Give each key a memo (for example "Next scene"). It is shown under Last cue.
+- Each cue key sends its own fixed note (MIDI channel 1, from C1 up, velocity 127). Removing other keys does not change the notes of the keys left, so Live's mappings keep working.
+- Keys are matched by position, not by letter: JIS and US keyboards give the same cue for the same key.
+- Holding a key down sends it once. Keys pressed with ⌘, ⌃, ⌥ or Shift are not sent.
+- While "Keep cue keys from other apps (recommended)" is on, cue keys do not reach other apps, Live included. Live on the main Mac then reacts only to TwinKeys' MIDI, exactly like the backup. Turn Key capture off (⌃⌘K) to use the arrows and the other keys normally.
 
-Keys are matched by position, not by letter, so JIS and US keyboards play the same notes. Keys pressed with ⌘, ⌃, ⌥ or Shift never play.
+## Last cue and the delivery check
+
+The Last cue box near the top of the window shows:
+
+- The key, its memo, and "Cue n since connecting". The backup shows the same, so comparing the two numbers tells you both Macs are at the same cue. The count starts again after reconnecting.
+- **Reached the backup** (green ✓): the backup received the cue.
+- **No confirmation** (red): no answer came even after sending the cue again every 0.1 s for about 0.3 s. Check that the cue fired on the backup. It is not sent again after that, because a cue that starts late would do more harm.
+- **Delivery cannot be checked**: the other Mac runs TwinKeys older than 1.0.0. Use 1.0.0 or later on both.
 
 Turn Key capture off (⌃⌘K) while typing in other apps.
 
@@ -64,6 +79,21 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 - Connect by IP Address — ⇧⌘K
 - Settings — ⌘,
 - This guide — ⌘?
+
+## Updates
+
+- New versions are downloaded in the background (checked a minute after launch and every 6 hours).
+- When one is ready, a note appears at the top of the window. The app is replaced **only when TwinKeys quits**: never on its own during a show.
+- Restart Now is offered only while not connected.
+- The downloaded app is used only if it is signed by the same developer as the running one.
+- Turn automatic checks off in Settings > Updates. TwinKeys > Check for Updates… checks at any time.
+
+## Menu bar
+
+- TwinKeys shows a keyboard icon in the menu bar: filled while connected, outlined while not, with "!" while reconnecting.
+- Its menu has All Notes Off, Connect, Key capture, Open TwinKeys, Settings, Open at Login and Quit.
+- Closing the window keeps TwinKeys running. Choose Quit TwinKeys (⌘Q) to stop it.
+- Settings > Menu Bar has Open at Login and Show only in the menu bar (both off to begin with).
 
 ## Stuck notes
 
@@ -94,20 +124,25 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 **Both Wi-Fi and a cable are connected**
 - TwinKeys uses the cable. For the steadiest timing, turn Wi-Fi off during the show.
 
+**Live moves twice for one cue key**
+- Turn on "Keep cue keys from other apps" in Settings and allow TwinKeys under Accessibility.
+- Check that the same key is not left in Live's Key Map Mode (⌘K).
+
 **Keys make no sound**
 - Check that Input Monitoring is allowed (shown at the bottom of the window).
 - Check that Send my keys and Key capture are on.
-- Check that Track is on for TwinKeys in Live's MIDI settings.
+- Check that the key is one of the cue keys.
+- Check that Track and Remote are on for TwinKeys in Live's MIDI settings.
 - While you type in a password field (macOS Secure Input), keys are hidden from TwinKeys. The window shows "Key capture: Paused", and held notes are ended when that starts.
 
 **"Different pairing code" next to the other Mac**
 - The two Macs use different codes. On one Mac, open Set Up Pairing Code… and use Enter Code… to type the other Mac's code.
 
-**Every note plays twice**
+**Only Live on the main Mac plays, or it moves twice**
 - Turn off Live's Computer MIDI Keyboard on the main Mac.
 
 **Key capture stopped working after an update**
-- Turn TwinKeys off and on again in the Input Monitoring list.
+- Turn TwinKeys off and on again in the Input Monitoring and Accessibility lists.
 
 **"Different TwinKeys version" next to the other Mac**
 - Install the same version on both Macs.
@@ -115,7 +150,6 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 ## Files
 
 - Settings — ~/Library/Application Support/TwinKeys/settings.json
-- Key mapping — ~/Library/Application Support/TwinKeys/mapping.json (after editing, click Reload Mapping in Settings)
 - Logs — ~/Library/Logs/TwinKeys/ (open from the Help menu)
 
 ## Credits

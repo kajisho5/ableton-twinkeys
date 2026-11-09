@@ -1,0 +1,356 @@
+---
+import Base from '../layouts/Base.astro';
+import { t, url, pageUrl, DOWNLOAD_URL, type Lang } from '../lib/i18n';
+import { latestVersion } from '../lib/releases';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const s = t[lang];
+const version = await latestVersion();
+const suffix = lang === 'ja' ? '-ja' : '';
+---
+<Base lang={lang} page="home" title={s.homeTitle}>
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <div class="hero-copy">
+        <h1>{s.heroTitle.map((line) => <span>{line}</span>)}</h1>
+        <p class="lead">
+          {s.heroLead.map((line, i) => (
+            <Fragment>{line}{i < s.heroLead.length - 1 && <br class="br-wide" />}</Fragment>
+          ))}
+        </p>
+        <div class="cta">
+          <a class="btn btn-primary" href={DOWNLOAD_URL}>{s.download(version)}</a>
+          <a class="btn btn-ghost" href={pageUrl(lang, 'guide')}>{s.readGuide}</a>
+        </div>
+        <p class="meta meta-long">{s.metaLong}<br />{s.notarized}</p>
+        <p class="meta meta-short">{s.metaShort}</p>
+      </div>
+      <div class="hero-shot">
+        <picture>
+          <source srcset={url(`images/main-dark${suffix}.png`)} media="(prefers-color-scheme: dark)" />
+          <img
+            src={url(`images/main-light${suffix}.png`)}
+            width="1120"
+            height="904"
+            alt={s.screenshotAlt}
+            fetchpriority="high"
+          />
+        </picture>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="how">
+    <div class="wrap">
+      <h2 class="section-title" id="how">{s.howTitle}</h2>
+      <ol class="flow">
+        {s.how.map(([title, body], i) => (
+          <Fragment>
+            <li class="flow-box">
+              <strong>{title}</strong>
+              <span>{body}</span>
+            </li>
+            {i < s.how.length - 1 && (
+              <li class="flow-arrow" aria-hidden="true">
+                <svg viewBox="0 0 48 24" width="48" height="24">
+                  <path d="M4 12h38m-10-8 10 8-10 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </li>
+            )}
+          </Fragment>
+        ))}
+      </ol>
+      <p class="flow-note">{s.howNote}</p>
+    </div>
+  </section>
+
+  <section class="section section-alt" aria-labelledby="features">
+    <div class="wrap">
+      <h2 class="section-title" id="features">{s.featuresTitle}</h2>
+      <ul class="features">
+        {s.features.map(([title, body]) => (
+          <li class="card">
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="start">
+    <div class="wrap">
+      <h2 class="section-title" id="start">{s.stepsTitle}</h2>
+      <ol class="steps">
+        {s.steps.map((step, i) => (
+          <li><span class="num" aria-hidden="true">{i + 1}.</span> {step}</li>
+        ))}
+      </ol>
+      <p class="steps-more"><a href={pageUrl(lang, 'guide')}>{s.stepsMore}</a></p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    background: linear-gradient(180deg, var(--hero1), var(--hero2));
+    color: var(--hero-text);
+  }
+  .hero-inner {
+    min-height: 520px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 500px);
+    gap: 48px;
+    align-items: center;
+    padding-top: 36px;
+    padding-bottom: 64px;
+  }
+  .hero h1 {
+    margin: 0;
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+  }
+  .hero h1 span {
+    display: block;
+  }
+  .lead {
+    margin: 16px 0 0;
+    color: var(--hero-sec);
+    font-size: 17px;
+    line-height: 28px;
+  }
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .meta {
+    margin: 24px 0 0;
+    color: var(--hero-sec);
+    font-size: 14px;
+    line-height: 24px;
+  }
+  .meta-short {
+    display: none;
+  }
+  .hero-shot img {
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+
+  .flow {
+    list-style: none;
+    margin: 0 auto;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    max-width: 960px;
+  }
+  .flow-box {
+    flex: 1 1 280px;
+    max-width: 280px;
+    min-height: 110px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    text-align: center;
+  }
+  .flow-box strong {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .flow-box span {
+    color: var(--sec);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .flow-arrow {
+    flex: 0 0 48px;
+    color: var(--accent);
+    display: flex;
+    justify-content: center;
+  }
+  .flow-note {
+    margin: 32px 0 0;
+    text-align: center;
+    color: var(--sec);
+    font-size: 15px;
+  }
+
+  .features {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px 30px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px 24px 26px;
+    min-height: 125px;
+  }
+  .card h3 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .card p {
+    margin: 8px 0 0;
+    color: var(--sec);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px 30px;
+  }
+  .steps li {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .num {
+    color: var(--accent);
+    font-weight: 800;
+  }
+  .steps-more {
+    margin: 28px 0 0;
+    font-size: 15px;
+  }
+
+  @media (max-width: 1100px) {
+    .hero h1 {
+      font-size: 38px;
+    }
+    .br-wide {
+      display: none;
+    }
+  }
+
+  @media (max-width: 960px) {
+    .hero-inner {
+      grid-template-columns: minmax(0, 1fr);
+      min-height: 0;
+      gap: 32px;
+      padding-top: 48px;
+      padding-bottom: 48px;
+    }
+    .hero-shot {
+      max-width: 560px;
+    }
+    .features {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .steps {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
+    .hero-inner {
+      padding-top: 40px;
+      padding-bottom: 16px;
+      gap: 20px;
+    }
+    .hero h1 {
+      font-size: 32px;
+      line-height: 40px;
+    }
+    .lead {
+      margin-top: 20px;
+      font-size: 15px;
+      line-height: 24px;
+    }
+    .cta {
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 28px;
+    }
+    .cta .btn {
+      width: 100%;
+      min-width: 0;
+    }
+    .btn-ghost {
+      min-height: 48px;
+      font-size: 16px;
+    }
+    .meta {
+      margin-top: 16px;
+      font-size: 13px;
+    }
+    .meta-long {
+      display: none;
+    }
+    .meta-short {
+      display: block;
+    }
+    .hero-shot img {
+      border-radius: 6px;
+      box-shadow: none;
+    }
+
+    .flow {
+      flex-direction: column;
+      gap: 8px;
+    }
+    .flow-box {
+      flex: none;
+      width: 100%;
+      max-width: none;
+      min-height: 88px;
+    }
+    .flow-box strong {
+      font-size: 18px;
+    }
+    .flow-arrow {
+      flex: none;
+      transform: rotate(90deg);
+      height: 24px;
+    }
+    .flow-note {
+      text-align: left;
+      margin-top: 20px;
+    }
+    .features {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
+    }
+    .card {
+      min-height: 0;
+      padding: 18px 16px;
+      border-radius: 12px;
+    }
+    .card h3 {
+      font-size: 17px;
+    }
+    .steps {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+  }
+</style>
