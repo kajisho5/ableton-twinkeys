@@ -26,8 +26,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var menuBarOnly: Bool = false
     /// iPhones / iPads allowed to control Live through this Mac (TwinKeys Remote).
     public var approvedDevices: [ApprovedDevice] = []
-    /// Wait for TwinKeys Remote on the network.
-    public var remoteEnabled: Bool = true
+    /// Wait for TwinKeys Remote on the network. Off until the user turns it on, so an
+    /// automatic update does not open a new network service on a show Mac by itself.
+    public var remoteEnabled: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case version
