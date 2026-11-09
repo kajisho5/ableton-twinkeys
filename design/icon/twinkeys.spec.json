@@ -3,14 +3,14 @@
   "darkBackground": "gradient:#1B2335,#06090F",
   "groups": [
     {
-      "name": "Black Key",
+      "name": "K",
       "props": { "translucency": { "enabled": false, "value": 0.5 } },
-      "layers": [{ "file": "src/black-key.svg", "name": "Black Key", "props": { "glass": true } }]
+      "layers": [{ "file": "src/letter-k.svg", "name": "K", "props": { "glass": true } }]
     },
     {
-      "name": "White Keys",
-      "props": { "translucency": { "enabled": true, "value": 0.2 } },
-      "layers": [{ "file": "src/white-keys.svg", "name": "White Keys", "props": { "glass": true } }]
+      "name": "T",
+      "props": { "translucency": { "enabled": false, "value": 0.5 } },
+      "layers": [{ "file": "src/letter-t.svg", "name": "T", "props": { "glass": true } }]
     }
   ]
 }

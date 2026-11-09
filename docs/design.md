@@ -35,7 +35,7 @@
 
 ### 後回し可（コア完成後に順番に追加）
 - 8 節パリティ P1〜P7（3 台以上、リモート MIDI 機器、複数ポート、プリセット、両機状態、警告音、イベントログ）
-- 9 節アイコン：fresnel（CLI `fresnel-icon`）で作成済み。元データ `design/icon/`、書き出し `Resources/AppIcon.icns`、プレビュー `deliverables/icon/`
+- 9 節アイコン：fresnel（CLI `fresnel-icon`）で作成済み。2026-11-09 の指示により、仕様の「文字なし」から「TK」の文字アイコンに変更（Inter Bold を図形に変換、SIL Open Font License）。元データ `design/icon/`、書き出し `Resources/AppIcon.icns`、プレビュー `deliverables/icon/`
 
 ### 仕様の過大・リスク指摘
 - **追加遅延 5ms 以下**：アプリ内処理は 1ms 未満で設計可能。ただし Wi-Fi の揺らぎは数 ms〜数十 ms あり、アプリでは制御不可。README で「有線 LAN 推奨」と書く **[推測]**

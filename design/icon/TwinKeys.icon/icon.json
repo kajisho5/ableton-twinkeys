@@ -4,11 +4,11 @@
       "layers" : [
         {
           "glass" : true,
-          "image-name" : "black-key.svg",
-          "name" : "Black Key"
+          "image-name" : "letter-k.svg",
+          "name" : "K"
         }
       ],
-      "name" : "Black Key",
+      "name" : "K",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
@@ -23,19 +23,19 @@
       "layers" : [
         {
           "glass" : true,
-          "image-name" : "white-keys.svg",
-          "name" : "White Keys"
+          "image-name" : "letter-t.svg",
+          "name" : "T"
         }
       ],
-      "name" : "White Keys",
+      "name" : "T",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
       },
       "specular" : true,
       "translucency" : {
-        "enabled" : true,
-        "value" : 0.2
+        "enabled" : false,
+        "value" : 0.5
       }
     }
   ],
