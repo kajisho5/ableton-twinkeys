@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="460" viewBox="0 0 600 460">
+<rect x="0" y="0" width="600" height="460" rx="0" fill="#D9DCE3"/>
+<g transform="translate(20,20)">
+<rect x="0" y="0" width="560" height="420" rx="10" fill="#ECECEC" stroke="#D1D1D6" stroke-width="1"/>
+<path d="M0.5 10.5 a10 10 0 0 1 10 -10 H549.5 a10 10 0 0 1 10 10 V28 H0.5 Z" fill="#E3E3E3"/>
+<line x1="0" y1="28" x2="560" y2="28" stroke="#D1D1D6"/>
+<circle cx="14" cy="14" r="6" fill="#FF5F57"/>
+<circle cx="34" cy="14" r="6" fill="#FEBC2E"/>
+<circle cx="54" cy="14" r="6" fill="#28C840"/>
+<text x="280.0" y="18.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" text-anchor="middle">TwinKeys</text>
+<rect x="0" y="28" width="560" height="52" rx="0" fill="#ECECEC"/>
+<circle cx="24" cy="54" r="5" fill="#1B7A31"/>
+<text x="36" y="50" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" text-anchor="start">Connected to Backup Stage Mac</text>
+<text x="36" y="67" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Latency 2 ms  ·  Sending and receiving</text>
+<rect x="424" y="40" width="120" height="28" rx="6" fill="#C0241A"/><text x="484.0" y="58.5" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" text-anchor="middle">All Notes Off</text>
+<line x1="0" y1="80" x2="560" y2="80" stroke="#D1D1D6"/>
+<text x="20" y="106" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="600" text-anchor="start">NEARBY TWINKEYS</text>
+<rect x="16" y="114" width="528" height="88" rx="8" fill="#FFFFFF" stroke="#D1D1D6" stroke-width="1"/>
+<path d="M17 122 a7 7 0 0 1 7 -7 H536 a7 7 0 0 1 7 7 V158 H17 Z" fill="#DCE9FA"/>
+<circle cx="32" cy="136" r="4" fill="#1B7A31"/>
+<text x="46" y="133" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="500" text-anchor="start">Backup Stage Mac</text>
+<text x="46" y="148" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Receive  ·  2 ms</text>
+<rect x="440.5" y="122.5" width="91" height="27" rx="6" fill="#FFFFFF" stroke="#C2C2C7" stroke-width="1"/><text x="486.0" y="140.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle">Disconnect</text>
+<circle cx="32" cy="180" r="4" fill="#5F5F64"/>
+<text x="46" y="177" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="500" text-anchor="start">Spare Mac (Demo)</text>
+<text x="46" y="192" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Receive</text>
+<rect x="440.5" y="166.5" width="91" height="27" rx="6" fill="#F0F0F2" stroke="#C2C2C7" stroke-width="1"/><text x="486.0" y="184.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle">Connect</text>
+<line x1="46" y1="158" x2="544" y2="158" stroke="#D1D1D6"/>
+<text x="20" y="230" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="600" text-anchor="start">MODE AND KEYBOARD</text>
+<rect x="16" y="238" width="528" height="108" rx="8" fill="#FFFFFF" stroke="#D1D1D6" stroke-width="1"/>
+<rect x="30" y="251" width="14" height="14" rx="3" fill="#0060C7"/><path d="M33.5 258.2 l2.7 2.8 l4.6 -5.6" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="50" y="262.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start">Send my keys</text>
+<rect x="176" y="251" width="14" height="14" rx="3" fill="#0060C7"/><path d="M179.5 258.2 l2.7 2.8 l4.6 -5.6" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="196" y="262.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start">Receive notes</text>
+<text x="530" y="262" fill="#1B7A31" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="600" text-anchor="end">Key capture: On</text>
+<line x1="30" y1="278" x2="544" y2="278" stroke="#D1D1D6"/>
+<text x="30" y="298" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Octave</text>
+<text x="30" y="318" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="17" font-weight="600" text-anchor="start">C3</text>
+<text x="76" y="318" fill="#5F5F64" font-family="'SF Mono', Menlo, monospace" font-size="11" font-weight="400" text-anchor="start">Z / X</text>
+<text x="186" y="298" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Velocity</text>
+<text x="186" y="318" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="17" font-weight="600" text-anchor="start">100</text>
+<text x="228" y="318" fill="#5F5F64" font-family="'SF Mono', Menlo, monospace" font-size="11" font-weight="400" text-anchor="start">C / V</text>
+<text x="346" y="298" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Held notes</text>
+<text x="346" y="318" fill="#1D1D1F" font-family="'SF Mono', Menlo, monospace" font-size="13" font-weight="500" text-anchor="start">E3  G3  C4</text>
+<text x="30" y="337" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Turn off the computer MIDI keyboard in your DAW to avoid double notes.</text>
+<circle cx="24" cy="368" r="4" fill="#1B7A31"/>
+<text x="34" y="372" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Input Monitoring: Allowed</text>
+<circle cx="216" cy="368" r="4" fill="#1B7A31"/>
+<text x="226" y="372" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Local Network: Peers visible</text>
+</g>
+</svg>

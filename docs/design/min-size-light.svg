@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="370" viewBox="0 0 480 370">
+<rect x="0" y="0" width="480" height="370" rx="0" fill="#D9DCE3"/>
+<g transform="translate(20,20)">
+<rect x="0" y="0" width="440" height="330" rx="10" fill="#ECECEC" stroke="#D1D1D6" stroke-width="1"/>
+<path d="M0.5 10.5 a10 10 0 0 1 10 -10 H429.5 a10 10 0 0 1 10 10 V28 H0.5 Z" fill="#E3E3E3"/>
+<line x1="0" y1="28" x2="440" y2="28" stroke="#D1D1D6"/>
+<circle cx="14" cy="14" r="6" fill="#FF5F57"/>
+<circle cx="34" cy="14" r="6" fill="#FEBC2E"/>
+<circle cx="54" cy="14" r="6" fill="#28C840"/>
+<text x="220.0" y="18.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" text-anchor="middle">TwinKeys</text>
+<rect x="0" y="28" width="440" height="52" rx="0" fill="#ECECEC"/>
+<circle cx="24" cy="54" r="5" fill="#8A5A00"/>
+<text x="36" y="50" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" text-anchor="start">Not connected</text>
+<text x="36" y="67" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="start">Searching for TwinKeys…</text>
+<rect x="304" y="40" width="120" height="28" rx="6" fill="#C0241A"/><text x="364.0" y="58.5" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" text-anchor="middle">All Notes Off</text>
+<line x1="0" y1="80" x2="440" y2="80" stroke="#D1D1D6"/>
+<rect x="12" y="92" width="416" height="66" rx="8" fill="#FFFFFF" stroke="#8A5A00" stroke-width="1"/>
+<path d="M30 103 l8 14 h-16 z" fill="none" stroke="#8A5A00" stroke-width="1.6" stroke-linejoin="round"/>
+<text x="30" y="115" fill="#8A5A00" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">!</text>
+<text x="46" y="112" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="600" text-anchor="start">Key capture needs Input Monitoring permission.</text>
+<rect x="46" y="120" width="168" height="28" rx="6" fill="#0060C7"/><text x="130.0" y="138.5" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="500" text-anchor="middle">Open System Settings…</text>
+<rect x="222.5" y="120.5" width="103" height="27" rx="6" fill="#FFFFFF" stroke="#C2C2C7" stroke-width="1"/><text x="274.0" y="138.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle">Check Again</text>
+<text x="16" y="178" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="600" text-anchor="start">NEARBY TWINKEYS</text>
+<rect x="12" y="186" width="416" height="126" rx="8" fill="#FFFFFF" stroke="#D1D1D6" stroke-width="1"/>
+<text x="220.0" y="216" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" text-anchor="middle">No TwinKeys found on this network</text>
+<text x="220.0" y="238" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="middle">Make sure both Macs are on the same Wi-Fi or wired network,</text>
+<text x="220.0" y="254" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="middle">and that TwinKeys is allowed in System Settings ></text>
+<text x="220.0" y="270" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="400" text-anchor="middle">Privacy &amp; Security > Local Network.</text>
+<rect x="160.5" y="274.5" width="119" height="27" rx="6" fill="#FFFFFF" stroke="#C2C2C7" stroke-width="1"/><text x="220.0" y="292.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle">How to Fix…</text>
+</g>
+</svg>
