@@ -52,12 +52,18 @@ enum Snapshot {
         window.orderFrontRegardless()
         RunLoop.current.run(until: Date().addingTimeInterval(0.6))
 
-        // The window's frame view includes the title bar.
-        guard let frameView = window.contentView?.superview,
-              let rep = frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds) else {
+        // The window's frame view includes the title bar. Render at 2x for sharp images.
+        guard let frameView = window.contentView?.superview else {
             print("snapshot: could not capture \(file.lastPathComponent)"); return
         }
-        frameView.cacheDisplay(in: frameView.bounds, to: rep)
+        let bounds = frameView.bounds
+        let scale: CGFloat = 2
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                         pixelsWide: Int(bounds.width * scale), pixelsHigh: Int(bounds.height * scale),
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return }
+        rep.size = bounds.size
+        frameView.cacheDisplay(in: bounds, to: rep)
         if let png = rep.representation(using: .png, properties: [:]) {
             try? png.write(to: file)
             print("snapshot: wrote \(file.path) (\(rep.pixelsWide)x\(rep.pixelsHigh))")

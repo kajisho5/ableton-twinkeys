@@ -179,23 +179,16 @@ struct ContentView: View {
             SectionLabel("Mode and Keyboard")
             TKGroup {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 20) {
-                        Toggle("Send my keys", isOn: Binding(get: { state.sendKeys }, set: actions.setSendKeys))
-                            .toggleStyle(.checkbox)
-                            .accessibilityHint("Keys you press play notes here and on the connected Mac")
-                        Toggle("Receive notes", isOn: Binding(get: { state.receiveNotes }, set: actions.setReceiveNotes))
-                            .toggleStyle(.checkbox)
-                            .accessibilityHint("Notes from the connected Mac play on this Mac")
-                        Spacer(minLength: 8)
-                        Toggle(isOn: Binding(get: { state.keyCapture }, set: actions.setKeyCapture)) {
-                            Text(keyCaptureText)
-                                .font(.system(size: Theme.caption, weight: .semibold))
-                                .foregroundStyle(state.keyCaptureActive ? Theme.ok : Theme.textSecondary)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 20) {
+                            modeToggles
+                            Spacer(minLength: 8)
+                            keyCaptureToggle
                         }
-                        .toggleStyle(.checkbox)
-                        .help("Turn key capture on or off (⌃⌘K)")
-                        .accessibilityLabel("Key capture")
-                        .accessibilityValue(keyCaptureText)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 20) { modeToggles }
+                            keyCaptureToggle
+                        }
                     }
                     .frame(minHeight: Theme.controlHeight)
                     .padding(.horizontal, 14)
@@ -216,6 +209,30 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder private var modeToggles: some View {
+        Toggle("Send my keys", isOn: Binding(get: { state.sendKeys }, set: actions.setSendKeys))
+            .toggleStyle(.checkbox)
+            .fixedSize()
+            .accessibilityHint("Keys you press play notes here and on the connected Mac")
+        Toggle("Receive notes", isOn: Binding(get: { state.receiveNotes }, set: actions.setReceiveNotes))
+            .toggleStyle(.checkbox)
+            .fixedSize()
+            .accessibilityHint("Notes from the connected Mac play on this Mac")
+    }
+
+    private var keyCaptureToggle: some View {
+        Toggle(isOn: Binding(get: { state.keyCapture }, set: actions.setKeyCapture)) {
+            Text(keyCaptureText)
+                .font(.system(size: Theme.caption, weight: .semibold))
+                .foregroundStyle(state.keyCaptureActive ? Theme.ok : Theme.textSecondary)
+        }
+        .toggleStyle(.checkbox)
+        .fixedSize()
+        .help("Turn key capture on or off (⌃⌘K)")
+        .accessibilityLabel("Key capture")
+        .accessibilityValue(keyCaptureText)
     }
 
     private var keyCaptureText: String {

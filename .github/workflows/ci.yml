@@ -32,9 +32,13 @@ jobs:
         run: |
           dist/TwinKeys.app/Contents/MacOS/TwinKeys > smoke.log 2>&1 &
           PID=$!
+          START=$(date +%s)
           sleep 5
           if ! kill -0 $PID 2>/dev/null; then echo "TwinKeys exited early"; cat smoke.log; exit 1; fi
-          ps -o rss=,command= -p $PID | awk '{printf "Resident memory: %.1f MB\n", $1/1024}' | tee memory.txt
+          # RSS counts shared system framework pages; "footprint" is what Activity Monitor shows as Memory.
+          ps -o rss= -p $PID | awk '{printf "Resident (RSS): %.1f MB\n", $1/1024}' | tee memory.txt
+          footprint -p $PID 2>/dev/null | grep -iE "^\s*(TwinKeys|Footprint|phys_footprint)|Footprint:" | head -5 | tee -a memory.txt || true
+          vmmap --summary $PID 2>/dev/null | grep -iE "Physical footprint" | tee -a memory.txt || true
           kill -TERM $PID || true
           sleep 1
           cat smoke.log || true

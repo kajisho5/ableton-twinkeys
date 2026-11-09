@@ -1,6 +1,6 @@
-# TwinKeys 詳細設計書（v1 コア）— 確認用ドラフト
+# TwinKeys 詳細設計書（v1 コア）
 
-- 状態：**確認待ち**（この設計書と `docs/design/*.svg` を承認いただいてから実装に入ります）
+- 状態：**承認済み（2026-11-09、Q1〜Q7 すべて推奨案）**。実装は Swift＋SwiftUI
 - 作成日：2026-11-09
 - 対象：仕様書（prompt.md）1〜12 節。最小対応 OS は macOS 13 Ventura（確定済み）
 
@@ -8,7 +8,7 @@
 
 ---
 
-## 0. 先に確認していただきたいこと（要回答）
+## 0. 確認事項と決定（すべて推奨案で決定）
 
 | # | 内容 | 推奨案 |
 |---|---|---|
@@ -242,7 +242,31 @@ type: 0x01 Hello{id 16B} / 0x02 HelloAck{id 16B}
 
 ---
 
-## 7. フォルダ構成（Rust 案。Swift 案なら Sources/ 構成に置き換え）
+## 7. フォルダ構成（確定：Swift Package）
+
+```
+ableton-twinkeys/
+├─ Package.swift                 swift-tools-version 5.10、macOS 13 以上
+├─ Sources/
+│  ├─ TwinKeysCore/              OS に依存しない中心部分（Linux でもテスト可）
+│  │   KeyMapping / PerformanceEngine / NoteGuard / WireProtocol(+SequenceFilter)
+│  │   LinkStateMachine / Safety / Conductor / Settings / Peers / MIDIMessage
+│  └─ TwinKeys/                  Mac アプリ
+│      Main / TwinKeysApp / AppModel / ViewState / ContentView / HelpView / SettingsView
+│      Theme / Components / VirtualMIDIPort(CoreMIDI) / KeyMonitor(CGEventTap)
+│      NetworkService(Network.framework) / FileLog / Snapshot(スクリーンショット生成)
+├─ Tests/TwinKeysCoreTests/      単体テスト（2台模擬テストを含む）
+├─ Resources/                    Info.plist, mapping.default.json, AppIcon-1024.png
+├─ scripts/build-app.sh          universal .app と zip を作る
+├─ .github/workflows/            ci.yml（毎 push）, release.yml（v* タグ）
+├─ docs/                         design.md, design/, manual-test.md, test-report.md
+└─ deliverables/                 スクリーンショット・アイコン PNG
+```
+
+ビルド環境：GitHub Actions `macos-26`（Xcode 26.6）。根拠：https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md
+この開発環境での中心部分テスト：Swift 6.4.2（Linux）。根拠：https://www.swift.org/install/
+
+### 参考：当初の Rust 案の構成（不採用）
 
 ```
 ableton-twinkeys/
