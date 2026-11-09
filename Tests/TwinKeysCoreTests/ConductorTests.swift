@@ -25,11 +25,11 @@ final class ConductorTests: XCTestCase {
 
     override func setUp() {
         var s = AppSettings()
-        s.sendKeys = true; s.receiveNotes = true
+        s.sendKeys = true; s.receiveNotes = true; s.pianoKeys = true
         main = Conductor(instanceID: mainID, displayName: "Main", mapping: .default, settings: s,
                          midi: mainMIDI, net: mainNet, session: 1,
                          clock: { [unowned self] in now }, nanos: { [unowned self] in UInt64(now * 1e9) })
-        var b = AppSettings(); b.sendKeys = false
+        var b = AppSettings(); b.sendKeys = false; b.pianoKeys = true
         backup = Conductor(instanceID: backupID, displayName: "Backup", mapping: .default, settings: b,
                            midi: backupMIDI, net: backupNet, session: 2,
                            clock: { [unowned self] in now }, nanos: { [unowned self] in UInt64(now * 1e9) })
@@ -256,8 +256,11 @@ final class ConductorTests: XCTestCase {
         // Deliver main's hello to the backup on a fresh route; the ack comes back on the placeholder route.
         for (_, bytes) in mainNet.outbox { _ = backup.receive(bytes, knownPeer: nil) }
         mainNet.outbox.removeAll()
-        for (_, bytes) in backupNet.outbox { XCTAssertEqual(main.receive(bytes, knownPeer: "manual:192.0.2.10"), backupID.uuidString) }
-        backupNet.outbox.removeAll()
+        // The ack names the real peer; the transport then binds the route to it, so the
+        // packets after it (features, cue names) arrive on the real peer's route.
+        let replies = backupNet.outbox.map(\.bytes); backupNet.outbox.removeAll()
+        XCTAssertEqual(main.receive(replies[0], knownPeer: "manual:192.0.2.10"), backupID.uuidString)
+        for bytes in replies.dropFirst() { main.receive(bytes, knownPeer: backupID.uuidString) }
         XCTAssertEqual(main.snapshot().link, .connected(peer: backupID.uuidString))
         XCTAssertEqual(main.snapshot().peerNames[backupID.uuidString], "Backup")
     }

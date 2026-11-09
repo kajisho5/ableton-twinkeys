@@ -16,6 +16,17 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var language: String = "system"
     /// Last IP address typed in "Connect by IP Address…".
     public var manualAddress: String?
+    /// Keys that fire fixed cue notes (arrows, Space…).
+    public var cueKeys: [CueKey] = CueKey.defaults
+    /// Piano layout keys (A…;, Z/X, C/V). Off on a new install (cue use);
+    /// on for settings written by 0.5.0 and earlier, which always had it.
+    public var pianoKeys: Bool = false
+    /// Keep cue keys from other apps (needs the Accessibility permission).
+    public var blockCueKeys: Bool = true
+    /// Look for new versions and download them in the background.
+    public var autoUpdate: Bool = true
+    /// Show TwinKeys only in the menu bar (no Dock icon).
+    public var menuBarOnly: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -29,6 +40,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case midiUniqueID = "midi_unique_id"
         case language
         case manualAddress = "manual_address"
+        case cueKeys = "cue_keys"
+        case pianoKeys = "piano_keys"
+        case blockCueKeys = "block_cue_keys"
+        case autoUpdate = "auto_update"
+        case menuBarOnly = "menu_bar_only"
     }
 
     public init() {}
@@ -49,6 +65,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let lang = try c.decodeIfPresent(String.self, forKey: .language) ?? d.language
         language = ["system", "en", "ja"].contains(lang) ? lang : "system"
         manualAddress = try c.decodeIfPresent(String.self, forKey: .manualAddress)
+        // A broken cue key list falls back to the defaults instead of losing every setting.
+        if let keys = try? c.decodeIfPresent([CueKey].self, forKey: .cueKeys) { cueKeys = CueKey.sanitized(keys) }
+        // Settings from 0.5.0 and earlier have no piano_keys: those people used the piano layout.
+        pianoKeys = try c.decodeIfPresent(Bool.self, forKey: .pianoKeys) ?? true
+        blockCueKeys = try c.decodeIfPresent(Bool.self, forKey: .blockCueKeys) ?? d.blockCueKeys
+        autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? d.autoUpdate
+        menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? d.menuBarOnly
     }
 }
 

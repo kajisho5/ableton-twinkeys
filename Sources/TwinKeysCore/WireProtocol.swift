@@ -27,6 +27,17 @@ public enum PacketBody: Equatable, Sendable {
     /// Notes the sender's keys are still holding. Sent with each heartbeat so the
     /// receiver's automatic note-off only fires when a note-off was really lost.
     case held(channel: UInt8, notes: [UInt8])
+    /// Since 1.0.0: what the sender understands (bit 0: cue delivery check). Sent with each
+    /// heartbeat. Older versions drop unknown packet types, so they simply never send it.
+    case features(flags: UInt8)
+    /// Since 1.0.0: "your note-on with this sequence number arrived".
+    case noteAck(seq: UInt32)
+    /// Since 1.0.0: the name of a cue key, so the other Mac can show it ("↓", "Next scene").
+    case cueName(channel: UInt8, note: UInt8, label: String, memo: String)
+    /// Since 1.0.0: a cue sent again because no noteAck came. `originalSeq` is the sequence
+    /// number of the first note-on: the receiver plays it only if that one never arrived.
+    /// `released`: the key is already up, so the note ends right away.
+    case cueResend(originalSeq: UInt32, channel: UInt8, note: UInt8, velocity: UInt8, released: Bool)
 
     var typeCode: UInt8 {
         switch self {
@@ -39,6 +50,10 @@ public enum PacketBody: Equatable, Sendable {
         case .heartbeat: return 0x30
         case .heartbeatAck: return 0x31
         case .held: return 0x12
+        case .features: return 0x13
+        case .noteAck: return 0x14
+        case .cueName: return 0x15
+        case .cueResend: return 0x16
         }
     }
 }
@@ -83,6 +98,17 @@ extension Packet {
         case let .held(ch, notes):
             let list = Array(notes.prefix(maxHeldNotes))
             b += [ch & 0x0F, UInt8(list.count)] + list.map { $0 & 0x7F }
+        case let .features(flags):
+            b.append(flags)
+        case let .noteAck(s):
+            b.appendBE(s)
+        case let .cueName(ch, note, label, memo):
+            let l = Array(truncatedUTF8(label, max: CueKey.maxLabelBytes))
+            let m = Array(truncatedUTF8(memo, max: CueKey.maxMemoBytes))
+            b += [ch & 0x0F, note & 0x7F, UInt8(l.count)] + l + [UInt8(m.count)] + m
+        case let .cueResend(orig, ch, note, vel, released):
+            b.appendBE(orig)
+            b += [ch & 0x0F, note & 0x7F, vel & 0x7F, released ? 1 : 0]
         }
         return b
     }
@@ -120,6 +146,24 @@ extension Packet {
             guard p.count >= 8 else { throw DecodeError.badPayload }
             let t = (UInt64(p.readBE32(at: 0)) << 32) | UInt64(p.readBE32(at: 4))
             body = data[3] == 0x30 ? .heartbeat(timestampNanos: t) : .heartbeatAck(timestampNanos: t)
+        case 0x13:
+            guard p.count >= 1 else { throw DecodeError.badPayload }
+            body = .features(flags: p[0])
+        case 0x14:
+            guard p.count >= 4 else { throw DecodeError.badPayload }
+            body = .noteAck(seq: p.readBE32(at: 0))
+        case 0x15:
+            guard p.count >= 4, p[0] < 16, p[1] < 128 else { throw DecodeError.badPayload }
+            let ll = Int(p[2])
+            guard ll <= CueKey.maxLabelBytes, p.count >= 4 + ll else { throw DecodeError.badPayload }
+            let ml = Int(p[3 + ll])
+            guard ml <= CueKey.maxMemoBytes, p.count >= 4 + ll + ml else { throw DecodeError.badPayload }
+            body = .cueName(channel: p[0], note: p[1],
+                            label: String(decoding: p[3..<(3 + ll)], as: UTF8.self),
+                            memo: String(decoding: p[(4 + ll)..<(4 + ll + ml)], as: UTF8.self))
+        case 0x16:
+            guard p.count >= 8, p[4] < 16, p[5] < 128, p[6] < 128 else { throw DecodeError.badPayload }
+            body = .cueResend(originalSeq: p.readBE32(at: 0), channel: p[4], note: p[5], velocity: p[6], released: p[7] != 0)
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)

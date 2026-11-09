@@ -26,8 +26,14 @@ public struct PerformanceEngine: Sendable {
     public private(set) var octave: Int
     public private(set) var velocity: Int
     public var channel: UInt8 = 0
-    /// keycode -> note that is currently sounding for that key.
+    /// Piano layout keys (A…; for notes, Z/X octave, C/V velocity). Off for cue-only use.
+    public var pianoEnabled = true
+    /// Cue keys by key code: each fires one fixed note on `CueKey.channel`.
+    public private(set) var cueKeys: [UInt16: CueKey] = [:]
+    /// keycode -> note that is currently sounding for that key (piano keys).
     public private(set) var held: [UInt16: UInt8] = [:]
+    /// keycode -> cue note that is currently sounding for that key.
+    public private(set) var heldCues: [UInt16: UInt8] = [:]
     /// Control keys currently down (to ignore their auto-repeat / double press).
     private var heldControls: Set<UInt16> = []
 
@@ -38,6 +44,32 @@ public struct PerformanceEngine: Sendable {
     }
 
     public var heldNotes: [UInt8] { held.values.sorted() }
+    public var heldCueNotes: [UInt8] { heldCues.values.sorted() }
+    /// Every sounding note from the keys, with its channel.
+    public var heldKeys: [NoteGuard.Key] {
+        held.values.map { NoteGuard.Key(channel: channel, note: $0) } + heldCues.values.map { NoteGuard.Key(channel: CueKey.channel, note: $0) }
+    }
+
+    /// Replaces the cue keys. Returns note-offs for cue keys still held.
+    public mutating func setCueKeys(_ keys: [CueKey]) -> [MIDIMessage] {
+        let offs = heldCues.values.sorted().map { MIDIMessage.noteOff(channel: CueKey.channel, note: $0) }
+        heldCues.removeAll()
+        cueKeys = Dictionary(CueKey.sanitized(keys).map { ($0.keycode, $0) }, uniquingKeysWith: { a, _ in a })
+        return offs
+    }
+
+    /// Turns the piano layout on or off. Returns note-offs for piano keys still held.
+    public mutating func setPianoEnabled(_ on: Bool) -> [MIDIMessage] {
+        guard on != pianoEnabled else { return [] }
+        pianoEnabled = on
+        guard !on else { return [] }
+        let offs = held.values.sorted().map { MIDIMessage.noteOff(channel: channel, note: $0) }
+        held.removeAll(); heldControls.removeAll()
+        return offs
+    }
+
+    /// True if this key code is a cue key.
+    public func isCueKey(_ keycode: UInt16) -> Bool { cueKeys[keycode] != nil }
 
     /// Replaces the mapping. Returns note-offs for anything still held.
     public mutating func setMapping(_ m: KeyMapping) -> [MIDIMessage] {
@@ -50,7 +82,32 @@ public struct PerformanceEngine: Sendable {
     }
 
     /// Handles one key event and returns the MIDI messages to send.
-    public mutating func handle(_ input: KeyInput) -> [MIDIMessage] {
+    public mutating func handle(_ input: KeyInput) -> [MIDIMessage] { handleEvents(input).map(\.message) }
+
+    /// Like `handle`, and tells which messages come from a cue key.
+    public mutating func handleEvents(_ input: KeyInput) -> [(message: MIDIMessage, cue: CueKey?)] {
+        // Cue keys come first: they work whether or not the piano layout is on.
+        if let cue = cueKeys[input.keycode] {
+            if input.isDown {
+                if input.isRepeat || !input.modifiers.isEmpty || heldCues[input.keycode] != nil { return [] }
+                heldCues[input.keycode] = cue.note
+                return [(.noteOn(channel: CueKey.channel, note: cue.note, velocity: CueKey.velocity), cue)]
+            }
+            if let note = heldCues.removeValue(forKey: input.keycode) {
+                return [(.noteOff(channel: CueKey.channel, note: note), cue)]
+            }
+            return []
+        }
+        if let note = held[input.keycode], !input.isDown {
+            // A piano key released after the layout was changed still ends its note.
+            held.removeValue(forKey: input.keycode)
+            return [(.noteOff(channel: channel, note: note), nil)]
+        }
+        guard pianoEnabled else { return [] }
+        return handlePiano(input).map { ($0, nil) }
+    }
+
+    private mutating func handlePiano(_ input: KeyInput) -> [MIDIMessage] {
         if input.isDown {
             // Key repeat is never a new physical press.
             if input.isRepeat { return [] }
@@ -106,10 +163,19 @@ public struct PerformanceEngine: Sendable {
         return [.noteOff(channel: channel, note: note)]
     }
 
+    /// Ends one sounding cue note as if its key had been released.
+    public mutating func releaseCue(note: UInt8) -> [MIDIMessage] {
+        guard let key = heldCues.first(where: { $0.value == note })?.key else { return [] }
+        heldCues.removeValue(forKey: key)
+        return [.noteOff(channel: CueKey.channel, note: note)]
+    }
+
     /// Releases every held note (used when capture is turned off, on panic, etc.).
     public mutating func releaseAll() -> [MIDIMessage] {
         let offs = held.values.sorted().map { MIDIMessage.noteOff(channel: channel, note: $0) }
+            + heldCues.values.sorted().map { MIDIMessage.noteOff(channel: CueKey.channel, note: $0) }
         held.removeAll()
+        heldCues.removeAll()
         heldControls.removeAll()
         return offs
     }
