@@ -146,6 +146,10 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO build | tail -n 40
           test -d build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app
+          ls build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app
+          plutil -p build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app/Info.plist
+          grep -n "INFOPLIST\|PRODUCT_BUNDLE_IDENTIFIER" iOS/TwinKeysRemote.xcodeproj/project.pbxproj | head
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app/Info.plist
       - name: Screenshots with sample data (iPhone and iPad, light and dark)
         timeout-minutes: 15
         run: |
