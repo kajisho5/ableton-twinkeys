@@ -137,7 +137,7 @@ jobs:
           persist-credentials: false
       - name: XcodeGen 2.46.0 (checked against its SHA-256)
         run: |
-          curl -sSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
           echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  /tmp/xcodegen.zip" | shasum -a 256 -c
           unzip -q /tmp/xcodegen.zip -d /tmp
           /tmp/xcodegen/bin/xcodegen --version
