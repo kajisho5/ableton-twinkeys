@@ -1,6 +1,6 @@
 # 紹介サイト（GitHub Pages）— 設計書
 
-- 状態：**確認待ち**（この設計書と `docs/design/site-*.svg` を承認いただいてから作成）
+- 状態：**承認済み（2026-11-09）・実装済み（1.0.0）**
 - 作成日：2026-11-09
 - 公開先：`https://kajisho5.github.io/ableton-twinkeys/`（リポジトリ名を `twinkeys` に変えた場合は `…/twinkeys/`）
 
