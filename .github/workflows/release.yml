@@ -199,9 +199,9 @@ jobs:
           if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then
             echo "::error::$TAG now points at $tag_sha, not $GITHUB_SHA. Not publishing."; exit 1
           fi
-          # 0.x versions and versions with a suffix (e.g. 1.0.0-beta.1) are marked as pre-releases.
+          # Only versions with a suffix (e.g. 1.0.0-beta.1) are pre-releases; 1.0.0 and later are full releases.
           PRE=""
-          case "$TAG" in v0.*|*-*) PRE="--prerelease" ;; esac
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac
           cat > notes.md <<'NOTES'
           Universal build for Apple silicon and Intel Macs (macOS 13 Ventura or later).
           Signed with a Developer ID and notarized by Apple: open the .dmg and drag TwinKeys to Applications.
