@@ -12,6 +12,7 @@ struct SessionView: View {
 
     var body: some View {
         let live = model.live
+        GeometryReader { geo in
         ScrollViewReader { proxy in
             ScrollView([.vertical]) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -28,7 +29,7 @@ struct SessionView: View {
                         stopAllButton
                         Text(L.s("Clips", "クリップ")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 6)
                     }
-                    clipGrid(live)
+                    clipGrid(live, cellWidth: cellWidth(geo.size.width, tracks: live.tracks.count))
                     if showSceneColumn { stopAllButton }
                 }
                 .padding(12)
@@ -37,7 +38,18 @@ struct SessionView: View {
                 if model.followSelection { withAnimation { proxy.scrollTo("scene-\(s)", anchor: .center) } }
             }
         }
+        }
     }
+
+    /// Cells share the width (landscape fills the screen); narrow screens scroll sideways.
+    private func cellWidth(_ width: CGFloat, tracks: Int) -> CGFloat {
+        guard tracks > 0 else { return 96 }
+        let side: CGFloat = showSceneColumn ? (Self.rowNumberWidth + Self.sceneColumnWidth + 12) : 0
+        let w = (width - 24 - side - CGFloat(tracks - 1) * 6) / CGFloat(tracks)
+        return min(150, max(88, w.rounded(.down)))
+    }
+    static let rowNumberWidth: CGFloat = 22
+    static let sceneColumnWidth: CGFloat = 58
 
     private func jumpTarget() -> Int? {
         let q = jump.trimmingCharacters(in: .whitespaces)
@@ -73,24 +85,29 @@ struct SessionView: View {
             .accessibilityAction { model.run(.stopAll) }
     }
 
-    private func clipGrid(_ live: LiveState) -> some View {
+    private func clipGrid(_ live: LiveState, cellWidth cw: CGFloat) -> some View {
         ScrollView(.horizontal, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
+                    if showSceneColumn { Color.clear.frame(width: Self.rowNumberWidth, height: 1) }
                     ForEach(live.tracks) { t in
                         Text(t.name).font(.caption.bold()).foregroundStyle(.white).lineLimit(1)
-                            .padding(.horizontal, 6).frame(width: 96, height: 22, alignment: .leading)
+                            .padding(.horizontal, 6).frame(width: cw, height: 22, alignment: .leading)
                             .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: t.color)))
                     }
-                    if showSceneColumn { Text(L.s("Scene", "シーン")).font(.caption.bold()).frame(width: 56) }
+                    if showSceneColumn { Text(L.s("Scene", "シーン")).font(.caption.bold()).foregroundStyle(.secondary).frame(width: Self.sceneColumnWidth) }
                 }
                 ForEach(live.scenes) { sc in
                     HStack(spacing: 6) {
-                        ForEach(live.tracks) { t in clipCell(live, t.index, sc.index) }
+                        if showSceneColumn {
+                            Text("\(sc.index + 1)").font(.caption.bold()).monospacedDigit().foregroundStyle(.secondary)
+                                .frame(width: Self.rowNumberWidth)
+                        }
+                        ForEach(live.tracks) { t in clipCell(live, t.index, sc.index, width: cw) }
                         if showSceneColumn {
                             Button { model.run(.fireScene(sc.index)) } label: {
                                 Image(systemName: "play.fill").foregroundStyle(sc.playing ? .white : .primary)
-                                    .frame(width: 56, height: 46)
+                                    .frame(width: Self.sceneColumnWidth, height: 46)
                                     .background(RoundedRectangle(cornerRadius: 8).fill(sc.playing ? Color.tkOK : Color.tkCard))
                             }
                             .buttonStyle(.plain)
@@ -100,9 +117,10 @@ struct SessionView: View {
                     .id(showSceneColumn ? "scene-\(sc.index)" : "row-\(sc.index)")
                 }
                 HStack(spacing: 6) {
+                    if showSceneColumn { Color.clear.frame(width: Self.rowNumberWidth, height: 1) }
                     ForEach(live.tracks) { t in
                         Button { model.run(.stopTrack(t.index)) } label: {
-                            Image(systemName: "square.fill").font(.caption).frame(width: 96, height: 32)
+                            Image(systemName: "square.fill").font(.caption).frame(width: cw, height: 32)
                                 .background(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.secondary.opacity(0.4)))
                         }
                         .buttonStyle(.plain)
@@ -113,7 +131,7 @@ struct SessionView: View {
         }
     }
 
-    private func clipCell(_ live: LiveState, _ t: Int, _ s: Int) -> some View {
+    private func clipCell(_ live: LiveState, _ t: Int, _ s: Int, width cw: CGFloat) -> some View {
         let c = (t < live.clips.count && s < live.clips[t].count) ? live.clips[t][s] : LiveClip(scene: s, hasClip: false)
         return Button {
             model.run(c.hasClip ? .fireClip(track: t, scene: s) : .stopTrack(t))
@@ -147,7 +165,7 @@ struct SessionView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .frame(width: 96, height: 46)
+            .frame(width: cw, height: 46)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(c.isPlaying ? Color.tkOK : (c.isTriggered ? Color.tkWarn : Color.secondary.opacity(c.hasClip ? 0 : 0.3)), lineWidth: c.isPlaying || c.isTriggered ? 2 : 1))
         }
@@ -162,33 +180,62 @@ struct SessionView: View {
 struct MixerView: View {
     @EnvironmentObject var model: RemoteModel
     var compact = false
+    /// Landscape iPhone: the Volume / Pan buttons stand at the right of the faders.
+    var sideModes = false
     enum Mode: String, CaseIterable { case volume, pan }
     @State private var mode: Mode = .volume
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(L.s("Mixer", "ミキサー")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                Spacer()
-                Picker("", selection: $mode) {
-                    Text(L.s("Volume", "音量")).tag(Mode.volume)
-                    Text(L.s("Pan", "パン")).tag(Mode.pan)
+            if !sideModes {
+                HStack {
+                    Text(L.s("Mixer", "ミキサー")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("", selection: $mode) {
+                        Text(L.s("Volume", "音量")).tag(Mode.volume)
+                        Text(L.s("Pan", "パン")).tag(Mode.pan)
+                    }
+                    .pickerStyle(.segmented).frame(width: 180)
                 }
-                .pickerStyle(.segmented).frame(width: 180)
             }
             if model.locked {
                 Label(L.s("Show lock: the mixer cannot be changed", "本番ロック中はミキサーを変えられません"), systemImage: "lock.fill")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            ScrollView(.horizontal) {
-                HStack(alignment: .top, spacing: 6) {
-                    ForEach(model.live.tracks) { t in strip(t.index, t.name, t.color, t.volume, t.pan, t.mute, t.solo, model.live.meters[t.index]) }
-                    strip(-1, "Master", "#8E8E93", model.live.master.volume, model.live.master.pan, false, false, model.live.masterMeter)
+            HStack(alignment: .top, spacing: 10) {
+                GeometryReader { g in
+                    let n = model.live.tracks.count + 1
+                    let w = min(110, max(compact ? 58 : 66, (g.size.width - CGFloat(n - 1) * 6) / CGFloat(max(1, n))))
+                    ScrollView(.horizontal) {
+                        HStack(alignment: .top, spacing: 6) {
+                            ForEach(model.live.tracks) { t in strip(t.index, t.name, t.color, t.volume, t.pan, t.mute, t.solo, model.live.meters[t.index], width: w) }
+                            strip(-1, "Master", "#8E8E93", model.live.master.volume, model.live.master.pan, false, false, model.live.masterMeter, width: w)
+                        }
+                        .padding(.bottom, 4)
+                        .frame(minHeight: g.size.height, alignment: .top)
+                    }
                 }
-                .padding(.bottom, 4)
+                if sideModes {
+                    VStack(spacing: 8) {
+                        modeButton(.volume, L.s("Volume", "音量"))
+                        modeButton(.pan, L.s("Pan", "パン"))
+                        Spacer()
+                    }
+                    .frame(width: 84)
+                }
             }
         }
         .padding(compact ? 0 : 12)
+    }
+
+    private func modeButton(_ m: Mode, _ title: String) -> some View {
+        Button { mode = m } label: {
+            Text(title).font(.subheadline.bold()).frame(maxWidth: .infinity, minHeight: 48)
+                .foregroundStyle(mode == m ? .white : .primary)
+                .background(RoundedRectangle(cornerRadius: 10).fill(mode == m ? Color.tkAccent : Color.tkCell))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(mode == m ? .isSelected : [])
     }
 
     /// Live's volume knob position (0.85 is 0 dB). Shown as "0 dB" there, otherwise as a percentage
@@ -199,7 +246,7 @@ struct MixerView: View {
         return "\(Int((v * 100).rounded()))%"
     }
 
-    private func strip(_ i: Int, _ name: String, _ color: String, _ vol: Double, _ pan: Double, _ mute: Bool, _ solo: Bool, _ meter: [Double]?) -> some View {
+    private func strip(_ i: Int, _ name: String, _ color: String, _ vol: Double, _ pan: Double, _ mute: Bool, _ solo: Bool, _ meter: [Double]?, width: CGFloat) -> some View {
         VStack(spacing: 6) {
             Text(mode == .volume ? dB(vol) : String(format: "%+.0f", pan * 50)).font(.caption.bold()).monospacedDigit()
             GeometryReader { g in
@@ -223,7 +270,7 @@ struct MixerView: View {
                 })
                 .opacity(model.locked ? 0.5 : 1)
             }
-            .frame(minHeight: 160)
+            .frame(minHeight: 120)
             if i >= 0 {
                 HStack(spacing: 4) {
                     toggle("M", mute, Color.tkWarn) { model.run(.setMute(track: i, on: !mute)) }
@@ -233,7 +280,7 @@ struct MixerView: View {
             Text(name).font(.caption2.bold()).foregroundStyle(.white).lineLimit(1)
                 .frame(maxWidth: .infinity, minHeight: 20).background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: color)))
         }
-        .frame(width: compact ? 58 : 66)
+        .frame(width: width)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(name) \(dB(vol))")
         .accessibilityAdjustableAction { dir in
@@ -260,12 +307,14 @@ struct CuesView: View {
     var compact = false
 
     var body: some View {
+        GeometryReader { geo in
+        let cols = compact ? 4 : (geo.size.width > 640 ? 4 : 3)
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 lastCue
                 Text(L.s("Cue keys", "キューのキー")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                 let keys = model.status?.cueKeys ?? []
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: compact ? 4 : 3), spacing: 8) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: cols), spacing: 8) {
                     ForEach(keys) { k in
                         Button { model.cue(k.keycode) } label: {
                             VStack(spacing: 3) {
@@ -289,6 +338,7 @@ struct CuesView: View {
                 }
             }
             .padding(compact ? 0 : 12)
+        }
         }
     }
 

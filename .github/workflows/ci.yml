@@ -167,11 +167,17 @@ jobs:
             xcrun simctl install "$UDID" "$APP"
             for look in light dark; do
               xcrun simctl ui "$UDID" appearance $look
-              for pane in session mixer cues; do
-                xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
-                xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane $pane
-                sleep 4
-                xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-$pane-$look.png"
+              for turn in landscape portrait; do
+                for pane in session mixer cues; do
+                  xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
+                  if [ "$turn" = landscape ]; then
+                    xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane $pane -landscape
+                  else
+                    xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane $pane
+                  fi
+                  sleep 5
+                  xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-$turn-$pane-$look.png"
+                done
               done
             done
             xcrun simctl shutdown "$UDID" || true

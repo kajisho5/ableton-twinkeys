@@ -81,7 +81,7 @@ struct MainView: View {
     @ViewBuilder private func content(_ p: Pane, _ lc: LayoutClass) -> some View {
         switch p {
         case .session: SessionView(showSceneColumn: lc == .narrowLandscape)
-        case .mixer: MixerView()
+        case .mixer: MixerView(sideModes: lc == .narrowLandscape)
         case .cues: CuesView()
         case .settings: SettingsPane()
         }

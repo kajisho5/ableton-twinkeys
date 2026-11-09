@@ -10,7 +10,15 @@ struct TwinKeysRemoteApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(model)
-                .onAppear { model.startBrowsing() }
+                .onAppear {
+                    model.startBrowsing()
+                    // `-landscape` turns the window sideways (screenshots on CI; the simulator starts upright).
+                    if ProcessInfo.processInfo.arguments.contains("-landscape") {
+                        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+                            scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight)) { _ in }
+                        }
+                    }
+                }
         }
     }
 }
