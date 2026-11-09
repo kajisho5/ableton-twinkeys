@@ -220,6 +220,9 @@ public struct SequenceFilter: Sendable {
 
     public mutating func reset() { session = nil; last = 0; retired.removeAll() }
 
+    /// The peer used this session before and restarted since.
+    public func isRetired(_ s: UInt32) -> Bool { retired.contains(s) }
+
     /// The session value currently accepted (the peer's running instance).
     public var currentSession: UInt32? { session }
 }

@@ -223,7 +223,8 @@ public final class Conductor: @unchecked Sendable {
                 // The peer really restarted (an old capture cannot seal with our current nonce):
                 // take its new session now.
                 pendingHello = nil
-                var f = SequenceFilter()
+                // Keep the list of the peer's earlier sessions: they must stay refused.
+                var f = filters[k] ?? SequenceFilter()
                 _ = f.accept(session: h.session, seq: h.seq)
                 filters[k] = f
                 peerNonces[k] = h.nonce
@@ -265,6 +266,8 @@ public final class Conductor: @unchecked Sendable {
         }
         if case let .hello(_, nonce, name) = packet.body, link.isConnected, link.peer == peer,
            let current = filters[peer]?.currentSession, current != packet.session {
+            // A session the peer already left behind is never taken back (replays).
+            if filters[peer]?.isRetired(packet.session) == true { return nil }
             // A hello from another session while the link is up: the peer restarted, or someone
             // replays an old hello. Answer it, but change nothing until the new session proves
             // itself (see the open above). The route is not rebound either.
@@ -617,7 +620,7 @@ public final class Conductor: @unchecked Sendable {
             guard peerAnswersCues, age >= Self.cueResendInterval * Double(c.resends + 1), c.resends < 2 else { continue }
             sentCues[i].resends += 1
             sendBody(.cueResend(originalSeq: c.seq, channel: engine.channel, note: c.cue.note,
-                                velocity: CueKey.velocity, released: c.keyUp), to: p)
+                                velocity: CueKey.velocity, released: c.keyUp || !engine.heldNotes.contains(c.cue.note)), to: p)
         }
     }
 
@@ -629,7 +632,7 @@ public final class Conductor: @unchecked Sendable {
         let key = NoteGuard.Key(channel: ch, note: note)
         let named = peerCueNames[key]
         // Without names (an older main Mac) every note counts as a cue.
-        guard named != nil || peerCueNames.isEmpty else { return }
+        guard named != nil || peerCueNames.isEmpty || peerAnswersCues else { return }
         cueCount += 1
         lastCueWasReceived = true
         receivedCue = CueStatus(label: named?.label ?? noteName(note), memo: named?.memo ?? "", note: note,

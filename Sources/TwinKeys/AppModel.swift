@@ -156,7 +156,11 @@ final class AppModel: ObservableObject {
         let log2 = self.log
         updater.log = { log2.write($0) }
         updater.onChange = { [weak self] in self?.refresh() }
-        updater.isInShow = { [weak self] in self?.state.linkedPeerID != nil }
+        // Only while actually connected: a link that keeps retrying must not hold updates forever.
+        updater.isInShow = { [weak self] in
+            if case .connected = self?.state.link { return true }
+            return false
+        }
         updater.start(enabled: settings.autoUpdate)
         applyMenuBarOnly()
         checkPermissions()

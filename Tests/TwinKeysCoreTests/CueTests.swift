@@ -401,4 +401,36 @@ final class CueTests: XCTestCase {
         XCTAssertEqual(s.cueKeys[0].label, "↓")
         XCTAssertEqual(s.midiChannel, 1)
     }
+
+    func testReplayOfAnEarlierMainSessionIsNotTakenBack() {
+        connect(); tick(1.1)
+        var captured: [[UInt8]] = []
+        dropMain = { b in captured.append(b); return false }
+        press(); tick(1.1)
+        dropMain = { _ in false }
+        // Main restarts as a new session and relinks.
+        let newNet = FakeNet()
+        main = Conductor(instanceID: mainID, displayName: "Main", settings: { var s = AppSettings(); s.receiveNotes = false; return s }(),
+                         midi: mainMIDI, net: newNet, session: 5, clock: { [unowned self] in now }, nanos: { UInt64(self.now * 1e9) })
+        main.setPairing(secret)
+        mainNet = newNet
+        main.connect(to: backupID.uuidString)
+        for _ in 0..<40 { now += 0.05; main.tick(); backup.tick(); pump() }
+        let before = cueOnsAtBackup(37)
+        // Someone replays everything captured from the first session.
+        for b in captured { backup.receive(b, knownPeer: mainID.uuidString) }
+        pump(); tick(1)
+        XCTAssertEqual(cueOnsAtBackup(37), before, "no old cue plays again")
+        XCTAssertEqual(backup.snapshot().link, .connected(peer: mainID.uuidString))
+    }
+
+    func testResentCueEndsWhenTheKeyWasReleasedByTheApp() {
+        connect(); tick(1.1)
+        dropMain = { b in b[3] == 0x10 }
+        main.handleKey(KeyInput(keycode: down, isDown: true)); pump()
+        dropMain = { _ in false }
+        main.releaseHeldKeys()                    // e.g. Secure Input started; no key-up seen
+        tick(0.4)
+        XCTAssertEqual(backupMIDI.sent.filter { $0[1] == 37 }.last, [0x80, 37, 0])
+    }
 }
