@@ -170,6 +170,8 @@ struct Strings {
     var keyCaptureMenuOff: String { s("Turn Key Capture Off", "キー入力をオフ") }
     var keyCaptureMenuOn: String { s("Turn Key Capture On", "キー入力をオン") }
     var help: String { s("TwinKeys Help", "TwinKeys ヘルプ") }
+    var helpMissing: String { s("The help file is not included in this build.", "このビルドにはヘルプのファイルが入っていません。") }
+    var helpOnGitHub: String { s("Open on GitHub", "GitHub で開く") }
     var showLogs: String { s("Show Log Folder in Finder", "ログフォルダを Finder で表示") }
     var aboutMenu: String { s("About TwinKeys", "TwinKeys について") }
     var aboutCredits: String {

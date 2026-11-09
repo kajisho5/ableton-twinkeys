@@ -31,6 +31,9 @@ else
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 fi
 cp Resources/mapping.default.json "$APP/Contents/Resources/mapping.default.json"
+# In-app help (works offline).
+mkdir -p "$APP/Contents/Resources/help"
+cp docs/help/en.md docs/help/ja.md "$APP/Contents/Resources/help/"
 # Localized Info.plist strings (English / Japanese). Their presence also tells macOS the app supports both.
 for l in en ja; do
   mkdir -p "$APP/Contents/Resources/$l.lproj"

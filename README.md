@@ -9,6 +9,8 @@ TwinKeys plays the same MIDI notes on two Macs at once. Press keys on the main M
 - English and Japanese UI (Settings → Language: Same as System / English / 日本語)
 - Made by **Shogo Kajiyama / SEVENTHWELL**
 
+**Guide:** [Using TwinKeys (English)](docs/help/en.md) · [使い方（日本語）](docs/help/ja.md). The same guide opens inside the app from Help → TwinKeys Help (⌘?), even without an internet connection.
+
 ## How it works
 
 - Each Mac runs TwinKeys. Each TwinKeys creates a virtual MIDI input called **TwinKeys**, so your music software sees it like a normal MIDI device. You do not need a forwarding track in your set.
@@ -140,3 +142,4 @@ TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らすため�
 - メイン機では Live 本体のコンピュータMIDIキーボードを OFF にしてください（ON のままだと同じ音が2回鳴ります）。
 - 音声そのものの自動切り替え（オーディオフェイルオーバー）は対象外です。
 - 表示言語は「設定」（⌘,）の「言語」で、「システムに合わせる」「English」「日本語」から選べます。
+- 詳しい使い方は [使い方（日本語）](docs/help/ja.md) にあります。アプリの「ヘルプ」>「TwinKeys ヘルプ」（⌘?）でも、ネットにつながっていなくても読めます。

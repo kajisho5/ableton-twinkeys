@@ -94,4 +94,5 @@ Prepare the same set on both Macs: one MIDI track with an instrument, input from
 | 6-6 | Settings (⌘,) > Language: choose 日本語, then English, then Same as System. | The window, Settings and the Connection / Help menus switch at once. Standard items (Hide, Quit) follow the macOS language. | | | |
 | 6-7 | TwinKeys menu > About TwinKeys. | Shows "Shogo Kajiyama / SEVENTHWELL", the unofficial-tool note and the copyright. | | | |
 | 6-8 | macOS language set to Japanese, first launch (macOS 15+). | The Local Network dialog shows the Japanese reason text. | | | |
+| 6-9 | Help > TwinKeys Help (⌘?) with Wi-Fi turned off, in English and in 日本語. | The guide opens in its own window in the chosen language; headings, lists and bold lines are readable. | | | |
 | 6-5 | Help > Show Log Folder in Finder; open today's log. | Start, connect, disconnect and panic events are listed with times. | | | |

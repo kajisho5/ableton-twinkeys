@@ -41,10 +41,15 @@ struct TwinKeysApp: App {
                     .keyboardShortcut("p", modifiers: [.command, .control])
             }
             CommandGroup(replacing: .help) {
-                Button(model.state.t.help) { model.openHelp() }
+                HelpMenuItem(title: model.state.t.help)
                 Button(model.state.t.showLogs) { model.revealLogs() }
             }
         }
+
+        Window(model.state.t.help, id: "help") {
+            HelpWindowView(language: model.state.language)
+        }
+        .defaultSize(width: 600, height: 680)
 
         Settings {
             SettingsView(model: model)

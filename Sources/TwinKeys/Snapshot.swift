@@ -42,16 +42,30 @@ enum Snapshot {
                 }
             }
         }
+        renderHelp(to: dir)
+    }
+
+    static func renderHelp(to dir: URL) {
+        for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
+            renderWindow(view: HelpWindowView(language: language), size: CGSize(width: 600, height: 680),
+                         appearance: .aqua, title: Strings(language).help,
+                         to: dir.appendingPathComponent("help-light\(suffix).png"))
+        }
     }
 
     private static func renderWindow(state: ViewState, size: CGSize, appearance: NSAppearance.Name, to file: URL) {
+        renderWindow(view: ContentView(state: state, actions: ViewActions()), size: size,
+                     appearance: appearance, title: "TwinKeys", to: file)
+    }
+
+    private static func renderWindow<V: View>(view: V, size: CGSize, appearance: NSAppearance.Name, title: String, to file: URL) {
         let window = NSWindow(contentRect: NSRect(origin: NSPoint(x: 80, y: 80), size: size),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = "TwinKeys"
+        window.title = title
         window.appearance = NSAppearance(named: appearance)
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: ContentView(state: state, actions: ViewActions()))
+        window.contentView = NSHostingView(rootView: view)
         window.setContentSize(size)
         window.orderFrontRegardless()
         RunLoop.current.run(until: Date().addingTimeInterval(0.6))

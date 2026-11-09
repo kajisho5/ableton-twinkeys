@@ -251,10 +251,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func openHelp() {
-        if let url = URL(string: "https://github.com/kajisho5/ableton-twinkeys#readme") { NSWorkspace.shared.open(url) }
-    }
-
     func revealLogs() {
         try? FileManager.default.createDirectory(at: store.paths.logsDir, withIntermediateDirectories: true)
         NSWorkspace.shared.activateFileViewerSelecting([store.paths.logsDir])
