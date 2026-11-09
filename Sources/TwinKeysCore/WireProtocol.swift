@@ -148,10 +148,17 @@ extension Array where Element == UInt8 {
 public struct SequenceFilter: Sendable {
     private var session: UInt32?
     private var last: UInt32 = 0
+    /// Sessions the peer used before (it restarted since). Late packets from them are dropped.
+    private var retired: [UInt32] = []
     public init() {}
 
     public mutating func accept(session s: UInt32, seq: UInt32) -> Bool {
         if session != s {
+            if retired.contains(s) { return false }
+            if let old = session {
+                retired.append(old)
+                if retired.count > 8 { retired.removeFirst() }
+            }
             session = s; last = seq
             return true
         }
@@ -161,5 +168,5 @@ public struct SequenceFilter: Sendable {
         return true
     }
 
-    public mutating func reset() { session = nil; last = 0 }
+    public mutating func reset() { session = nil; last = 0; retired.removeAll() }
 }

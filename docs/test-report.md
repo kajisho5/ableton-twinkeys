@@ -1,4 +1,8 @@
-# Verification report (v1 core)
+# Verification report
+
+TwinKeys is an unofficial third-party tool, not affiliated with Ableton.
+
+Covers version 0.4.0 (branch `claude/new-session-k8s13h`). Earlier versions: see git history.
 
 Date: 2026-11-09. What could be checked without real Macs and Live. Items that need two physical Macs are in [manual-test.md](manual-test.md) and are **not yet done**.
 
@@ -15,7 +19,7 @@ CI run with these results: https://github.com/kajisho5/ableton-twinkeys/actions/
 
 | Area | How it was checked | Result |
 |---|---|---|
-| Unit tests (58) | `swift test` on Linux and macOS | **Pass** (0 failures) |
+| Unit tests (70) | `swift test` on Linux and macOS | **Pass** (0 failures) |
 | Key → note mapping (layout, key codes, repeat, chords, modifiers, octave/velocity limits, JSON) | `MappingTests` | Pass |
 | Protocol encode/decode, bad packets, duplicate / reordered / wrap-around sequence numbers | `ProtocolTests` | Pass |
 | Reconnect state machine (handshake, 1 s heartbeat, 3 s timeout, 1→2→4→5 s retry, bye, manual disconnect) | `LinkTests` | Pass |
@@ -37,6 +41,7 @@ CI run with these results: https://github.com/kajisho5/ableton-twinkeys/actions/
 | Virtual port visible in Audio MIDI Setup / Live 11 / Live 12 | Needs real Mac + Live | Not checked → manual-test 0-2, 0-3 |
 | Two-Mac discovery, latency, reconnect over a real network | Needs two Macs | Not checked → manual-test 2, 4 |
 | Added latency ≤ 5 ms | Code path: key event → local port and network send happen right away on the key thread (no UI hop). Real measurement needs two Macs | Not checked → manual-test 3-9 |
+| Network edge cases (hellos from unknown Macs, route takeover, lost note-off repaired by the held list, peer switching, previous-session packets) | `ConductorTests`, `LinkTests`, `ProtocolTests` | Pass |
 | Japanese UI | Screenshots `*-ja.png` rendered by the app on macOS (window, all sections, empty state, permission banner) | Pass (layout and wording). Live switching in Settings → manual-test 6-6 |
 | Author credit | About panel credits text and copyright set in code / Info.plist / LICENSE; panel itself not viewed | Not viewed → manual-test 6-7 |
 | VoiceOver | Labels and hints are set in code; not listened to | Not checked → manual-test 6-3 |
@@ -48,5 +53,5 @@ The screenshots are rendered by the app itself on the macOS runner (`TwinKeys --
 ## Not checked / known gaps
 
 - Everything that needs two physical Macs, Live 11 / Live 12, or System Settings dialogs (see manual-test.md).
-- The GitHub **Release** workflow has not been run yet (it runs when a `v*` tag is pushed). Its build steps are the same as CI.
-- Because the app is signed ad hoc, macOS may ask for Input Monitoring again after each update.
+- Releases run when the VERSION file changes (also on `v*` tags or by hand). From 0.4.0 the release is signed with a Developer ID and notarized through kajisho5/runway, and the .dmg is opened and checked on a clean macOS runner before publishing (Gatekeeper, signature, version, launch).
+- A multi-angle review (logic, threading, network, UI/accessibility/Japanese, security/release/docs) was done for 0.4.0; its fixes are covered by the unit tests above and by manual-test section 7.

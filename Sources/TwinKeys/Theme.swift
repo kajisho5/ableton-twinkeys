@@ -36,7 +36,7 @@ enum Theme {
     static let buttonBackground = Color.dynamic(light: 0xFFFFFF, dark: 0x3A3A3C)
     static let buttonHover = Color.dynamic(light: 0xF0F0F2, dark: 0x48484A)
     static let buttonPressed = Color.dynamic(light: 0xE2E2E6, dark: 0x545458)
-    static let buttonBorder = Color.dynamic(light: 0xC2C2C7, dark: 0x545458)
+    static let buttonBorder = Color.dynamic(light: 0x8E8E93, dark: 0x7C7C80)   // ≥ 3:1 against the group background
     static let idleDot = Color.dynamic(light: 0x6E6E73, dark: 0x8E8E93)
 
     static let body: CGFloat = 13

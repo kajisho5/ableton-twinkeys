@@ -54,6 +54,9 @@ struct Strings {
         case let .settingsUnreadable(backup):
             return s("settings.json could not be read. It was kept as \(backup) and default settings are in use.",
                      "settings.json を読み込めなかったため、\(backup) として残し、初期設定で起動しました。")
+        case .duplicateID:
+            return s("Another Mac was using the same TwinKeys ID (its settings were copied from this Mac). A new ID was made: quit and reopen TwinKeys.",
+                     "ほかの Mac が同じ TwinKeys の識別番号を使っていました（設定がこの Mac からコピーされたためです）。新しい番号を作ったので、TwinKeys を終了して開き直してください。")
         case .mappingUnreadable:
             return s("mapping.json could not be read. Using the default mapping.", "mapping.json を読み込めなかったため、初期のキー配置を使っています。")
         case .midiPort:
@@ -82,6 +85,7 @@ struct Strings {
     func connectTo(_ name: String) -> String { s("Connect to \(name)", "\(name) に接続") }
     func disconnectFrom(_ name: String) -> String { s("Disconnect from \(name)", "\(name) との接続を解除") }
     var disconnectHelp: String { s("Disconnect (⌘K)", "接続解除（⌘K）") }
+    var incompatible: String { s("Different TwinKeys version. Use the same version on both Macs.", "TwinKeys の版が違います。両方の Mac で同じ版を使ってください。") }
     var connectingShort: String { s("connecting…", "接続中…") }
     var anotherMac: String { s("another Mac", "相手の Mac") }
     func modes(_ p: PeerInfo) -> String {
@@ -102,7 +106,11 @@ struct Strings {
     var keyCapture: String { s("Key capture", "キー入力") }
     var keyCaptureOn: String { s("Key capture: On", "キー入力: オン") }
     var keyCaptureOff: String { s("Key capture: Off", "キー入力: オフ") }
-    var keyCaptureNotSending: String { s("Key capture: Not sending", "キー入力: 送信オフ") }
+    var keyCaptureNotSending: String { s("Key capture: Not sending", "キー入力: 送信していません") }
+    var valueOn: String { s("On", "オン") }
+    var valueOff: String { s("Off", "オフ") }
+    var valueNotSending: String { s("Not sending", "送信していません") }
+    var valueNeedsPermission: String { s("Needs permission", "許可が必要") }
     var keyCaptureNeedsPermission: String { s("Key capture: Needs permission", "キー入力: 許可が必要") }
     var keyCaptureHelp: String { s("Turn key capture on or off (⌃⌘K)", "キー入力のオン／オフ（⌃⌘K）") }
     var octave: String { s("Octave", "オクターブ") }
@@ -120,7 +128,7 @@ struct Strings {
     var inputMonitoringAllowed: String { s("Input Monitoring: Allowed", "入力監視: 許可済み") }
     var inputMonitoringNotAllowed: String { s("Input Monitoring: Not allowed", "入力監視: 未許可") }
     var inputMonitoringChecking: String { s("Input Monitoring: Checking…", "入力監視: 確認中…") }
-    var localNetworkVisible: String { s("Local Network: Peers visible", "ローカルネットワーク: 相手が見えています") }
+    var localNetworkVisible: String { s("Local Network: Peer found", "ローカルネットワーク: 相手を検出") }
     var localNetworkSearching: String { s("Local Network: Searching", "ローカルネットワーク: 検索中") }
     var localNetworkNotAllowed: String { s("Local Network: Not allowed", "ローカルネットワーク: 未許可") }
 
@@ -131,14 +139,14 @@ struct Strings {
             "両方の Mac で TwinKeys を開きます。",
             "2台を同じネットワークにつなぎます。有線か、専用のルーターを使うと安定します。",
             "それぞれの Mac で「システム設定」>「プライバシーとセキュリティ」>「ローカルネットワーク」を開き、TwinKeys をオンにします。macOS 15 以降では、初回に確認が表示されます。",
-            "受信接続を許可するか聞かれたら、「許可」をクリックします。",
-            "それでも見つからないときは、VPN と、このネットワークの「IP アドレスのトラッキングを制限」をオフにしてみてください。",
+            "macOS のファイアウォールから受信接続を許可するか聞かれたら、「許可」をクリックします。",
+            "それでも見つからないときは、VPN と、このネットワークの「IPアドレスのトラッキングを制限」をオフにしてみてください。",
         ] : [
             "Open TwinKeys on both Macs.",
             "Connect both Macs to the same network. A wired network or a dedicated router is the most reliable.",
             "On each Mac, open System Settings > Privacy & Security > Local Network and turn on TwinKeys. (macOS 15 or later asks for this the first time.)",
             "If the macOS firewall asks whether TwinKeys may accept incoming connections, click Allow.",
-            "Turn off VPN software and “Limit IP address tracking” for this network if the Macs still cannot see each other.",
+            "Turn off VPN software and “Limit IP Address Tracking” for this network if the Macs still cannot see each other.",
         ]
     }
     var openLocalNetworkSettings: String { s("Open Local Network Settings…", "ローカルネットワークの設定を開く…") }
@@ -146,9 +154,10 @@ struct Strings {
 
     // MARK: Settings
     func autoNoteOff(_ seconds: Int) -> String { s("Automatic note-off after \(seconds) s", "\(seconds) 秒で自動ノートオフ") }
+    var autoNoteOffDisabled: String { s("Automatic note-off: Off", "自動ノートオフ: オフ") }
     var autoNoteOffHelp: String { s("Protects against stuck notes if a note-off is lost. 0 turns it off.", "ノートオフが届かなかったときに、音が鳴り続けるのを防ぎます。0 にするとオフになります。") }
     var autoNoteOffHint: String { s("A note that never receives its note-off is stopped after this time. 0 turns it off.", "ノートオフが届かない音を、この時間で止めます。0 でオフ。") }
-    var showMappingFile: String { s("Show Mapping File in Finder", "キー配置ファイルを Finder で表示") }
+    var showMappingFile: String { s("Show Mapping File in Finder", "キー配置ファイルをFinderで表示") }
     var reloadMapping: String { s("Reload Mapping", "キー配置を再読み込み") }
     var restoreMapping: String { s("Restore Default Mapping", "キー配置を初期状態に戻す") }
     var mappingHelp: String { s("Edit mapping.json to change which physical keys play which notes.", "どのキーでどの音を鳴らすかは、mapping.json で変更できます。") }
@@ -169,11 +178,11 @@ struct Strings {
     var connectionMenu: String { s("Connection", "接続") }
     var keyCaptureMenuOff: String { s("Turn Key Capture Off", "キー入力をオフ") }
     var keyCaptureMenuOn: String { s("Turn Key Capture On", "キー入力をオン") }
-    var help: String { s("TwinKeys Help", "TwinKeys ヘルプ") }
+    var help: String { s("TwinKeys Help", "TwinKeysヘルプ") }
     var helpMissing: String { s("The help file is not included in this build.", "このビルドにはヘルプのファイルが入っていません。") }
     var helpOnGitHub: String { s("Open on GitHub", "GitHub で開く") }
-    var showLogs: String { s("Show Log Folder in Finder", "ログフォルダを Finder で表示") }
-    var aboutMenu: String { s("About TwinKeys", "TwinKeys について") }
+    var showLogs: String { s("Show Log Folder in Finder", "ログフォルダをFinderで表示") }
+    var aboutMenu: String { s("About TwinKeys", "TwinKeysについて") }
     var aboutCredits: String {
         s("Made by Shogo Kajiyama / SEVENTHWELL\nUnofficial third-party tool. Not affiliated with Ableton.\nMIT License",
           "制作: Shogo Kajiyama / SEVENTHWELL\n非公式のサードパーティ製ツールです。Ableton 社とは関係ありません。\nMIT License")
@@ -183,6 +192,7 @@ struct Strings {
 /// Problems shown in the window, translated at display time.
 enum AppProblem: Hashable {
     case settingsUnreadable(backup: String)
+    case duplicateID
     case mappingUnreadable
     case midiPort
     case listenFailed

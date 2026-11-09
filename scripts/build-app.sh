@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${1:-0.1.0}"
+VERSION="${1:-$(tr -d '[:space:]' < VERSION)}"
 BUILD="${2:-1}"
 APP="dist/TwinKeys.app"
 

@@ -1,5 +1,7 @@
 # Manual test checklist (two Macs)
 
+TwinKeys is an unofficial third-party tool, not affiliated with Ableton. "Live" below means Ableton Live, used only to name the software it is tested with.
+
 Real-hardware checks that unit tests cannot cover. Run every item on **Live 11** and **Live 12**, and record each result separately.
 
 - Result values: `OK` / `NG` (write what happened in Notes) / `—` (not run)
@@ -22,7 +24,7 @@ Real-hardware checks that unit tests cannot cover. Run every item on **Live 11**
 
 | # | Step | Expected | Live 11 | Live 12 | Notes |
 |---|---|---|---|---|---|
-| 0-1 | Unzip the release zip and move TwinKeys.app to Applications on both Macs. Open it following README > First launch. | TwinKeys opens. The window shows "Not connected". | | | |
+| 0-1 | Open the release .dmg and drag TwinKeys to Applications on both Macs. Open it (README > Download and first launch). | TwinKeys opens without a Gatekeeper warning. The window shows "Not connected". | | | |
 | 0-2 | Open **Audio MIDI Setup** > Window > Show MIDI Studio. | A device named **TwinKeys** is present while TwinKeys runs. | | | |
 | 0-3 | In Live: Settings/Preferences > Link, Tempo & MIDI. | Input **TwinKeys** is listed. Turn on **Track** and **Remote**. Turn **Link** on. | | | |
 | 0-4 | Quit and reopen TwinKeys, then reopen Live. | Live keeps the TwinKeys Track/Remote settings. | | | |
@@ -90,9 +92,23 @@ Prepare the same set on both Macs: one MIDI track with an instrument, input from
 | 6-1 | Resize the window to its smallest size. | Status, All Notes Off and Connect/Disconnect stay usable; the rest scrolls. | | | |
 | 6-2 | Switch System Settings > Appearance between Light and Dark. | Colors follow immediately and text stays readable. | | | |
 | 6-3 | Turn on VoiceOver (⌘F5) and move through the window. | Status, buttons, checkboxes and values are read with meaningful labels. | | | |
-| 6-4 | Check the menu bar. | TwinKeys (About, Settings…, Quit), Edit, Connection (Connect/Disconnect ⌘K, Key Capture ⌃⌘K, All Notes Off ⌃⌘P), Window, Help. | | | |
+| 6-4 | Check the menu bar. | TwinKeys (About, Settings…, Quit), Edit, Connection (Connect/Disconnect ⌘K, Key Capture ⌃⌘K, All Notes Off ⌃⌘P), Window, Help (TwinKeys Help ⌘?, Show Log Folder in Finder). | | | |
 | 6-6 | Settings (⌘,) > Language: choose 日本語, then English, then Same as System. | The window, Settings and the Connection / Help menus switch at once. Standard items (Hide, Quit) follow the macOS language. | | | |
 | 6-7 | TwinKeys menu > About TwinKeys. | Shows "Shogo Kajiyama / SEVENTHWELL", the unofficial-tool note and the copyright. | | | |
 | 6-8 | macOS language set to Japanese, first launch (macOS 15+). | The Local Network dialog shows the Japanese reason text. | | | |
-| 6-9 | Help > TwinKeys Help (⌘?) with Wi-Fi turned off, in English and in 日本語. | The guide opens in its own window in the chosen language; headings, lists and bold lines are readable. | | | |
 | 6-5 | Help > Show Log Folder in Finder; open today's log. | Start, connect, disconnect and panic events are listed with times. | | | |
+| 6-9 | Help > TwinKeys Help (⌘?) with Wi-Fi turned off, in English and in 日本語. | The guide opens in its own window in the chosen language; headings, lists and bold lines are readable. | | | |
+| 6-10 | Press Tab repeatedly in the main window (System Settings > Keyboard > Keyboard navigation on). | A focus ring shows which button is selected; Space presses it. | | | |
+
+## 7. Robustness (added in 0.4.0)
+
+| # | Step | Expected | Live 11 | Live 12 | Notes |
+|---|---|---|---|---|---|
+| 7-1 | Click Connect on both Macs at the same moment (count down together). | Both end up "Connected" and notes play within a few seconds. | | | |
+| 7-2 | Hold a key on main, then click into a password field (for example System Settings > Users & Groups > add user) on main. | The held note stops on both Macs. | | | |
+| 7-3 | Hold a key for 30 s with automatic note-off at 10 s. | The note keeps sounding on both Macs until the key is released. | | | |
+| 7-4 | Connect main to backup A, then connect to backup B. Disconnect from B. | Backup A does not reconnect by itself. | | | |
+| 7-5 | Unplug the backup's cable for 5 s while holding a key on main, release the key while unplugged, plug back in. | Within about 1 s after the link returns, the note stops on the backup. | | | |
+| 7-6 | Copy ~/Library/Application Support/TwinKeys/settings.json from main to backup and open TwinKeys on both. | One Mac shows that a new ID was made and asks to reopen TwinKeys; after reopening, both see each other. | | | |
+| 7-7 | Run an older TwinKeys (with another protocol version, if available) on one Mac. | The other Mac lists it with "Different TwinKeys version" and Connect is unavailable. | | | |
+

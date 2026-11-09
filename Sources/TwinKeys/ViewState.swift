@@ -39,7 +39,7 @@ struct ViewState: Equatable {
 
     var t: Strings { Strings(language) }
 
-    var canToggleConnection: Bool { linkedPeerID != nil || peers.count == 1 }
+    var canToggleConnection: Bool { linkedPeerID != nil || (peers.count == 1 && peers[0].isCompatible) }
     var connectMenuTitle: String {
         if linkedPeerID != nil { return t.disconnect }
         if peers.count == 1 { return t.connectTo(peers[0].name) }

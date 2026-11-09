@@ -6,7 +6,16 @@ public struct NoteGuard: Sendable {
     public var timeout: Double
     public private(set) var active: [Key: Double] = [:]
 
-    public init(timeout: Double) { self.timeout = timeout }
+    /// Lower bound for the effective timeout when enabled (0 = no bound). The peer's guard
+    /// uses 3 s, because the "still held" refresh arrives only about once per second.
+    public var minimumTimeout: Double = 0
+
+    public init(timeout: Double, minimumTimeout: Double = 0) {
+        self.timeout = timeout
+        self.minimumTimeout = minimumTimeout
+    }
+
+    private var effectiveTimeout: Double { max(timeout, minimumTimeout) }
 
     /// Record a message that is being sent. `now` is in seconds (any monotonic clock).
     public mutating func record(_ m: MIDIMessage, now: Double) {
@@ -29,7 +38,8 @@ public struct NoteGuard: Sendable {
     /// Notes in `keep` (for example keys still physically down) are left alone.
     public mutating func expire(now: Double, keep: Set<Key> = []) -> [MIDIMessage] {
         guard timeout > 0 else { return [] }
-        let old = active.filter { now - $0.value >= timeout && !keep.contains($0.key) }.keys.sorted { ($0.channel, $0.note) < ($1.channel, $1.note) }
+        let limit = effectiveTimeout
+        let old = active.filter { now - $0.value >= limit && !keep.contains($0.key) }.keys.sorted { ($0.channel, $0.note) < ($1.channel, $1.note) }
         for k in old { active.removeValue(forKey: k) }
         return old.map { .noteOff(channel: $0.channel, note: $0.note) }
     }

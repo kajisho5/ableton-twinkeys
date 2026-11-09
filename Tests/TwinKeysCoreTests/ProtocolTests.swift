@@ -65,6 +65,15 @@ final class ProtocolTests: XCTestCase {
         XCTAssertFalse(f.accept(session: 1, seq: UInt32.max))
     }
 
+    func testLatePacketFromPreviousSessionIsDropped() {
+        var f = SequenceFilter()
+        XCTAssertTrue(f.accept(session: 1, seq: 10))
+        XCTAssertTrue(f.accept(session: 2, seq: 5))     // peer restarted
+        XCTAssertFalse(f.accept(session: 1, seq: 11))   // delayed packet from before the restart
+        XCTAssertFalse(f.accept(session: 2, seq: 5))    // second copy is still a duplicate
+        XCTAssertTrue(f.accept(session: 2, seq: 6))
+    }
+
     func testSequenceFilterNewSessionResets() {
         var f = SequenceFilter()
         XCTAssertTrue(f.accept(session: 1, seq: 500))
@@ -80,5 +89,10 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(p, PeerInfo(id: "other", name: "Backup", sends: false, receives: true))
         XCTAssertEqual(p?.modeText, "Receive")
         XCTAssertEqual(TXTKeys.modes(sends: true, receives: true), "sr")
+        XCTAssertTrue(TXTKeys.peer(from: ["id": "x", "v": "1"], serviceName: "A", ownID: "me")!.isCompatible)
+        XCTAssertFalse(TXTKeys.peer(from: ["id": "x", "v": "2"], serviceName: "A", ownID: "me")!.isCompatible)
+        XCTAssertTrue(TXTKeys.isDuplicateOfUs(["id": "me", "boot": "b2"], ownID: "me", ownBoot: "b1"))
+        XCTAssertFalse(TXTKeys.isDuplicateOfUs(["id": "me", "boot": "b1"], ownID: "me", ownBoot: "b1"))
+        XCTAssertFalse(TXTKeys.isDuplicateOfUs(["id": "other", "boot": "b2"], ownID: "me", ownBoot: "b1"))
     }
 }

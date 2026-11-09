@@ -103,6 +103,17 @@ final class LinkTests: XCTestCase {
         XCTAssertTrue(l.isConnected)
     }
 
+    func testSwitchingPeerDeclinesTheOldOne() {
+        var l = L()
+        _ = l.connect(to: "A", now: 0); _ = l.receivedHelloAck(from: "A", now: 0)
+        _ = l.connect(to: "B", now: 1); _ = l.receivedHelloAck(from: "B", now: 1)
+        // A missed the Bye and keeps sending hellos: it gets Bye again, even while linked to B.
+        XCTAssertEqual(l.receivedHello(from: "A", now: 2).first, .sendBye(peer: "A"))
+        _ = l.disconnect()
+        XCTAssertEqual(l.receivedHello(from: "A", now: 3).first, .sendBye(peer: "A"))
+        XCTAssertEqual(l.state, .idle)
+    }
+
     func testByeStopsWithoutReconnect() {
         var l = L()
         _ = l.receivedHello(from: "A", now: 0)

@@ -16,6 +16,7 @@ private struct TKButtonBody: View {
     let kind: TKButtonStyle.Kind
     @State private var hovering = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.isFocused) private var isFocused
 
     var body: some View {
         configuration.label
@@ -28,6 +29,13 @@ private struct TKButtonBody: View {
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.buttonRadius)
                     .strokeBorder(Theme.buttonBorder, lineWidth: kind == .normal ? 1 : 0)
+            )
+            // Keyboard focus ring (Full Keyboard Access / Tab navigation).
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.buttonRadius + 2)
+                    .strokeBorder(Color(nsColor: .keyboardFocusIndicatorColor), lineWidth: 3)
+                    .padding(-3)
+                    .opacity(isFocused ? 1 : 0)
             )
             .contentShape(RoundedRectangle(cornerRadius: Theme.buttonRadius))
             .opacity(isEnabled ? 1 : 0.45)
@@ -58,6 +66,7 @@ struct TKGroup<Content: View>: View {
         content
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: Theme.groupRadius).fill(Theme.groupBackground))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.groupRadius))   // highlighted rows follow the corners
             .overlay(RoundedRectangle(cornerRadius: Theme.groupRadius).strokeBorder(borderColor, lineWidth: 1))
     }
 }

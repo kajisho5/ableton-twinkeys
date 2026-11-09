@@ -21,15 +21,12 @@ TwinKeys plays the same MIDI notes on two Macs at once. Press keys on the main M
 
 ## Download and first launch
 
-1. Download `TwinKeys-<version>-universal.zip` from the [Releases page](https://github.com/kajisho5/ableton-twinkeys/releases) and unzip it. Move **TwinKeys.app** to the Applications folder.
-2. TwinKeys is **not notarized** (no paid Apple developer certificate). The first time:
-   - **macOS 13 / 14:** Control-click (right-click) TwinKeys.app → **Open** → **Open**.
-   - **macOS 15 or later:** double-click TwinKeys.app, click **Done** in the warning, then open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** next to the TwinKeys message and confirm with your password.
-3. **Input Monitoring** (main Mac only, needed for key capture): click **Open System Settings…** in the TwinKeys window, turn on TwinKeys under **Privacy & Security → Input Monitoring**, then click **Check Again** (or reopen TwinKeys).
-4. **Local Network** (both Macs, macOS 15 or later): when macOS asks whether TwinKeys may find devices on your local network, click **Allow**. If you clicked Don't Allow, turn it on in **System Settings → Privacy & Security → Local Network**.
-5. **Firewall:** if macOS asks whether TwinKeys may accept incoming network connections, click **Allow**.
+1. Download `TwinKeys-<version>.dmg` from the [Releases page](https://github.com/kajisho5/ableton-twinkeys/releases), open it and drag **TwinKeys** to **Applications**. The app is signed with a Developer ID and notarized by Apple, so it opens normally.
+2. **Input Monitoring** (main Mac only, needed for key capture): click **Open System Settings…** in the TwinKeys window, turn on TwinKeys under **Privacy & Security → Input Monitoring**, then click **Check Again** (or reopen TwinKeys).
+3. **Local Network** (both Macs, macOS 15 or later): when macOS asks whether TwinKeys may find devices on your local network, click **Allow**. If you clicked Don't Allow, turn it on in **System Settings → Privacy & Security → Local Network**.
+4. **Firewall:** if macOS asks whether TwinKeys may accept incoming network connections, click **Allow**.
 
-Note: because the app is signed ad hoc, macOS may ask for Input Monitoring again after you install a new version.
+Releases up to 0.3.0 were not notarized. If you still have one of those, replace it with the current release.
 
 ## Setting up Live (both Macs)
 
@@ -54,9 +51,10 @@ If the network drops, TwinKeys keeps retrying (every 1 s, slowing to every 5 s) 
 
 | Action | Shortcut |
 |---|---|
-| Connect / Disconnect | ⌘K |
+| Connect / Disconnect | ⌘K (connects when only one other Mac is listed) |
 | Key capture on / off | ⌃⌘K |
 | All Notes Off (panic) | ⌃⌘P |
+| TwinKeys Help | ⌘? |
 | Settings | ⌘, |
 
 Keys pressed together with ⌘, ⌃, ⌥ or ⇧ never play notes, so shortcuts in other apps stay silent. Turn **Key capture** off while typing in other apps.
@@ -105,13 +103,14 @@ The platform-independent logic (`Sources/TwinKeysCore`) also builds and tests on
 ### Releases (GitHub Actions)
 
 - Every push runs **CI** on a macOS runner: tests, universal build, launch check and screenshots (downloadable from the run page).
-- **Release:** change the `VERSION` file (for example to `0.2.0`) and push. GitHub Actions builds the app, creates the tag `v0.2.0` on that commit and publishes a release with `TwinKeys-0.2.0-universal.zip`. Versions 0.x and versions with a suffix such as `1.0.0-beta.1` are marked as pre-releases. Pushing a `v*` tag or running the workflow by hand also works.
+- **Release:** signing with a Developer ID and Apple notarization are done by [kajisho5/runway](https://github.com/kajisho5/runway) (`mac-notarize.yml`); this repository is listed in runway's `repos.txt`, which gives it the signing secrets. Change the `VERSION` file (for example to `0.2.0`) and push. GitHub Actions builds the app, signs and notarizes it, checks the .dmg on a clean Mac, creates the tag `v0.2.0` on that commit and publishes a release with `TwinKeys-0.2.0.dmg`. Versions 0.x and versions with a suffix such as `1.0.0-beta.1` are marked as pre-releases. Pushing a `v*` tag or running the workflow by hand also works.
 
 ## Limitations
 
 - One-to-one link (one main, one backup) in v1.
 - TwinKeys cannot know whether your music software has the TwinKeys port turned on; it only knows the port exists.
-- Key capture does not see keys typed into password fields (macOS Secure Input).
+- Key capture does not see keys typed while macOS Secure Input is on (most password fields, and Terminal with Secure Keyboard Entry). TwinKeys ends held notes when that starts.
+- TwinKeys trusts the local network: only Macs that advertise TwinKeys on the network can connect, but there is no pairing code yet. Use it on a network you control.
 - Wi-Fi adds variable delay that TwinKeys cannot control. Prefer a wired network.
 
 ## Credits

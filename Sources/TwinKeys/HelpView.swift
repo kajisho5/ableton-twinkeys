@@ -15,11 +15,17 @@ struct HelpView: View {
             }
             HStack {
                 Button(t.openLocalNetworkSettings, action: actions.openLocalNetworkSettings)
-                    .buttonStyle(TKButtonStyle(kind: .primary))
-                Spacer()
-                Button(t.done, action: onClose)
                     .buttonStyle(TKButtonStyle())
+                Spacer()
+                // The blue button is the one Return presses; Esc also closes the sheet.
+                Button(t.done, action: onClose)
+                    .buttonStyle(TKButtonStyle(kind: .primary))
                     .keyboardShortcut(.defaultAction)
+                Button("", action: onClose)
+                    .keyboardShortcut(.cancelAction)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .accessibilityHidden(true)
             }
             .padding(.top, 4)
         }

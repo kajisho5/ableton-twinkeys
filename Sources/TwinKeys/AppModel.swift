@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import SwiftUI
 import TwinKeysCore
@@ -25,6 +26,7 @@ final class AppModel: ObservableObject {
     private var hasInputMonitoring = KeyMonitor.hasPermission
     private var lastPermissionCheck = 0.0
     private var lastTapAttempt = 0.0
+    private var secureInputOn = false
 
     init() {
         let store = ConfigStore()
@@ -92,11 +94,16 @@ final class AppModel: ObservableObject {
         guard !started else { return }
         started = true
         let conductor = self.conductor
+        let network = self.network
+        conductor.isKnownPeer = { network.isVisible($0) }
         network.onDatagram = { bytes, known in conductor.receive(bytes, knownPeer: known) }
+        network.onNewRoute = { peer in conductor.newRoute(to: peer) }
+        network.onDuplicateID = { [weak self] in self?.handleDuplicateID() }
         network.onPeersChanged = { [weak self] list in
             guard let self else { return }
             self.peers = list
             for p in list { conductor.setPeerName(p.name, for: p.id) }
+            conductor.prune(keeping: Set(list.map(\.id)))
             self.refresh()
         }
         network.onLocalNetworkState = { [weak self] s in self?.localNetwork = s; self?.refresh() }
@@ -108,6 +115,7 @@ final class AppModel: ObservableObject {
         network.start(sends: settings.sendKeys, receives: settings.receiveNotes)
 
         keyMonitor.onKey = { input in conductor.handleKey(input) }
+        keyMonitor.onEventsMissed = { conductor.releaseHeldKeys() }
         checkPermissions()
 
         // Link timing (heartbeats, timeouts, auto note-off) runs off the main thread.
@@ -124,9 +132,12 @@ final class AppModel: ObservableObject {
 
     func shutdown() {
         log.write("TwinKeys quitting: All Notes Off")
-        conductor.prepareForQuit()
-        network.flush(timeout: 0.15)
+        // Stop new input first, so no note can start after the final All Notes Off.
         keyMonitor.stop()
+        tickTimer?.cancel()
+        uiTimer?.invalidate()
+        conductor.prepareForQuit()
+        network.flush(timeout: 0.3)
         network.stop()
         try? store.save(settings)
     }
@@ -134,6 +145,7 @@ final class AppModel: ObservableObject {
     // MARK: Actions
 
     func connect(_ id: String) {
+        guard peers.first(where: { $0.id == id })?.isCompatible ?? true else { return }
         conductor.connect(to: id)
         settings.lastPeerID = id
         try? store.save(settings)
@@ -209,6 +221,17 @@ final class AppModel: ObservableObject {
         reloadMapping()
     }
 
+    /// Another Mac advertises our instance ID (its settings were copied from this Mac).
+    /// Make a new ID; it takes effect after reopening TwinKeys.
+    private func handleDuplicateID() {
+        guard !problems.contains(.duplicateID) else { return }
+        settings.instanceID = UUID()
+        try? store.save(settings)
+        problems.append(.duplicateID)
+        log.write("Another Mac uses this Mac's TwinKeys ID; a new ID was made (reopen TwinKeys)")
+        refresh()
+    }
+
     func checkPermissions() {
         hasInputMonitoring = KeyMonitor.hasPermission
         lastPermissionCheck = ProcessInfo.processInfo.systemUptime
@@ -228,6 +251,16 @@ final class AppModel: ObservableObject {
         if now - lastPermissionCheck >= 1 {
             lastPermissionCheck = now
             hasInputMonitoring = KeyMonitor.hasPermission
+            // Permission was taken away: the tap no longer delivers events. Drop it so it is
+            // created again when permission comes back.
+            if !hasInputMonitoring, keyMonitor.isRunning {
+                keyMonitor.stop()
+                conductor.releaseHeldKeys()
+            }
+            // Secure Input (password fields) hides key events, including key-ups.
+            let secure = IsSecureEventInputEnabled()
+            if secure, !secureInputOn { conductor.releaseHeldKeys() }
+            secureInputOn = secure
         }
         // Start the tap once permission appears; retry at most every 2 s.
         if hasInputMonitoring, !keyMonitor.isRunning, now - lastTapAttempt >= 2 {

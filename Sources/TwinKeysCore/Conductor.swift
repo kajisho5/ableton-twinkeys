@@ -56,6 +56,15 @@ public final class Conductor: @unchecked Sendable {
     private let clock: () -> Double
     private let nanos: () -> UInt64
     public var log: (String) -> Void = { _ in }
+    /// True if the peer is currently advertised on the network (Bonjour). Hellos from
+    /// anything else are ignored, so a device cannot link up without being visible.
+    public var isKnownPeer: (String) -> Bool = { _ in true }
+    /// Set when the app is quitting: key input is ignored from then on.
+    private var quitting = false
+    /// Last time an "ignored hello" was logged per peer (to keep floods out of the log).
+    private var ignoredLogAt: [String: Double] = [:]
+    /// Keys held longer than this are no longer protected from auto note-off.
+    public static let maxProtectedHold = 600.0
 
     public init(instanceID: UUID, displayName: String, mapping: KeyMapping, settings: AppSettings,
                 midi: MIDIOutput?, net: PacketSink, redundancy: Int = 2,
@@ -66,7 +75,7 @@ public final class Conductor: @unchecked Sendable {
         self.engine = PerformanceEngine(mapping: mapping)
         self.engine.channel = UInt8(min(16, max(1, settings.midiChannel)) - 1)
         self.keysGuard = NoteGuard(timeout: settings.autoNoteOffSeconds)
-        self.peerGuard = NoteGuard(timeout: settings.autoNoteOffSeconds)
+        self.peerGuard = NoteGuard(timeout: settings.autoNoteOffSeconds, minimumTimeout: 3)
         self.sendKeys = settings.sendKeys
         self.receiveNotes = settings.receiveNotes
         self.keyCapture = settings.keyCapture
@@ -84,7 +93,7 @@ public final class Conductor: @unchecked Sendable {
 
     public func handleKey(_ input: KeyInput) {
         lock.lock(); defer { lock.unlock() }
-        guard keyCapture, sendKeys else { return }
+        guard keyCapture, sendKeys, !quitting else { return }
         for m in engine.handle(input) {
             emitLocal(m, fromKeys: true)
             sendRemote(m)
@@ -107,6 +116,20 @@ public final class Conductor: @unchecked Sendable {
             peer = k
         }
         guard peer != myID else { return nil }
+        if case .hello = packet.body {
+            // Only Macs that are visible on the network may link up.
+            guard isKnownPeer(peer) else { logIgnored(peer, now, "not advertised on the network"); return nil }
+        }
+        switch packet.body {
+        case .hello, .helloAck:
+            // A hello on a new route must not take over a link that is alive on its own route
+            // (the instance ID is public, so it could be someone else).
+            if knownPeer != peer, link.isConnected, link.peer == peer, now - link.lastHeard < 2 {
+                logIgnored(peer, now, "on a second route while the link is alive")
+                return nil
+            }
+        default: break
+        }
         var f = filters[peer] ?? SequenceFilter()
         let fresh = f.accept(session: packet.session, seq: packet.seq)
         filters[peer] = f
@@ -114,10 +137,10 @@ public final class Conductor: @unchecked Sendable {
 
         switch packet.body {
         case let .hello(_, name):
-            if !name.isEmpty { peerNames[peer] = name }
+            setName(name, for: peer)
             perform(link.receivedHello(from: peer, now: now))
         case let .helloAck(_, name):
-            if !name.isEmpty { peerNames[peer] = name }
+            setName(name, for: peer)
             perform(link.receivedHelloAck(from: peer, now: now))
         case .bye:
             perform(link.receivedBye(from: peer))
@@ -138,8 +161,13 @@ public final class Conductor: @unchecked Sendable {
         case let .held(ch, notes):
             guard link.peer == peer, link.isConnected else { return peer }
             link.receivedOther(from: peer, now: now)
-            // The sender's keys are still down: these notes are meant to keep sounding.
-            for n in notes { peerGuard.touch(channel: ch, note: n, now: now) }
+            // The full list of keys the peer holds. Listed notes keep sounding; any other note
+            // from the peer lost its note-off (for example while the link was down) and ends now.
+            let listed = Set(notes.map { NoteGuard.Key(channel: ch, note: $0) })
+            for k in listed { peerGuard.touch(channel: k.channel, note: k.note, now: now) }
+            for k in peerGuard.active.keys where !listed.contains(k) {
+                emitLocal(.noteOff(channel: k.channel, note: k.note), fromKeys: false)
+            }
         case .allNotesOff:
             guard link.peer == peer else { return peer }
             link.receivedOther(from: peer, now: now)
@@ -154,8 +182,10 @@ public final class Conductor: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         let now = clock()
         perform(link.tick(now: now))
-        // Notes whose keys are still down are not stuck: only the key-up ends them.
-        let down = Set(engine.heldNotes.map { NoteGuard.Key(channel: engine.channel, note: $0) })
+        // Notes whose keys are still down are not stuck: only the key-up ends them
+        // (up to maxProtectedHold, in case a key-up was never seen).
+        let down = Set(engine.heldNotes.map { NoteGuard.Key(channel: engine.channel, note: $0) }
+            .filter { k in keysGuard.active[k].map { now - $0 < Self.maxProtectedHold } ?? false })
         for m in keysGuard.expire(now: now, keep: down) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m))") }
         for m in peerGuard.expire(now: now) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m)) (from peer)") }
     }
@@ -177,8 +207,18 @@ public final class Conductor: @unchecked Sendable {
     }
 
     /// Clean shutdown: notes off everywhere and tell the peer we are leaving.
+    /// The key monitor may have missed key-ups (event tap disabled, Secure Input):
+    /// end notes of keys we think are down, here and on the peer.
+    public func releaseHeldKeys() {
+        lock.lock(); defer { lock.unlock() }
+        guard !engine.heldNotes.isEmpty else { return }
+        apply(.keyCaptureTurnedOff, peer: link.isConnected ? link.peer : nil)
+        log("Released held keys (key events may have been missed)")
+    }
+
     public func prepareForQuit() {
         lock.lock(); defer { lock.unlock() }
+        quitting = true
         if link.peer != nil {
             // Disconnect turns notes off here and on the peer, then says goodbye.
             perform(link.disconnect())
@@ -217,9 +257,25 @@ public final class Conductor: @unchecked Sendable {
         for off in engine.setMapping(m) { emitLocal(off, fromKeys: true); sendRemote(off) }
     }
 
+    /// The transport opened a fresh route to the peer (the old one failed). The other side
+    /// can only attribute packets on it after a hello, so send one right away.
+    public func newRoute(to peer: String) {
+        lock.lock(); defer { lock.unlock() }
+        guard link.peer == peer else { return }
+        sendBody(.hello(instanceID: instanceID, name: displayName), to: peer)
+    }
+
+    /// Forget sequence state and names of peers that are neither linked nor listed.
+    public func prune(keeping visible: Set<String>) {
+        lock.lock(); defer { lock.unlock() }
+        let keep = visible.union(link.peer.map { [$0] } ?? [])
+        filters = filters.filter { keep.contains($0.key) }
+        peerNames = peerNames.filter { keep.contains($0.key) }
+    }
+
     public func setPeerName(_ name: String, for peer: String) {
         lock.lock(); defer { lock.unlock() }
-        peerNames[peer] = name
+        setName(name, for: peer)
     }
 
     public func snapshot() -> ConductorSnapshot {
@@ -289,15 +345,23 @@ public final class Conductor: @unchecked Sendable {
                 sendBody(.helloAck(instanceID: instanceID, name: displayName), to: p)
             case let .sendHeartbeat(p):
                 sendBody(.heartbeat(timestampNanos: nanos()), to: p)
-                if sendKeys, keyCapture, !engine.heldNotes.isEmpty {
-                    sendBody(.held(channel: engine.channel, notes: engine.heldNotes), to: p)
-                }
+                // Always send the full list (also when empty): the peer ends any of our notes
+                // that are not in it, which repairs note-offs lost while the link was down.
+                let holding = (sendKeys && keyCapture) ? engine.heldNotes : []
+                sendBody(.held(channel: engine.channel, notes: holding), to: p)
             case let .sendHeartbeatAck(p, t):
                 sendBody(.heartbeatAck(timestampNanos: t), to: p)
             case let .sendBye(p):
                 sendBody(.bye, to: p, copies: redundancy)
             case let .safety(trigger, p):
                 apply(trigger, peer: p)
+            case let .log(s) where s.hasPrefix("Ignored hello"):
+                // Repeated hellos can be a flood: log each kind at most once a minute.
+                let now = clock()
+                if let t = ignoredLogAt[s], now - t < 60 { continue }
+                ignoredLogAt[s] = now
+                if ignoredLogAt.count > 64 { ignoredLogAt.removeAll() }
+                log(peerNames.reduce(s) { $0.replacingOccurrences(of: $1.key, with: $1.value) })
             case let .log(s):
                 // Show peer names instead of instance IDs.
                 log(peerNames.reduce(s) { $0.replacingOccurrences(of: $1.key, with: $1.value) })
@@ -306,6 +370,20 @@ public final class Conductor: @unchecked Sendable {
     }
 
     private func name(of peer: String) -> String { peerNames[peer] ?? peer }
+
+    /// Peer names come from the network: keep printable characters only.
+    private func setName(_ raw: String, for peer: String) {
+        let clean = String(raw.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
+            .trimmingCharacters(in: .whitespaces)
+        if !clean.isEmpty { peerNames[peer] = clean }
+    }
+
+    private func logIgnored(_ peer: String, _ now: Double, _ why: String) {
+        if let t = ignoredLogAt[peer], now - t < 60 { return }
+        ignoredLogAt[peer] = now
+        if ignoredLogAt.count > 64 { ignoredLogAt.removeAll() }
+        log("Ignored hello from \(peer): \(why)")
+    }
 
     private func noteNameFor(_ m: MIDIMessage) -> String {
         switch m { case let .noteOn(_, n, _), let .noteOff(_, n): return noteName(n) }

@@ -16,6 +16,18 @@ final class FileLog {
         timeFormat = ISO8601DateFormatter()
         timeFormat.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        prune(keepDays: 30)
+    }
+
+    /// Deletes log files older than `keepDays` days so the folder cannot grow without limit.
+    private func prune(keepDays: Int) {
+        let fm = FileManager.default
+        let limit = Date().addingTimeInterval(-Double(keepDays) * 86_400)
+        guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        for f in files where f.lastPathComponent.hasPrefix("TwinKeys-") && f.pathExtension == "log" {
+            let date = (try? f.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantFuture
+            if date < limit { try? fm.removeItem(at: f) }
+        }
     }
 
     func write(_ message: String) {

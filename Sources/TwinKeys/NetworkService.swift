@@ -6,25 +6,46 @@ import TwinKeysCore
 /// Bonjour advertising and browsing plus UDP send/receive, using Network.framework.
 final class NetworkService: PacketSink {
     static let serviceType = "_twinkeys._udp"
+    /// Inbound routes that do not identify themselves with a hello in this time are closed.
+    static let unboundTimeout: TimeInterval = 5
+    static let maxUnbound = 16
 
     let queue = DispatchQueue(label: "TwinKeys.network", qos: .userInteractive)
     private let ownID: String
+    private let ownBoot = UUID().uuidString
     private var serviceName: String
+    private var sends = true
+    private var receives = true
 
     private var listener: NWListener?
     private var browser: NWBrowser?
+    private var stopped = false
 
     // Accessed only on `queue`.
-    private var routes: [String: NWConnection] = [:]          // peer ID -> connection
-    private var routePeer: [ObjectIdentifier: String] = [:]   // connection -> peer ID
+    private var routes: [String: NWConnection] = [:]          // peer ID -> connection we send on
+    private var routePeer: [ObjectIdentifier: String] = [:]   // connection -> peer ID (all bound connections)
+    private var unbound: [ObjectIdentifier: NWConnection] = [:]
     private var endpoints: [String: NWEndpoint] = [:]         // peer ID -> Bonjour endpoint
+    /// Peers currently advertised. Read from any thread (also from the network queue itself),
+    /// so it has its own lock instead of `queue.sync`.
+    private var visible: Set<String> {
+        get { visibleLock.lock(); defer { visibleLock.unlock() }; return _visible }
+        set { visibleLock.lock(); _visible = newValue; visibleLock.unlock() }
+    }
+    private var _visible: Set<String> = []
+    private let visibleLock = NSLock()
+    private let pending = DispatchGroup()
 
     /// Called on `queue`. Return the peer ID the datagram belongs to (or nil).
     var onDatagram: (([UInt8], String?) -> String?)?
+    /// Called on `queue` after a fresh outgoing route to a peer was opened.
+    var onNewRoute: ((String) -> Void)?
     /// Called on the main queue.
     var onPeersChanged: (([PeerInfo]) -> Void)?
     var onLocalNetworkState: ((LocalNetworkState) -> Void)?
     var onProblem: ((String) -> Void)?
+    /// Another running TwinKeys uses our instance ID (copied settings). Main queue.
+    var onDuplicateID: (() -> Void)?
 
     init(ownID: String, serviceName: String) {
         self.ownID = ownID
@@ -38,30 +59,57 @@ final class NetworkService: PacketSink {
         return p
     }
 
+    /// True if the peer is currently advertised on the network. Thread-safe.
+    func isVisible(_ peer: String) -> Bool { visible.contains(peer) }
+
     func start(sends: Bool, receives: Bool) {
+        self.sends = sends; self.receives = receives
+        queue.async { [weak self] in
+            self?.startListener()
+            self?.startBrowser()
+        }
+    }
+
+    // MARK: Listener and browser (restarted after failures)
+
+    private func startListener() {
+        guard !stopped else { return }
         do {
             let l = try NWListener(using: Self.parameters())
-            l.service = service(sends: sends, receives: receives)
+            l.service = service()
             l.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
-            l.stateUpdateHandler = { [weak self] state in
+            l.stateUpdateHandler = { [weak self, weak l] state in
+                guard let self else { return }
                 if case let .failed(error) = state {
-                    self?.report("Could not start listening for other Macs: \(error)")
+                    self.report("Listening for other Macs failed (\(error)); retrying")
+                    l?.cancel()
+                    self.queue.asyncAfter(deadline: .now() + 2) { self.startListener() }
                 }
             }
             l.start(queue: queue)
             listener = l
         } catch {
             report("Could not start listening for other Macs: \(error)")
+            queue.asyncAfter(deadline: .now() + 5) { [weak self] in self?.startListener() }
         }
+    }
 
+    private func startBrowser() {
+        guard !stopped else { return }
         let b = NWBrowser(for: .bonjourWithTXTRecord(type: Self.serviceType, domain: nil), using: NWParameters())
         b.browseResultsChangedHandler = { [weak self] results, _ in self?.update(results) }
-        b.stateUpdateHandler = { [weak self] state in
+        b.stateUpdateHandler = { [weak self, weak b] state in
+            guard let self else { return }
             switch state {
-            case let .waiting(error), let .failed(error):
-                if Self.isPolicyDenied(error) {
-                    DispatchQueue.main.async { self?.onLocalNetworkState?(.denied) }
-                }
+            case .ready:
+                // Access works now (it may have been granted after a refusal).
+                DispatchQueue.main.async { self.onLocalNetworkState?(self.visible.isEmpty ? .searching : .peersVisible) }
+            case let .waiting(error):
+                if Self.isPolicyDenied(error) { DispatchQueue.main.async { self.onLocalNetworkState?(.denied) } }
+            case let .failed(error):
+                if Self.isPolicyDenied(error) { DispatchQueue.main.async { self.onLocalNetworkState?(.denied) } }
+                b?.cancel()
+                self.queue.asyncAfter(deadline: .now() + 2) { self.startBrowser() }
             default: break
             }
         }
@@ -71,55 +119,57 @@ final class NetworkService: PacketSink {
 
     func updateModes(sends: Bool, receives: Bool) {
         queue.async { [weak self] in
-            guard let self, let listener = self.listener else { return }
-            listener.service = self.service(sends: sends, receives: receives)
+            guard let self else { return }
+            self.sends = sends; self.receives = receives
+            self.listener?.service = self.service()
         }
     }
 
     func stop() {
-        listener?.cancel(); browser?.cancel()
         queue.sync {
-            routes.values.forEach { $0.cancel() }
-            routes.removeAll(); routePeer.removeAll()
+            stopped = true
+            listener?.cancel(); browser?.cancel()
+            for c in Array(routes.values) + Array(unbound.values) { c.cancel() }
+            routes.removeAll(); routePeer.removeAll(); unbound.removeAll()
         }
     }
 
-    /// Gives the last packets (All Notes Off, Bye) time to leave before quitting.
+    /// Waits until the last packets (All Notes Off, Bye) have been handed to the network,
+    /// or until the timeout.
     func flush(timeout: TimeInterval) {
         queue.sync {}
-        Thread.sleep(forTimeInterval: timeout)
+        _ = pending.wait(timeout: .now() + timeout)
     }
 
     // MARK: PacketSink (called from any thread)
 
     func send(_ bytes: [UInt8], to peer: String) {
         let data = Data(bytes)
+        pending.enter()
         queue.async { [weak self] in
-            guard let self, let conn = self.route(to: peer) else { return }
-            conn.send(content: data, completion: .idempotent)
+            guard let self, let conn = self.route(to: peer) else { self?.pending.leave(); return }
+            conn.send(content: data, completion: .contentProcessed { [weak self] _ in self?.pending.leave() })
         }
     }
 
     func resetRoute(to peer: String) {
         queue.async { [weak self] in
-            guard let self, let old = self.routes.removeValue(forKey: peer) else { return }
-            // Only drop routes we opened; an incoming route is the peer's choice.
-            if self.endpoints[peer] != nil {
-                self.routePeer.removeValue(forKey: ObjectIdentifier(old))
-                old.cancel()
-            } else {
-                self.routes[peer] = old
-            }
+            guard let self, let old = self.routes[peer] else { return }
+            // Only replace routes we opened; an incoming route is the peer's choice.
+            guard self.endpoints[peer] != nil else { return }
+            self.routes.removeValue(forKey: peer)
+            self.retire(old)
         }
     }
 
     // MARK: Internals (on queue)
 
-    private func service(sends: Bool, receives: Bool) -> NWListener.Service {
+    private func service() -> NWListener.Service {
         var txt = NWTXTRecord()
         txt[TXTKeys.id] = ownID
         txt[TXTKeys.version] = String(WireProtocol.version)
         txt[TXTKeys.modes] = TXTKeys.modes(sends: sends, receives: receives)
+        txt[TXTKeys.boot] = ownBoot
         return NWListener.Service(name: serviceName, type: Self.serviceType, domain: nil, txtRecord: txt)
     }
 
@@ -129,14 +179,24 @@ final class NetworkService: PacketSink {
         let c = NWConnection(to: ep, using: Self.parameters())
         bind(c, to: peer)
         c.stateUpdateHandler = { [weak self, weak c] state in
-            if case .failed = state, let c { self?.drop(c) }
+            switch state {
+            case .failed, .cancelled: if let c { self?.drop(c) }
+            default: break
+            }
         }
         c.start(queue: queue)
         receive(on: c)
+        // The peer can only tell who we are on this new route after a hello.
+        queue.async { [weak self] in self?.onNewRoute?(peer) }
         return c
     }
 
     private func accept(_ c: NWConnection) {
+        let key = ObjectIdentifier(c)
+        if unbound.count >= Self.maxUnbound, let oldest = unbound.first {
+            unbound.removeValue(forKey: oldest.key); oldest.value.cancel()
+        }
+        unbound[key] = c
         c.stateUpdateHandler = { [weak self, weak c] state in
             switch state {
             case .failed, .cancelled: if let c { self?.drop(c) }
@@ -145,19 +205,36 @@ final class NetworkService: PacketSink {
         }
         c.start(queue: queue)
         receive(on: c)
+        // Close it if it never says hello (scanners, junk, stale flows).
+        queue.asyncAfter(deadline: .now() + Self.unboundTimeout) { [weak self] in
+            guard let self, let c = self.unbound.removeValue(forKey: key) else { return }
+            c.cancel()
+        }
     }
 
+    /// Makes `c` the route we send to `peer` on. The previous route is not cancelled at once:
+    /// when both Macs say hello at the same moment, the peer may still be answering on it.
     private func bind(_ c: NWConnection, to peer: String) {
-        if let old = routes[peer], old !== c {
-            routePeer.removeValue(forKey: ObjectIdentifier(old))
-            old.cancel()
-        }
+        unbound.removeValue(forKey: ObjectIdentifier(c))
+        if let old = routes[peer], old !== c { retire(old) }
         routes[peer] = c
         routePeer[ObjectIdentifier(c)] = peer
     }
 
+    /// Keeps receiving on an old route for a while, then closes it.
+    private func retire(_ c: NWConnection) {
+        queue.asyncAfter(deadline: .now() + 10) { [weak self] in
+            guard let self else { return }
+            if let p = self.routePeer[ObjectIdentifier(c)], self.routes[p] === c { return }   // in use again
+            self.routePeer.removeValue(forKey: ObjectIdentifier(c))
+            c.cancel()
+        }
+    }
+
     private func drop(_ c: NWConnection) {
-        if let p = routePeer.removeValue(forKey: ObjectIdentifier(c)), routes[p] === c {
+        let key = ObjectIdentifier(c)
+        unbound.removeValue(forKey: key)
+        if let p = routePeer.removeValue(forKey: key), routes[p] === c {
             routes.removeValue(forKey: p)
         }
     }
@@ -167,7 +244,7 @@ final class NetworkService: PacketSink {
             guard let self, let c else { return }
             if let data, !data.isEmpty {
                 let known = self.routePeer[ObjectIdentifier(c)]
-                if let peer = self.onDatagram?([UInt8](data), known), peer != known {
+                if let peer = self.onDatagram?([UInt8](data), known), peer != known || self.routes[peer] !== c {
                     // A hello told us who is on the other end of this route.
                     self.bind(c, to: peer)
                 }
@@ -178,22 +255,35 @@ final class NetworkService: PacketSink {
 
     private func update(_ results: Set<NWBrowser.Result>) {
         var found: [String: PeerInfo] = [:]
-        var eps: [String: NWEndpoint] = [:]
-        for r in results {
-            guard case let .service(name, _, _, _) = r.endpoint,
-                  case let .bonjour(txt) = r.metadata,
-                  let peer = TXTKeys.peer(from: txt.dictionary, serviceName: name, ownID: ownID) else { continue }
-            if found[peer.id] == nil {
-                found[peer.id] = peer
-                eps[peer.id] = r.endpoint
-            }
+        var eps: [String: (NWEndpoint, Int)] = [:]
+        var duplicate = false
+        // Sort so the choice does not change between updates; prefer wired, then Wi-Fi.
+        let sorted = results.sorted { "\($0.endpoint)" < "\($1.endpoint)" }
+        for r in sorted {
+            guard case let .service(name, _, _, _) = r.endpoint, case let .bonjour(txt) = r.metadata else { continue }
+            let dict = txt.dictionary
+            if TXTKeys.isDuplicateOfUs(dict, ownID: ownID, ownBoot: ownBoot) { duplicate = true; continue }
+            guard let peer = TXTKeys.peer(from: dict, serviceName: name, ownID: ownID) else { continue }
+            let rank = Self.rank(r.interfaces)
+            if let current = eps[peer.id], current.1 <= rank { continue }
+            found[peer.id] = peer
+            eps[peer.id] = (r.endpoint, rank)
         }
-        endpoints = eps
+        endpoints = eps.mapValues { $0.0 }
+        visible = Set(found.keys)
         let list = found.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         DispatchQueue.main.async { [weak self] in
             self?.onPeersChanged?(list)
             if !list.isEmpty { self?.onLocalNetworkState?(.peersVisible) }
+            if duplicate { self?.onDuplicateID?() }
         }
+    }
+
+    /// Lower is better: wired Ethernet, then Wi-Fi, then anything else.
+    private static func rank(_ interfaces: [NWInterface]) -> Int {
+        if interfaces.contains(where: { $0.type == .wiredEthernet }) { return 0 }
+        if interfaces.contains(where: { $0.type == .wifi }) { return 1 }
+        return 2
     }
 
     private func report(_ message: String) {

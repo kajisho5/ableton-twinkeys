@@ -1,5 +1,7 @@
 # TwinKeys 詳細設計書（v1 コア）
 
+※ TwinKeys は非公式のサードパーティ製ツールです。Ableton 社とは関係ありません。
+
 - 状態：**承認済み（2026-11-09、Q1〜Q7 すべて推奨案）**。実装は Swift＋SwiftUI
 - 作成日：2026-11-09
 - 対象：仕様書（prompt.md）1〜12 節。最小対応 OS は macOS 13 Ventura（確定済み）
@@ -200,19 +202,24 @@ AppState {
 ## 5. 通信仕様（独自 UDP）
 
 - サービス名：`_twinkeys._udp`（Info.plist の `NSBonjourServices` に記載）
-- TXT：`id`（起動ごとではなく初回生成して保存する UUID）、`v`（プロトコル版）、`modes`（s/r/sr）
+- TXT：`id`（初回生成して保存する UUID）、`v`（プロトコル版。違う版の相手は「版が違います」と表示し接続不可）、`modes`（s/r/sr）、`boot`（起動ごとの乱数。自分と同じ `id` で別の `boot` を見つけたら、設定がコピーされた別の Mac と判断して `id` を作り直す）
 - ポート：OS が空きを割り当て、mDNS で公表（固定ポート不要）
 - 自分自身の除外：`id` が自分と同じものは一覧に出さない
+- 接続を受け付けるのは、Bonjour で見えている相手からの Hello だけ。生きている接続を、別の経路から来た同じ `id` の Hello で乗っ取ることはできない
+- 同じ相手が Wi-Fi と有線の両方で見えるときは有線を優先
 
-パケット（ビッグエンディアン、最大 24 バイト程度）：
+パケット（ビッグエンディアン、ヘッダー 12 バイト、最大 64 バイト。正は `Sources/TwinKeysCore/WireProtocol.swift`）：
 ```
-magic "TK" (2) | version (1) | type (1) | seq u32 (4) | payload
-type: 0x01 Hello{id 16B} / 0x02 HelloAck{id 16B}
+magic "TK" (2) | version (1) | type (1) | session u32 (4) | seq u32 (4) | payload
+type: 0x01 Hello{id 16B, name len+UTF-8 ≤32B} / 0x02 HelloAck{同} / 0x03 Bye
       0x10 NoteOn{ch, note, vel} / 0x11 NoteOff{ch, note}
+      0x12 Held{ch, count, notes…}（送信側が押さえているキーの全リスト。ハートビートごと）
       0x20 AllNotesOff
       0x30 Heartbeat{t_ns u64} / 0x31 HeartbeatAck{t_ns u64 をそのまま返す}
 ```
-- seq：送信側で 1 ずつ増加。受信側は「最後に受けた番号より新しいもののみ受理」（番号の一周は循環比較で処理）→ 重複と順序入れ替わりを破棄
+- session：起動ごとの乱数。変わったら相手が再起動したとみなして番号を数え直す（前の session の遅れた packet は捨てる）
+- seq：送信側で 1 ずつ増加。受信側は「最後に受けた番号より新しいもののみ受理」（番号の一周は循環比較で処理）→ 重複と順序入れ替わりを破棄。ノート・オールノートオフ・Bye は同じ番号で 2 回送る
+- Held：受信側はリストにない相手由来の音を止める（回線断のあいだに失われたノートオフの修復）。リストにある音は自動ノートオフの時計を延長
 - ハートビート 1 秒ごと、遅延表示 = 往復時間（直近 5 回の中央値を表示）
 - 3 秒間応答なしで切断判定
 
@@ -224,8 +231,9 @@ type: 0x01 Hello{id 16B} / 0x02 HelloAck{id 16B}
 
 `settings.json`
 ```json
-{ "version": 1, "instance_id": "UUID", "mode": { "send": true, "receive": false },
-  "auto_note_off_seconds": 10, "midi_channel": 1, "last_peer_id": null }
+{ "version": 1, "instance_id": "UUID", "send_keys": true, "receive_notes": true,
+  "key_capture": true, "auto_note_off_seconds": 10, "midi_channel": 1,
+  "last_peer_id": null, "midi_unique_id": 123456, "language": "system" }
 ```
 `mapping.json`（既定値を同梱、キーは Mac の物理キーコード＝JIS/US 共通位置）
 ```json
@@ -258,7 +266,9 @@ ableton-twinkeys/
 ├─ Tests/TwinKeysCoreTests/      単体テスト（2台模擬テストを含む）
 ├─ Resources/                    Info.plist, mapping.default.json, AppIcon-1024.png
 ├─ scripts/build-app.sh          universal .app と zip を作る
-├─ .github/workflows/            ci.yml（毎 push）, release.yml（v* タグ）
+├─ .github/workflows/            ci.yml（毎 push）, release.yml（VERSION 変更・v* タグ・手動）
+├─ docs/help/                    使い方（en.md / ja.md。アプリにも同梱）
+├─ Resources/*.lproj/            Info.plist の英語・日本語文言
 ├─ docs/                         design.md, design/, manual-test.md, test-report.md
 └─ deliverables/                 スクリーンショット・アイコン PNG
 ```
@@ -290,10 +300,10 @@ ableton-twinkeys/
 ---
 
 ## 8. パッケージングと配布
-- `.app` は自作スクリプトで組み立て（arm64 と x86_64 を別々にビルド → `lipo` で結合 → Info.plist・アイコンを配置 → 署名なし／ad-hoc 署名）
+- `.app` は `scripts/build-app.sh` で組み立て（`swift build --arch arm64 --arch x86_64` で universal → Info.plist・アイコン・ヘルプ・lproj を配置 → ad-hoc 署名）
 - Info.plist：`CFBundleIdentifier`（Q7）、`LSMinimumSystemVersion 13.0`、`NSLocalNetworkUsageDescription`、`NSBonjourServices = [_twinkeys._udp]`
-- Release ワークフロー：タグ `v*` を push すると macOS ランナーでビルド → `TwinKeys-<版>-universal.zip` を Release に添付
-- README に「右クリック → 開く」での初回起動手順（macOS 15 以降で手順が変わる点も調べて記載）
+- Release ワークフロー：`VERSION` を変えて push（またはタグ `v*`・手動）→ kajisho5/runway の `mac-notarize.yml` が Developer ID 署名（hardened runtime）と Apple の公証を行い .dmg を作る → きれいな Mac で開いて検査 → Release に添付（0.x はプレリリース）
+- 0.3.0 までは公証なし（右クリック→開く が必要だった）。0.4.0 から公証済み
 
 ## 9. テスト計画
 - 単体：マッピング変換（JIS/US 同一キーコード、オクターブ端、リピート無視、和音）、プロトコル（往復変換、壊れたパケット拒否、seq 重複・逆順・一周）、再接続状態遷移（時間を差し替えてテスト）、All Notes Off 条件

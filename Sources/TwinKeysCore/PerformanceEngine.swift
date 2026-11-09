@@ -43,7 +43,9 @@ public struct PerformanceEngine: Sendable {
     public mutating func setMapping(_ m: KeyMapping) -> [MIDIMessage] {
         let offs = releaseAll()
         mapping = m
-        octave = min(max(octave, m.minOctave), m.maxOctave)
+        // A reloaded mapping takes effect as written (base octave and default velocity too).
+        octave = m.baseOctave
+        velocity = m.defaultVelocity
         return offs
     }
 
@@ -60,16 +62,17 @@ public struct PerformanceEngine: Sendable {
                 let n = 12 * (octave + 2) + semi
                 guard (0...127).contains(n) else { return [] }
                 let note = UInt8(n)
-                // Same note already sounding from another key is not possible with
-                // unique semitones, but guard anyway.
+                // After an octave change two keys can map to the same note. While one key
+                // holds it, the other key does nothing (otherwise releasing one would cut the other).
+                if held.values.contains(note) { return [] }
                 held[input.keycode] = note
                 return [.noteOn(channel: channel, note: note, velocity: UInt8(velocity))]
             }
             switch input.keycode {
             case mapping.octaveDown: heldControls.insert(input.keycode); octave = max(mapping.minOctave, octave - 1)
             case mapping.octaveUp: heldControls.insert(input.keycode); octave = min(mapping.maxOctave, octave + 1)
-            case mapping.velocityDown: heldControls.insert(input.keycode); velocity = max(1, velocity - mapping.velocityStep)
-            case mapping.velocityUp: heldControls.insert(input.keycode); velocity = min(127, velocity + mapping.velocityStep)
+            case mapping.velocityDown: heldControls.insert(input.keycode); velocity = velocityStepped(down: true)
+            case mapping.velocityUp: heldControls.insert(input.keycode); velocity = velocityStepped(down: false)
             default: break
             }
             return []
@@ -81,6 +84,19 @@ public struct PerformanceEngine: Sendable {
             }
             return []
         }
+    }
+
+    /// Velocity moves on a grid through the default (100, 80, 60 … with step 20), so it can
+    /// always come back to the default. The top is 127.
+    private func velocityStepped(down: Bool) -> Int {
+        let step = mapping.velocityStep, base = mapping.defaultVelocity
+        let lowest = ((base - 1) % step) + 1
+        let offset = (velocity - base) % step
+        if down {
+            let onGrid = offset == 0 ? velocity - step : velocity - ((offset + step) % step)
+            return max(lowest, onGrid)
+        }
+        return min(127, velocity + step - ((offset + step) % step))
     }
 
     /// Releases every held note (used when capture is turned off, on panic, etc.).

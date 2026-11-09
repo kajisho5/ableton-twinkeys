@@ -7,7 +7,15 @@ import TwinKeysCore
 /// key events; it never blocks or changes them. Needs the Input Monitoring permission.
 final class KeyMonitor {
     var onKey: ((KeyInput) -> Void)?
-    fileprivate var tap: CFMachPort?
+    /// Called on the tap thread when macOS paused the tap: key-ups may have been missed.
+    var onEventsMissed: (() -> Void)?
+    private let tapLock = NSLock()
+    private var _tap: CFMachPort?
+    /// Read on the tap thread, written on the main thread: guarded by a lock.
+    fileprivate var tap: CFMachPort? {
+        get { tapLock.lock(); defer { tapLock.unlock() }; return _tap }
+        set { tapLock.lock(); _tap = newValue; tapLock.unlock() }
+    }
     private var runLoop: CFRunLoop?
     private var thread: Thread?
 
@@ -61,6 +69,7 @@ final class KeyMonitor {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            onEventsMissed?()
         case .keyDown, .keyUp:
             let code = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0

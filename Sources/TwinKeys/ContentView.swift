@@ -138,7 +138,7 @@ struct ContentView: View {
 
     private func peerRow(_ peer: PeerInfo) -> some View {
         let isLinked = state.linkedPeerID == peer.id
-        var detail = t.modes(peer)
+        var detail = peer.isCompatible ? t.modes(peer) : t.incompatible
         var dot = Theme.idleDot
         if isLinked {
             switch state.link {
@@ -163,6 +163,7 @@ struct ContentView: View {
             } else {
                 Button(t.connect) { actions.connect(peer.id) }
                     .buttonStyle(TKButtonStyle())
+                    .disabled(!peer.isCompatible)
                     .accessibilityLabel(t.connectTo(peer.name))
             }
         }
@@ -231,7 +232,15 @@ struct ContentView: View {
         .fixedSize()
         .help(t.keyCaptureHelp)
         .accessibilityLabel(t.keyCapture)
-        .accessibilityValue(keyCaptureText)
+        .accessibilityValue(keyCaptureValue)
+    }
+
+    /// Short value for VoiceOver (the label already says "Key capture").
+    private var keyCaptureValue: String {
+        if !state.keyCapture { return t.valueOff }
+        if !state.sendKeys { return t.valueNotSending }
+        if state.inputMonitoring != .granted { return t.valueNeedsPermission }
+        return t.valueOn
     }
 
     private var keyCaptureText: String {

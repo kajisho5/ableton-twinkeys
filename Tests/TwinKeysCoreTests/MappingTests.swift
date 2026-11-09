@@ -73,7 +73,35 @@ final class MappingTests: XCTestCase {
         for _ in 0..<10 { _ = e.handle(down(0x09)); _ = e.handle(up(0x09)) }
         XCTAssertEqual(e.velocity, 127)
         for _ in 0..<10 { _ = e.handle(down(0x08)); _ = e.handle(up(0x08)) }
-        XCTAssertEqual(e.velocity, 1)
+        XCTAssertEqual(e.velocity, 20)   // lowest step on the 100/80/60/40/20 grid
+    }
+
+    func testVelocityStaysOnGridAndReturnsToDefault() {
+        var e = PerformanceEngine()
+        func press(_ k: UInt16) -> Int { _ = e.handle(down(k)); _ = e.handle(up(k)); return e.velocity }
+        XCTAssertEqual([press(0x09), press(0x09), press(0x09)], [120, 127, 127])
+        XCTAssertEqual([press(0x08), press(0x08), press(0x08)], [120, 100, 80])
+        for _ in 0..<10 { _ = press(0x08) }
+        XCTAssertEqual([press(0x09), press(0x09), press(0x09), press(0x09)], [40, 60, 80, 100])
+    }
+
+    func testSameNoteFromTwoKeysDoesNotCutTheOther() {
+        var e = PerformanceEngine()
+        XCTAssertEqual(e.handle(down(0x28)), [.noteOn(channel: 0, note: 72, velocity: 100)])  // K = C4
+        _ = e.handle(down(0x07)); _ = e.handle(up(0x07))                                     // octave up
+        XCTAssertEqual(e.handle(down(0x00)), [])                                             // A = C4 too
+        XCTAssertEqual(e.handle(up(0x00)), [])
+        XCTAssertEqual(e.heldNotes, [72])
+        XCTAssertEqual(e.handle(up(0x28)), [.noteOff(channel: 0, note: 72)])
+    }
+
+    func testReloadedMappingAppliesBaseOctaveAndVelocity() {
+        var e = PerformanceEngine()
+        _ = e.handle(down(0x07)); _ = e.handle(up(0x07))
+        var m = KeyMapping.default
+        m.baseOctave = 2; m.defaultVelocity = 90
+        _ = e.setMapping(m)
+        XCTAssertEqual(e.octave, 2); XCTAssertEqual(e.velocity, 90)
     }
 
     func testControlKeyRepeatDoesNotKeepChangingOctave() {

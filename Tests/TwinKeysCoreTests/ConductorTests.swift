@@ -172,6 +172,64 @@ final class ConductorTests: XCTestCase {
         XCTAssertEqual(backup.snapshot().link, .idle)   // main answered its hello with Bye
     }
 
+    func testHeldListEndsNoteWhoseNoteOffWasLostDuringOneWayOutage() {
+        connect()
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
+        XCTAssertEqual(backupMIDI.notes.last, [0x90, 60, 100])
+        // Main times out and drops the note-off; then the link recovers.
+        mainToBackupUp = false
+        step(3.5)
+        main.handleKey(KeyInput(keycode: 0x00, isDown: false)); pump()
+        mainToBackupUp = true
+        step(4)
+        XCTAssertTrue(main.snapshot().link == .connected(peer: backupID.uuidString))
+        // The first "held" list after recovery is empty, so the backup ends note 60 at once.
+        XCTAssertEqual(backupMIDI.notes.last, [0x80, 60, 0])
+    }
+
+    func testHelloOnSecondRouteCannotTakeOverLiveLink() {
+        connect()
+        // Someone else sends a hello with the backup's (public) instance ID from a new route.
+        let fake = Packet(session: 999, seq: 1, body: .hello(instanceID: backupID, name: "Fake")).encode()
+        XCTAssertNil(main.receive(fake, knownPeer: nil))      // not bound to the new route
+        XCTAssertEqual(main.snapshot().peerNames[backupID.uuidString], "Backup")
+    }
+
+    func testHelloFromMacNotOnTheNetworkIsIgnored() {
+        backup.isKnownPeer = { _ in false }
+        main.connect(to: backupID.uuidString); pump()
+        XCTAssertEqual(backup.snapshot().link, .idle)
+    }
+
+    func testPeerNameControlCharactersAreRemoved() {
+        let p = Packet(session: 5, seq: 1, body: .hello(instanceID: UUID(), name: "Evil\nMac\u{7}")).encode()
+        let id = backup.receive(p, knownPeer: nil)
+        XCTAssertEqual(backup.snapshot().peerNames[id!], "EvilMac")
+    }
+
+    func testReleaseHeldKeysEndsNotesOnBothMacs() {
+        connect()
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
+        main.releaseHeldKeys(); pump()
+        XCTAssertEqual(mainMIDI.notes.last, [0x80, 60, 0])
+        XCTAssertEqual(backupMIDI.notes.last, [0x80, 60, 0])
+        XCTAssertEqual(main.snapshot().heldNotes, [])
+    }
+
+    func testKeysAreIgnoredAfterQuitStarts() {
+        main.prepareForQuit()
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true))
+        XCTAssertFalse(mainMIDI.sent.contains([0x90, 60, 100]))
+    }
+
+    func testShortAutoOffDoesNotCutHeldNoteOnReceiver() {
+        main.setAutoNoteOff(seconds: 1); backup.setAutoNoteOff(seconds: 1)
+        connect()
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
+        step(6)
+        XCTAssertFalse(backupMIDI.sent.contains([0x80, 60, 0]))
+    }
+
     func testLogUsesPeerNames() {
         var lines: [String] = []
         main.log = { lines.append($0) }

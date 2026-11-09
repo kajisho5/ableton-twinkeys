@@ -19,9 +19,9 @@ struct SettingsView: View {
             }
             Section {
                 Stepper(value: $seconds, in: 0...120, step: 1) {
-                    Text(t.autoNoteOff(Int(seconds)))
+                    Text(seconds == 0 ? t.autoNoteOffDisabled : t.autoNoteOff(Int(seconds)))
                 }
-                .onChange(of: seconds) { model.setAutoNoteOff($0) }
+                .onChange(of: seconds) { if $0 != model.settings.autoNoteOffSeconds { model.setAutoNoteOff($0) } }
                 .accessibilityHint(t.autoNoteOffHint)
                 Text(t.autoNoteOffHelp)
                     .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
