@@ -30,8 +30,5 @@ jobs:
       xcode: ${{ inputs.xcode }}
       runner: ${{ inputs.runner }}
       # The Xcode project is generated from iOS/project.yml (XcodeGen 2.46.0, checked by SHA-256).
-      pre_build: >-
-        curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip &&
-        echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  /tmp/xcodegen.zip" | shasum -a 256 -c &&
-        unzip -q -o /tmp/xcodegen.zip -d /tmp && /tmp/xcodegen/bin/xcodegen generate
+      pre_build: ../scripts/get-xcodegen.sh && /tmp/xcodegen/bin/xcodegen generate
     secrets: inherit
