@@ -1,6 +1,6 @@
 # TwinKeys
 
-TwinKeys plays the same MIDI notes on two Macs at once. Press keys on the main Mac and the music software on **both** the main Mac and the backup Mac receives the same notes. It is meant for live shows where a main and a backup Mac run the same set side by side.
+TwinKeys fires sound cues on two Macs at once. Press a key on the main Mac and **both** the main Mac and the backup Mac receive the same MIDI note, so the same mapped clip launches in Live on both. It is meant for show playback where a backup Mac runs the same set side by side, ready to take over if the main Mac fails.
 
 > **Unofficial third-party tool.** TwinKeys is not made, endorsed or supported by Ableton or by any other DAW maker. "Ableton" and "Live" are trademarks of Ableton AG and are used here only to describe compatibility.
 
@@ -45,17 +45,19 @@ If the other Mac is not listed (for example on a network that blocks Bonjour, or
 Do this once per Mac, in Live 11 or Live 12:
 
 1. Open **Settings** (Live 12) or **Preferences** (Live 11) and choose the **Link, Tempo & MIDI** tab (labelled **Link/Tempo/MIDI** in some versions).
-2. Turn **Link** on, on both Macs, so tempo and bar position stay in sync.
+2. If your set plays to tempo or bars, turn **Link** on, on both Macs, so tempo and bar position stay in sync.
 3. In the MIDI ports list, find the input **TwinKeys** and turn on **Track** (to play instruments) and **Remote** (to trigger mapped controls such as clips or scenes).
 4. On the **main** Mac, turn **off** Live's own computer MIDI keyboard (the keyboard button in the Control Bar, shortcut M). Otherwise each key plays twice on the main Mac.
-5. Set the MIDI tracks you want to play to receive from **TwinKeys** (or "All Ins") and arm or monitor them as usual.
+5. Map your cue clips to keys in **MIDI Map Mode** (⌘M): click a clip slot, press a key on the main Mac, and leave MIDI Map Mode. Use the same mapping on both Macs (the same Set file is the safest way).
+6. Keep each clip's **Launch Mode** at **Trigger** (the default). Gate and Repeat stop the clip on key release, so they would also stop when TwinKeys turns notes off after a network drop.
+7. To play instruments instead, set MIDI tracks to receive from **TwinKeys** (or "All Ins").
 
 ## Using TwinKeys
 
 1. Open TwinKeys on both Macs on the same network (a wired network or a dedicated router is the most reliable).
 2. On the main Mac, check **Send my keys**. On the backup Mac, check **Receive notes**. (Both can be on.)
 3. In **Nearby TwinKeys**, click **Connect** next to the other Mac. The header shows **Connected to …** and the latency (heartbeat round trip).
-4. Play. The default layout follows the common DAW computer keyboard: home row A S D F G H J K L ; = white keys, W E T Y U O P = black keys, **Z / X** = octave down / up, **C / V** = velocity down / up. Keys are matched by physical position, so JIS and US keyboards behave the same.
+4. Press keys. The default layout follows the common DAW computer keyboard: home row A S D F G H J K L ; = white keys, W E T Y U O P = black keys, **Z / X** = octave down / up, **C / V** = velocity down / up. Keys are matched by physical position, so JIS and US keyboards behave the same.
 
 If the network drops, TwinKeys keeps retrying (every 1 s, slowing to every 5 s) and reconnects by itself. Notes that came from the other Mac are turned off when the link drops; notes played on the main Mac's own keys keep sounding.
 
@@ -146,7 +148,7 @@ Not planned: Windows, audio processing, automatic audio failover, setlist manage
 
 ## 日本語の概要
 
-TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らす Mac アプリです。メインの Mac でキーを押すと、メインとバックアップ両方の音楽ソフトに同じノートが届きます。ライブでメインとバックアップの2台を並べて動かす構成向けです。制作は Shogo Kajiyama / SEVENTHWELL です。
+TwinKeys は、音響のキュー出しを2台の Mac で同時に行う Mac アプリです。メインの Mac でキーを叩くと、メインとバックアップの両方の Live に同じ MIDI ノートが届き、割り当てたクリップが2台で同時に再生されます。メインの Mac が止まっても、バックアップにすぐ切り替えられる構成向けです。制作は Shogo Kajiyama / SEVENTHWELL です。
 
 > **非公式のサードパーティ製ツールです。** Ableton 社ほか DAW メーカーとは関係ありません。「Ableton」「Live」は Ableton AG の商標で、対応状況の説明のためにだけ記載しています。
 
@@ -166,7 +168,8 @@ TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らす Mac ア
 ### 使い方の流れ
 
 - 各 Mac に仮想 MIDI 入力「TwinKeys」ができます。Live の設定（「Link, Tempo & MIDI」）で TwinKeys の「トラック」と「リモート」をオンにするだけで使えます。転送用のトラックはいりません。
-- テンポと小節の位置は Ableton Link（Live に内蔵）で合わせてください。TwinKeys は扱いません。
+- キューにするクリップは、Live の MIDI 割り当てモード（⌘M）でキーに割り当てます。2台で同じ割り当てにしてください。クリップの起動モードは「トリガー」のままにしてください。
+- テンポや小節に合わせて再生するセットでは、Ableton Link（Live に内蔵）で合わせてください。TwinKeys は扱いません。
 - 最初に一度だけ、2台で同じ「合言葉」を設定します。片方の Mac で「合言葉を設定…」>「新しく作る」を押し、出てきた10文字（例 `K7MQ2-WX9TP`）を、もう片方の Mac の「合言葉を入力…」に入れます。合言葉が同じ Mac どうしだけがつながり、通信の中身も暗号化されます。
 - メインの Mac で「キーを送信」、バックアップの Mac で「ノートを受信」にチェックを入れ、メインの Mac の一覧で相手の「接続」をクリックします。切れても自動でつなぎ直します。
 - 一覧に相手が出ないときは「IPアドレスで接続…」（⇧⌘K）から、相手の IP アドレスを入れてつなげます。

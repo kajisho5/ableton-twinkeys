@@ -1,6 +1,6 @@
 # Using TwinKeys
 
-TwinKeys plays the notes you type on the main Mac on a backup Mac at the same time. Open the same Live set on both Macs, and every key you press on the main Mac plays on both.
+TwinKeys fires your sound cues on two Macs at once. Open the same Live set on both Macs and map clips to keys: each key you press on the main Mac launches the same clip on the backup Mac too. If the main Mac fails, you can switch to the backup straight away.
 
 Unofficial third-party tool. Not affiliated with Ableton.
 
@@ -27,10 +27,12 @@ Both Macs need the same pairing code. Only Macs with the same code can connect, 
 ## Live settings (both Macs)
 
 1. Open Live's Settings (Preferences in Live 11) and choose the Link, Tempo & MIDI tab.
-2. Turn on Link. Link keeps tempo and bar position in sync.
+2. If your set plays to tempo or bars, turn on Link (it keeps tempo and bar position in sync).
 3. In the MIDI ports list, turn on Track and Remote for the input TwinKeys.
 4. On the main Mac, turn off Live's Computer MIDI Keyboard (shortcut M). Otherwise each key plays twice.
-5. Set the MIDI tracks you want to play to receive from TwinKeys (or All Ins).
+5. Map your cue clips to keys: press MIDI at the top right of Live (⌘M) to enter MIDI Map Mode, click a clip slot, then press a key on the main Mac. Press MIDI again to finish. Use the same mapping on both Macs (the same Set file is the safest way).
+6. Keep each clip's Launch Mode at Trigger (the default). Gate and Repeat stop the clip when the key is released, so when TwinKeys turns notes off (for example when the network drops) those clips would stop too.
+7. To play instruments instead, set the MIDI tracks to receive from TwinKeys (or All Ins).
 
 ## Connecting
 
@@ -43,7 +45,7 @@ If the other Mac is not listed, use Connect by IP Address… (⇧⌘K) and type 
 
 If the network drops, TwinKeys reconnects by itself (every second at first, slowing to every 5 seconds).
 
-## Playing
+## Keys and notes
 
 The layout is the common DAW computer keyboard:
 

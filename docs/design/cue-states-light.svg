@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="568" height="560" viewBox="0 0 568 560">
+<rect x="0" y="0" width="568" height="560" rx="0" fill="#D9DCE3"/>
+<text x="20" y="36" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="start">メイン：届いた</text>
+<rect x="20" y="46" width="528" height="96" rx="8" fill="#FFFFFF" stroke="#D1D1D6"/>
+<text x="36" y="68" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">直前のキュー</text>
+<text x="36" y="112" fill="#1D1D1F" font-family="'SF Mono', Menlo, monospace" font-size="40" font-weight="700" text-anchor="start">C3</text>
+<text x="112" y="98" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="500" text-anchor="start">キー A</text>
+<text x="112" y="116" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">接続してから 12 回目</text>
+<line x1="282" y1="60" x2="282" y2="128" stroke="#D1D1D6"/>
+<circle cx="307" cy="90" r="9" fill="#1B7A31"/><path d="M303 90 l3 3 l5.5 -6" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="324" y="86" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="start">バックアップに届きました</text>
+<text x="324" y="104" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">Backup Stage Mac  ·  2 ms</text>
+<text x="20" y="166" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="start">メイン：届いた確認がない（約0.3秒待っても返事なし）</text>
+<rect x="20" y="176" width="528" height="96" rx="8" fill="#FFFFFF" stroke="#C0241A"/>
+<text x="36" y="198" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">直前のキュー</text>
+<text x="36" y="242" fill="#1D1D1F" font-family="'SF Mono', Menlo, monospace" font-size="40" font-weight="700" text-anchor="start">C3</text>
+<text x="112" y="228" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="500" text-anchor="start">キー A</text>
+<text x="112" y="246" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">接続してから 12 回目</text>
+<line x1="282" y1="190" x2="282" y2="258" stroke="#D1D1D6"/>
+<circle cx="307" cy="220" r="9" fill="#C0241A"/><text x="307" y="224.5" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="800" text-anchor="middle">!</text>
+<text x="324" y="216" fill="#C0241A" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="700" text-anchor="start">届いた確認がありません</text>
+<text x="324" y="234" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">バックアップでこのキューが</text>
+<text x="324" y="250" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">出ているか確かめてください</text>
+<text x="20" y="296" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="start">メイン：相手が古い版</text>
+<rect x="20" y="306" width="528" height="96" rx="8" fill="#FFFFFF" stroke="#D1D1D6"/>
+<text x="36" y="328" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">直前のキュー</text>
+<text x="36" y="372" fill="#1D1D1F" font-family="'SF Mono', Menlo, monospace" font-size="40" font-weight="700" text-anchor="start">C3</text>
+<text x="112" y="358" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="500" text-anchor="start">キー A</text>
+<text x="112" y="376" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">接続してから 12 回目</text>
+<line x1="282" y1="320" x2="282" y2="388" stroke="#D1D1D6"/>
+<circle cx="307" cy="350" r="9" fill="#5F5F64"/>
+<text x="307" y="354.5" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="800" text-anchor="middle">–</text>
+<text x="324" y="346" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="start">届いたかは確認できません</text>
+<text x="324" y="364" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">相手の TwinKeys が 1.0.0 より前です</text>
+<text x="20" y="426" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="start">バックアップ側</text>
+<rect x="20" y="436" width="528" height="96" rx="8" fill="#FFFFFF" stroke="#D1D1D6"/>
+<text x="36" y="458" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">受け取ったキュー</text>
+<text x="36" y="502" fill="#1D1D1F" font-family="'SF Mono', Menlo, monospace" font-size="40" font-weight="700" text-anchor="start">C3</text>
+<text x="112" y="488" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="500" text-anchor="start">キー A</text>
+<text x="112" y="506" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">接続してから 12 回目</text>
+<line x1="282" y1="450" x2="282" y2="518" stroke="#D1D1D6"/>
+<circle cx="307" cy="480" r="9" fill="#1B7A31"/><path d="M303 480 l3 3 l5.5 -6" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="324" y="476" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="start">メインから受け取りました</text>
+<text x="324" y="494" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">Main Stage Mac  ·  2 ms</text>
+</svg>
