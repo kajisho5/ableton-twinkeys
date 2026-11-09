@@ -12,8 +12,8 @@ final class ProtocolTests: XCTestCase {
     }
 
     func testRoundTripAllTypes() throws {
-        try roundTrip(.hello(instanceID: id, name: "Stage Mac A"))
-        try roundTrip(.helloAck(instanceID: id, name: ""))
+        try roundTrip(.hello(instanceID: id, nonce: Array(1...16), name: "Stage Mac A"))
+        try roundTrip(.helloAck(instanceID: id, nonce: Array(repeating: 7, count: 16), name: ""))
         try roundTrip(.bye)
         try roundTrip(.noteOn(channel: 15, note: 127, velocity: 1))
         try roundTrip(.noteOff(channel: 0, note: 0))
@@ -26,13 +26,13 @@ final class ProtocolTests: XCTestCase {
 
     func testHeaderLayout() {
         let b = Packet(session: 1, seq: 2, body: .noteOn(channel: 0, note: 60, velocity: 100)).encode()
-        XCTAssertEqual(b, [0x54, 0x4B, 1, 0x10, 0, 0, 0, 1, 0, 0, 0, 2, 0, 60, 100])
+        XCTAssertEqual(b, [0x54, 0x4B, 2, 0x10, 0, 0, 0, 1, 0, 0, 0, 2, 0, 60, 100])
     }
 
     func testLongNameIsTruncatedOnCharacterBoundary() throws {
         let name = String(repeating: "鍵", count: 20)   // 3 bytes each
-        let p = try Packet.decode(Packet(session: 1, seq: 1, body: .hello(instanceID: id, name: name)).encode())
-        guard case let .hello(_, n) = p.body else { return XCTFail() }
+        let p = try Packet.decode(Packet(session: 1, seq: 1, body: .hello(instanceID: id, nonce: Array(repeating: 0, count: 16), name: name)).encode())
+        guard case let .hello(_, _, n) = p.body else { return XCTFail() }
         XCTAssertEqual(n, String(repeating: "鍵", count: 10))
     }
 
@@ -40,11 +40,11 @@ final class ProtocolTests: XCTestCase {
         XCTAssertThrowsError(try Packet.decode([0x54, 0x4B, 1])) { XCTAssertEqual($0 as? DecodeError, .tooShort) }
         XCTAssertThrowsError(try Packet.decode([0x00, 0x4B, 1, 0x20, 0, 0, 0, 0, 0, 0, 0, 0])) { XCTAssertEqual($0 as? DecodeError, .badMagic) }
         XCTAssertThrowsError(try Packet.decode([0x54, 0x4B, 9, 0x20, 0, 0, 0, 0, 0, 0, 0, 0])) { XCTAssertEqual($0 as? DecodeError, .unsupportedVersion(9)) }
-        XCTAssertThrowsError(try Packet.decode([0x54, 0x4B, 1, 0x77, 0, 0, 0, 0, 0, 0, 0, 0])) { XCTAssertEqual($0 as? DecodeError, .unknownType(0x77)) }
+        XCTAssertThrowsError(try Packet.decode([0x54, 0x4B, 2, 0x77, 0, 0, 0, 0, 0, 0, 0, 0])) { XCTAssertEqual($0 as? DecodeError, .unknownType(0x77)) }
         // Note number 200 is not valid MIDI.
-        XCTAssertThrowsError(try Packet.decode([0x54, 0x4B, 1, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200, 100])) { XCTAssertEqual($0 as? DecodeError, .badPayload) }
+        XCTAssertThrowsError(try Packet.decode([0x54, 0x4B, 2, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200, 100])) { XCTAssertEqual($0 as? DecodeError, .badPayload) }
         // Truncated payload.
-        XCTAssertThrowsError(try Packet.decode([0x54, 0x4B, 1, 0x30, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2])) { XCTAssertEqual($0 as? DecodeError, .badPayload) }
+        XCTAssertThrowsError(try Packet.decode([0x54, 0x4B, 2, 0x30, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2])) { XCTAssertEqual($0 as? DecodeError, .badPayload) }
     }
 
     func testSequenceFilterDropsDuplicatesAndReordered() {
@@ -89,8 +89,8 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(p, PeerInfo(id: "other", name: "Backup", sends: false, receives: true))
         XCTAssertEqual(p?.modeText, "Receive")
         XCTAssertEqual(TXTKeys.modes(sends: true, receives: true), "sr")
-        XCTAssertTrue(TXTKeys.peer(from: ["id": "x", "v": "1"], serviceName: "A", ownID: "me")!.isCompatible)
-        XCTAssertFalse(TXTKeys.peer(from: ["id": "x", "v": "2"], serviceName: "A", ownID: "me")!.isCompatible)
+        XCTAssertTrue(TXTKeys.peer(from: ["id": "x", "v": "2"], serviceName: "A", ownID: "me")!.isCompatible)
+        XCTAssertFalse(TXTKeys.peer(from: ["id": "x", "v": "1"], serviceName: "A", ownID: "me")!.isCompatible)
         XCTAssertTrue(TXTKeys.isDuplicateOfUs(["id": "me", "boot": "b2"], ownID: "me", ownBoot: "b1"))
         XCTAssertFalse(TXTKeys.isDuplicateOfUs(["id": "me", "boot": "b1"], ownID: "me", ownBoot: "b1"))
         XCTAssertFalse(TXTKeys.isDuplicateOfUs(["id": "other", "boot": "b2"], ownID: "me", ownBoot: "b1"))

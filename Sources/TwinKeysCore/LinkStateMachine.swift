@@ -60,6 +60,15 @@ public struct LinkStateMachine: Sendable {
         min(maxRetry, minRetry * Double(1 << min(max(attempt - 1, 0), 8)))
     }
 
+    /// A placeholder peer (for example "manual:192.168.1.20") turned out to be `real`.
+    public mutating func renamePeer(from old: String, to real: String) {
+        switch state {
+        case let .connecting(p, a, n) where p == old: state = .connecting(peer: real, attempt: a, nextRetryAt: n)
+        case let .connected(p) where p == old: state = .connected(peer: real)
+        default: break
+        }
+    }
+
     // MARK: - Inputs
 
     /// User pressed Connect.

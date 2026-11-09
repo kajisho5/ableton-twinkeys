@@ -33,6 +33,18 @@ final class ConductorTests: XCTestCase {
         backup = Conductor(instanceID: backupID, displayName: "Backup", mapping: .default, settings: b,
                            midi: backupMIDI, net: backupNet, session: 2,
                            clock: { [unowned self] in now }, nanos: { [unowned self] in UInt64(now * 1e9) })
+        main.setPairing(secret)
+        backup.setPairing(secret)
+    }
+
+    /// Both test Macs share this pairing key.
+    let secret = PairingSecret(keyBytes: Array(repeating: 42, count: 32))
+    /// Someone who knows the pairing key (to build signed hellos by hand).
+    lazy var signer = SecureChannel(secret: secret)
+    func signedHello(_ id: UUID, _ name: String, session: UInt32, seq: UInt32 = 1, ack: Bool = false) -> [UInt8] {
+        let body: PacketBody = ack ? .helloAck(instanceID: id, nonce: signer.myNonce, name: name)
+                                   : .hello(instanceID: id, nonce: signer.myNonce, name: name)
+        return signer.seal(Packet(session: session, seq: seq, body: body), peerNonce: nil)!
     }
 
     /// Deliver everything queued in both directions until quiet.
@@ -190,17 +202,64 @@ final class ConductorTests: XCTestCase {
     func testHelloOnSecondRouteCannotTakeOverLiveLink() {
         connect()
         // Someone else sends a hello with the backup's (public) instance ID from a new route.
-        let fake = Packet(session: 999, seq: 1, body: .hello(instanceID: backupID, name: "Fake")).encode()
+        let fake = signedHello(backupID, "Fake", session: 999)   // e.g. a replayed hello
         XCTAssertNil(main.receive(fake, knownPeer: nil))      // not bound to the new route
         XCTAssertEqual(main.snapshot().peerNames[backupID.uuidString], "Backup")
     }
 
-    func testHelloFromMacNotOnTheNetworkIsIgnored() {
-        backup.isKnownPeer = { _ in false }
-        main.connect(to: backupID.uuidString)
-        // A first hello arrives on a new route (not yet bound to any peer).
-        for (_, bytes) in mainNet.outbox { XCTAssertNil(backup.receive(bytes, knownPeer: nil)) }
+    func testMacWithAnotherPairingCodeCannotLink() {
+        backup.setPairing(PairingSecret(keyBytes: Array(repeating: 7, count: 32)))
+        main.connect(to: backupID.uuidString); pump()
         XCTAssertEqual(backup.snapshot().link, .idle)
+        XCTAssertNotEqual(main.snapshot().link, .connected(peer: backupID.uuidString))
+        // The visible Mac is labelled as having another code.
+        XCTAssertEqual(backup.snapshot().mismatchedPeers, [mainID.uuidString])
+    }
+
+    func testWithoutPairingCodeNothingLinks() {
+        main.setPairing(nil)
+        main.connect(to: backupID.uuidString); pump()
+        XCTAssertTrue(mainNet.outbox.isEmpty)
+        XCTAssertFalse(main.snapshot().isPaired)
+        XCTAssertEqual(backup.snapshot().link, .idle)
+    }
+
+    func testTamperedOrForgedNotesAreDropped() {
+        connect()
+        // A note forged by someone without the key, on the main Mac's route.
+        let forged = Packet(session: 1, seq: 999, body: .noteOn(channel: 0, note: 61, velocity: 127)).encode()
+        backup.receive(forged + Array(repeating: 0, count: 16), knownPeer: mainID.uuidString)
+        // A real sealed note with one byte flipped.
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true))
+        var real = mainNet.outbox.removeFirst().bytes
+        real[real.count - 20] ^= 1
+        backup.receive(real, knownPeer: mainID.uuidString)
+        XCTAssertFalse(backupMIDI.sent.contains { $0[0] == 0x90 })
+    }
+
+    func testTrafficFromAnEarlierRunCannotBeReplayed() {
+        connect()
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true))
+        let captured = mainNet.outbox.map(\.bytes)
+        pump()
+        main.handleKey(KeyInput(keycode: 0x00, isDown: false)); pump()
+        // The backup restarts (new nonce); later someone replays the captured note-on.
+        backup.setPairing(secret)
+        let before = backupMIDI.sent.count
+        for b in captured { backup.receive(b, knownPeer: mainID.uuidString) }
+        XCTAssertEqual(backupMIDI.sent.count, before)
+    }
+
+    func testConnectByAddressLearnsTheRealPeer() {
+        // Main knows only a placeholder for the backup (typed IP address).
+        main.connect(to: "manual:192.0.2.10")
+        // Deliver main's hello to the backup on a fresh route; the ack comes back on the placeholder route.
+        for (_, bytes) in mainNet.outbox { _ = backup.receive(bytes, knownPeer: nil) }
+        mainNet.outbox.removeAll()
+        for (_, bytes) in backupNet.outbox { XCTAssertEqual(main.receive(bytes, knownPeer: "manual:192.0.2.10"), backupID.uuidString) }
+        backupNet.outbox.removeAll()
+        XCTAssertEqual(main.snapshot().link, .connected(peer: backupID.uuidString))
+        XCTAssertEqual(main.snapshot().peerNames[backupID.uuidString], "Backup")
     }
 
     func testHelloOnBoundRouteAcceptedEvenIfBonjourEntryExpired() {
@@ -229,7 +288,7 @@ final class ConductorTests: XCTestCase {
     }
 
     func testHelloAckFromStrangerIsNotBound() {
-        let ack = Packet(session: 3, seq: 1, body: .helloAck(instanceID: UUID(), name: "x")).encode()
+        let ack = signedHello(UUID(), "x", session: 3, ack: true)
         XCTAssertNil(backup.receive(ack, knownPeer: nil))
     }
 
@@ -250,7 +309,7 @@ final class ConductorTests: XCTestCase {
     }
 
     func testPeerNameControlCharactersAreRemoved() {
-        let p = Packet(session: 5, seq: 1, body: .hello(instanceID: UUID(), name: "Evil\nMac\u{7}")).encode()
+        let p = signedHello(UUID(), "Evil\nMac\u{7}", session: 5)
         let id = backup.receive(p, knownPeer: nil)
         XCTAssertEqual(backup.snapshot().peerNames[id!], "EvilMac")
     }
@@ -291,10 +350,10 @@ final class ConductorTests: XCTestCase {
         XCTAssertNil(backup.receive(note, knownPeer: nil))
         XCTAssertEqual(backupMIDI.sent, [])
         // A note from a known route but without a link is also ignored.
-        XCTAssertEqual(backup.receive(note, knownPeer: "stranger"), "stranger")
+        XCTAssertNil(backup.receive(note, knownPeer: "stranger"))   // cannot be decrypted: dropped
         XCTAssertEqual(backupMIDI.sent, [])
         // Our own hello coming back (e.g. multicast loop) is ignored.
-        let own = Packet(session: 9, seq: 2, body: .hello(instanceID: backupID, name: "x")).encode()
+        let own = signedHello(backupID, "x", session: 9, seq: 2)
         XCTAssertNil(backup.receive(own, knownPeer: nil))
     }
 
