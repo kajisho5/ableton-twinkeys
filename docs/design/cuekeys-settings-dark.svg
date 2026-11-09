@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="600" viewBox="0 0 640 600">
+<rect x="0" y="0" width="640" height="600" rx="0" fill="#0E0F12"/>
+<g transform="translate(20,20)">
+<rect x="0" y="0" width="600" height="560" rx="10" fill="#1F1F21" stroke="#3D3D40"/>
+<path d="M0.5 10.5 a10 10 0 0 1 10 -10 H589.5 a10 10 0 0 1 10 10 V28 H0.5 Z" fill="#2A2A2C"/>
+<line x1="0" y1="28" x2="600" y2="28" stroke="#3D3D40"/>
+<circle cx="14" cy="14" r="6" fill="#FF5F57"/>
+<circle cx="34" cy="14" r="6" fill="#FEBC2E"/>
+<circle cx="54" cy="14" r="6" fill="#28C840"/>
+<text x="300.0" y="18.5" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">設定</text>
+<text x="24" y="58" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">キューのキー</text>
+<rect x="20" y="66" width="560" height="292" rx="8" fill="#2C2C2E" stroke="#3D3D40"/>
+<text x="36" y="90" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">キー</text>
+<text x="140" y="90" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">メモ（自分用の名前）</text>
+<text x="450" y="90" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">MIDI</text>
+<line x1="36" y1="100" x2="564" y2="100" stroke="#3D3D40"/>
+<rect x="36" y="107" width="34" height="26" rx="5" fill="#3A3A3C" stroke="#7C7C80"/><text x="53.0" y="125" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">↑</text>
+<rect x="140" y="107" width="270" height="26" rx="5" fill="#1C1C1E" stroke="#7C7C80"/>
+<text x="148" y="125" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">前のシーン</text>
+<text x="450" y="125" fill="#AEAEB2" font-family="'SF Mono', Menlo, monospace" font-size="12" font-weight="400" text-anchor="start">ch 2 · C1</text>
+<text x="548" y="125" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="18" font-weight="500" text-anchor="middle">−</text>
+<line x1="36" y1="140" x2="564" y2="140" stroke="#3D3D40"/>
+<rect x="36" y="147" width="34" height="26" rx="5" fill="#3A3A3C" stroke="#7C7C80"/><text x="53.0" y="165" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">↓</text>
+<rect x="140" y="147" width="270" height="26" rx="5" fill="#1C1C1E" stroke="#7C7C80"/>
+<text x="148" y="165" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">次のシーン</text>
+<text x="450" y="165" fill="#AEAEB2" font-family="'SF Mono', Menlo, monospace" font-size="12" font-weight="400" text-anchor="start">ch 2 · C♯1</text>
+<text x="548" y="165" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="18" font-weight="500" text-anchor="middle">−</text>
+<line x1="36" y1="180" x2="564" y2="180" stroke="#3D3D40"/>
+<rect x="36" y="187" width="61" height="26" rx="5" fill="#3A3A3C" stroke="#7C7C80"/><text x="66.5" y="205" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">Space</text>
+<rect x="140" y="187" width="270" height="26" rx="5" fill="#1C1C1E" stroke="#7C7C80"/>
+<text x="148" y="205" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">再生</text>
+<text x="450" y="205" fill="#AEAEB2" font-family="'SF Mono', Menlo, monospace" font-size="12" font-weight="400" text-anchor="start">ch 2 · D1</text>
+<text x="548" y="205" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="18" font-weight="500" text-anchor="middle">−</text>
+<line x1="36" y1="220" x2="564" y2="220" stroke="#3D3D40"/>
+<rect x="36" y="227" width="70" height="26" rx="5" fill="#3A3A3C" stroke="#7C7C80"/><text x="71.0" y="245" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">Return</text>
+<rect x="140" y="227" width="270" height="26" rx="5" fill="#1C1C1E" stroke="#7C7C80"/>
+<text x="148" y="245" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">選んだシーンを再生</text>
+<text x="450" y="245" fill="#AEAEB2" font-family="'SF Mono', Menlo, monospace" font-size="12" font-weight="400" text-anchor="start">ch 2 · D♯1</text>
+<text x="548" y="245" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="18" font-weight="500" text-anchor="middle">−</text>
+<line x1="36" y1="260" x2="564" y2="260" stroke="#3D3D40"/>
+<rect x="36" y="267" width="43" height="26" rx="5" fill="#3A3A3C" stroke="#7C7C80"/><text x="57.5" y="285" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">Esc</text>
+<rect x="140" y="267" width="270" height="26" rx="5" fill="#1C1C1E" stroke="#7C7C80"/>
+<text x="148" y="285" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">停止</text>
+<text x="450" y="285" fill="#AEAEB2" font-family="'SF Mono', Menlo, monospace" font-size="12" font-weight="400" text-anchor="start">ch 2 · E1</text>
+<text x="548" y="285" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="18" font-weight="500" text-anchor="middle">−</text>
+<line x1="36" y1="300" x2="564" y2="300" stroke="#3D3D40"/>
+<rect x="36" y="312" width="170" height="28" rx="6" fill="#1A66CC"/><text x="121.0" y="330.5" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">キーを追加…</text>
+<text x="218" y="331" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">追加を押して、登録したいキーを押します</text>
+<rect x="20" y="372" width="560" height="150" rx="8" fill="#2C2C2E" stroke="#3D3D40"/>
+<rect x="36" y="388" width="14" height="14" rx="3" fill="#1A66CC"/><path d="M39.5 395.2 l2.7 2.8 l4.6 -5.6" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="58" y="400" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">キューのキーを、ほかのアプリに渡さない（おすすめ）</text>
+<text x="58" y="418" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">メインの Live が矢印キーやスペースにも反応して、2回動くのを防ぎます。</text>
+<text x="58" y="434" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">「アクセシビリティ」の許可が必要です。キー入力をオフにすると、ふだんどおり使えます。</text>
+<line x1="36" y1="450" x2="564" y2="450" stroke="#3D3D40"/>
+<rect x="36.5" y="466.5" width="13" height="13" rx="3" fill="#1C1C1E" stroke="#7C7C80"/>
+<text x="58" y="478" fill="#F2F2F7" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">ピアノ配列のキーも使う（A〜; で音階、Z/X でオクターブ）</text>
+<text x="58" y="496" fill="#AEAEB2" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">楽器を鳴らすとき用です。キュー出しではオフにしておくと、押し間違いで音が変わりません。</text>
+</g>
+</svg>
