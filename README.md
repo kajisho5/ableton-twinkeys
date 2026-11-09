@@ -14,7 +14,8 @@ TwinKeys fires sound cues on two Macs at once. Press a key on the main Mac and *
 ## How it works
 
 - Each Mac runs TwinKeys. Each TwinKeys creates a virtual MIDI input called **TwinKeys**, so your music software sees it like a normal MIDI device. You do not need a forwarding track in your set.
-- On the main Mac (**Send my keys**), TwinKeys watches the keyboard, turns key presses into notes, plays them on its own TwinKeys port and sends them over the local network to the other Mac.
+- On the main Mac (**Send my keys**), TwinKeys watches the keyboard, turns presses of its **cue keys** (↑ ↓ Space Return Esc to begin with; any key can be added) into fixed MIDI notes, plays them on its own TwinKeys port and sends them over the local network to the other Mac. Cue keys can be kept from other apps, so Live on the main Mac reacts only to TwinKeys' MIDI, just like the backup.
+- The backup answers every cue. The main Mac shows the last cue, a count both Macs share, and whether the backup confirmed it (sent again for up to 0.3 s, then shown in red).
 - On the backup Mac (**Receive notes**), TwinKeys plays the notes it receives on its own TwinKeys port.
 - Tempo and bar position are **not** handled by TwinKeys. Use Ableton Link (built into Live) for that.
 - The two Macs find each other automatically with Bonjour (or by IP address). A small UDP protocol carries note on/off, heartbeats and All Notes Off, signed and encrypted with keys from a shared pairing code. Each note is sent twice; duplicates and out-of-order packets are dropped.
@@ -23,6 +24,7 @@ TwinKeys fires sound cues on two Macs at once. Press a key on the main Mac and *
 
 1. Download `TwinKeys-<version>.dmg` from the [Releases page](https://github.com/kajisho5/ableton-twinkeys/releases), open it and drag **TwinKeys** to **Applications**. The app is signed with a Developer ID and notarized by Apple, so it opens normally.
 2. **Input Monitoring** (main Mac only, needed for key capture): click **Open System Settings…** in the TwinKeys window, turn on TwinKeys under **Privacy & Security → Input Monitoring**, then click **Check Again** (or reopen TwinKeys).
+   **Accessibility** (main Mac only, to keep cue keys from other apps): turn on TwinKeys under **Privacy & Security → Accessibility**.
 3. **Local Network** (both Macs, macOS 15 or later): when macOS asks whether TwinKeys may find devices on your local network, click **Allow**. If you clicked Don't Allow, turn it on in **System Settings → Privacy & Security → Local Network**.
 4. **Firewall:** if macOS asks whether TwinKeys may accept incoming network connections, click **Allow**.
 
@@ -47,17 +49,19 @@ Do this once per Mac, in Live 11 or Live 12:
 1. Open **Settings** (Live 12) or **Preferences** (Live 11) and choose the **Link, Tempo & MIDI** tab (labelled **Link/Tempo/MIDI** in some versions).
 2. If your set plays to tempo or bars, turn **Link** on, on both Macs, so tempo and bar position stay in sync.
 3. In the MIDI ports list, find the input **TwinKeys** and turn on **Track** (to play instruments) and **Remote** (to trigger mapped controls such as clips or scenes).
-4. On the **main** Mac, turn **off** Live's own computer MIDI keyboard (the keyboard button in the Control Bar, shortcut M). Otherwise each key plays twice on the main Mac.
-5. Map your cue clips to keys in **MIDI Map Mode** (⌘M): click a clip slot, press a key on the main Mac, and leave MIDI Map Mode. Use the same mapping on both Macs (the same Set file is the safest way).
-6. Keep each clip's **Launch Mode** at **Trigger** (the default). Gate and Repeat stop the clip on key release, so they would also stop when TwinKeys turns notes off after a network drop.
-7. To play instruments instead, set MIDI tracks to receive from **TwinKeys** (or "All Ins").
+4. Map your cues in **MIDI Map Mode** (⌘M): click a clip slot, scene up/down, launch selected scene, Play or Stop, press a cue key on the main Mac, and leave MIDI Map Mode. Use the same mapping on both Macs (the same Set file is the safest way). Remove the same keys from Live's Key Map Mode (⌘K).
+5. Keep each clip's **Launch Mode** at **Trigger** (the default). Gate and Repeat stop the clip on key release, so they would also stop when TwinKeys turns notes off after a network drop.
+6. To play instruments with the optional piano layout, set MIDI tracks to receive from **TwinKeys** (or "All Ins") and turn **off** Live's computer MIDI keyboard on the main Mac (shortcut M).
 
 ## Using TwinKeys
 
 1. Open TwinKeys on both Macs on the same network (a wired network or a dedicated router is the most reliable).
 2. On the main Mac, check **Send my keys**. On the backup Mac, check **Receive notes**. (Both can be on.)
 3. In **Nearby TwinKeys**, click **Connect** next to the other Mac. The header shows **Connected to …** and the latency (heartbeat round trip).
-4. Press keys. The default layout follows the common DAW computer keyboard: home row A S D F G H J K L ; = white keys, W E T Y U O P = black keys, **Z / X** = octave down / up, **C / V** = velocity down / up. Keys are matched by physical position, so JIS and US keyboards behave the same.
+4. Press cue keys. Each sends a fixed note on MIDI channel 2 (from C1 up), whatever the octave. Add keys and memos in **Settings → Cue Keys**.
+5. Optional piano layout (Settings → "Also use the piano layout", off on a new install): home row A S D F G H J K L ; = white keys, W E T Y U O P = black keys, **Z / X** = octave down / up, **C / V** = velocity down / up. Keys are matched by physical position, so JIS and US keyboards behave the same.
+
+**Updates:** TwinKeys downloads new versions in the background and replaces itself **only when it quits** (never during a show). **Restart Now** appears only while not connected. **Menu bar:** a keyboard icon shows the link (filled = connected) and has a menu; closing the window keeps TwinKeys running. Open at Login and menu-bar-only are in Settings.
 
 If the network drops, TwinKeys keeps retrying (every 1 s, slowing to every 5 s) and reconnects by itself. Notes that came from the other Mac are turned off when the link drops; notes played on the main Mac's own keys keep sounding.
 
@@ -101,6 +105,9 @@ Keys pressed together with ⌘, ⌃, ⌥ or ⇧ never play notes, so shortcuts i
 | Virtual port name | `TwinKeys` | `Sources/TwinKeys/AppModel.swift` |
 | Heartbeat / timeout / retry | 1 s / 3 s / 1–5 s | `Sources/TwinKeysCore/LinkStateMachine.swift` |
 | Copies of each note packet | 2 | `Sources/TwinKeysCore/Conductor.swift` (`redundancy`) |
+| Cue resend / give up | every 0.1 s / after 0.3 s | `Sources/TwinKeysCore/Conductor.swift` (`cueResendInterval`, `cueAnswerTimeout`) |
+| Cue keys: channel / first note | 2 / C1 (36) | `Sources/TwinKeysCore/CueKeys.swift` |
+| Update check | 1 min after launch, then every 6 h | `Sources/TwinKeysCore/Updates.swift` |
 | Default auto note-off | 10 s | `Sources/TwinKeysCore/Settings.swift` |
 | Default MIDI channel | 1 | `settings.json` (`midi_channel`) |
 | UDP port | 47801 (falls back to any free port) | `Sources/TwinKeys/NetworkService.swift` (`fixedPort`) |
@@ -139,7 +146,6 @@ TwinKeys is made by **Shogo Kajiyama / SEVENTHWELL**. Released under the MIT Lic
 ## Roadmap
 
 - RTP-MIDI (AppleMIDI) compatibility (v2 candidate)
-- Menu bar mode (v2 candidate)
 - Planned v1.x additions: several backups at once, remote MIDI ports, named virtual ports and routing, presets, status of both Macs, watchdog alarm, event log.
 
 Not planned: Windows, audio processing, automatic audio failover, setlist management.
@@ -168,12 +174,17 @@ TwinKeys は、音響のキュー出しを2台の Mac で同時に行う Mac ア
 ### 使い方の流れ
 
 - 各 Mac に仮想 MIDI 入力「TwinKeys」ができます。Live の設定（「Link, Tempo & MIDI」）で TwinKeys の「トラック」と「リモート」をオンにするだけで使えます。転送用のトラックはいりません。
-- キューにするクリップは、Live の MIDI 割り当てモード（⌘M）でキーに割り当てます。2台で同じ割り当てにしてください。クリップの起動モードは「トリガー」のままにしてください。
+- キューを出すキーは「設定」の「キューのキー」で決めます（最初は ↑ ↓ Space Return Esc）。キーごとに決まったノート（MIDI チャンネル 2、C1 から順）を送ります。オクターブを変えても変わりません。
+- Live の MIDI 割り当てモード（⌘M）で、クリップ・シーンの上下・選んだシーンの再生・再生／停止などを、キューのキーに割り当てます。2台で同じ割り当てにしてください。クリップの起動モードは「トリガー」のままにしてください。
+- メインの Mac では「アクセシビリティ」で TwinKeys をオンにします。キューのキーがほかのアプリ（Live を含む）に届かなくなり、メインの Live が2回動くのを防ぎます。
+- 画面の「直前のキュー」に、押したキー・メモ・接続してからの回数と、バックアップに届いたか（✓／赤い「届いた確認がありません」）が出ます。
+- 新しいバージョンは自動でダウンロードし、TwinKeys を終了したときだけ入れ替えます。本番中に入れ替えることはありません。
+- メニューバーに鍵盤のアイコンが出ます。ウインドウを閉じても TwinKeys は動き続けます。
 - テンポや小節に合わせて再生するセットでは、Ableton Link（Live に内蔵）で合わせてください。TwinKeys は扱いません。
 - 最初に一度だけ、2台で同じ「合言葉」を設定します。片方の Mac で「合言葉を設定…」>「新しく作る」を押し、出てきた10文字（例 `K7MQ2-WX9TP`）を、もう片方の Mac の「合言葉を入力…」に入れます。合言葉が同じ Mac どうしだけがつながり、通信の中身も暗号化されます。
 - メインの Mac で「キーを送信」、バックアップの Mac で「ノートを受信」にチェックを入れ、メインの Mac の一覧で相手の「接続」をクリックします。切れても自動でつなぎ直します。
 - 一覧に相手が出ないときは「IPアドレスで接続…」（⇧⌘K）から、相手の IP アドレスを入れてつなげます。
-- メインの Mac では、Live のコンピュータ MIDI キーボードをオフにしてください。オンのままだと同じ音が2回鳴ります。
+- ピアノ配列のキー（A〜;）で楽器を鳴らすときは、「設定」で「ピアノ配列のキーも使う」をオンにし、メインの Mac の Live のコンピュータ MIDI キーボードをオフにしてください。
 - 赤い「オールノートオフ」ボタン（⌃⌘P）で、両方の Mac の音をすべて止められます。
 - 表示言語は「設定」（⌘,）の「言語」で、「システムに合わせる」「English」「日本語」から選べます。
 
@@ -181,5 +192,5 @@ TwinKeys は、音響のキュー出しを2台の Mac で同時に行う Mac ア
 
 - 音声そのものの自動切り替え（オーディオフェイルオーバー）は対象外です。専用の機材が必要です。
 - つなげるのは、同じ合言葉を設定した Mac だけです。合言葉が漏れたときは「新しく作る」で作り直してください。
-- 0.5.0 からは 0.4.x 以前の TwinKeys とはつながりません。2台とも同じバージョンにしてください。
+- 0.5.0 からは 0.4.x 以前の TwinKeys とはつながりません。届いたかの確認は 1.0.0 どうしで使えます。2台とも同じバージョンにしてください。
 - Wi-Fi は遅れが揺れやすいので、有線ネットワークをおすすめします。
