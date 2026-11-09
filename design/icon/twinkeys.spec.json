@@ -1,0 +1,16 @@
+{
+  "background": "gradient:#2E3D5C,#0F1522",
+  "darkBackground": "gradient:#1B2335,#06090F",
+  "groups": [
+    {
+      "name": "K",
+      "props": { "translucency": { "enabled": false, "value": 0.5 } },
+      "layers": [{ "file": "src/letter-k.svg", "name": "K", "props": { "glass": true } }]
+    },
+    {
+      "name": "T",
+      "props": { "translucency": { "enabled": false, "value": 0.5 } },
+      "layers": [{ "file": "src/letter-t.svg", "name": "T", "props": { "glass": true } }]
+    }
+  ]
+}

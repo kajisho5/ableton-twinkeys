@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: Build, test and package (macOS)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Unit tests
+        run: swift test
+      - name: Build universal .app
+        run: scripts/build-app.sh "0.0.0-ci.${GITHUB_RUN_NUMBER}" "${GITHUB_RUN_NUMBER}"
+      - name: Check bundle
+        run: |
+          plutil -p dist/TwinKeys.app/Contents/Info.plist
+          ls -l dist/TwinKeys.app/Contents/Resources
+      - name: Launch smoke test (starts, stays up 5 s, quits)
+        run: |
+          dist/TwinKeys.app/Contents/MacOS/TwinKeys > smoke.log 2>&1 &
+          PID=$!
+          START=$(date +%s)
+          sleep 5
+          if ! kill -0 $PID 2>/dev/null; then echo "TwinKeys exited early"; cat smoke.log; exit 1; fi
+          # RSS counts shared system framework pages; "footprint" is what Activity Monitor shows as Memory.
+          ps -o rss= -p $PID | awk '{printf "Resident (RSS): %.1f MB\n", $1/1024}' | tee memory.txt
+          footprint -p $PID 2>/dev/null | grep -iE "^\s*(TwinKeys|Footprint|phys_footprint)|Footprint:" | head -5 | tee -a memory.txt || true
+          vmmap --summary $PID 2>/dev/null | grep -iE "Physical footprint" | tee -a memory.txt || true
+          kill -TERM $PID || true
+          sleep 1
+          cat smoke.log || true
+          ls -la ~/Library/Logs/TwinKeys/ ~/Library/Application\ Support/TwinKeys/ || true
+          cat ~/Library/Logs/TwinKeys/*.log || true
+      - name: End-to-end check (network notes come out of the TwinKeys MIDI port)
+        # macOS Local Network privacy silently blocks Bonjour for an .app that nobody can
+        # answer the permission prompt for (CI has no user). The same build, run as a plain
+        # executable from the shell, is not subject to it, so the check uses that binary.
+        run: |
+          BIN=$(find .build -path '*Release/TwinKeys' -type f -perm +111 | head -1)
+          echo "Using $BIN"
+          "$BIN" > e2e-app.log 2>&1 &
+          PID=$!
+          sleep 3
+          echo "--- Bonjour services seen by macOS (dns-sd, 5 s)"
+          (dns-sd -B _twinkeys._udp local. & DPID=$!; sleep 5; kill $DPID) || true
+          echo "--- UDP sockets of TwinKeys"
+          lsof -nP -iUDP -a -p $PID || true
+          set +e
+          swift scripts/e2e-midi.swift 2>&1 | tee e2e.txt
+          RESULT=${PIPESTATUS[0]}
+          set -e
+          kill -TERM $PID || true
+          echo "--- TwinKeys log"; cat ~/Library/Logs/TwinKeys/*.log || true
+          exit $RESULT
+      - name: Screenshots (light / dark)
+        run: dist/TwinKeys.app/Contents/MacOS/TwinKeys --snapshot "$PWD/screenshots"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: TwinKeys-app
+          path: dist/*.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: |
+            screenshots/*.png
+            memory.txt
+            e2e.txt

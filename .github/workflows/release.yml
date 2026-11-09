@@ -1,0 +1,183 @@
+name: Release
+
+# Publishes a signed and notarized TwinKeys (universal .app in a .dmg).
+#  - Change the VERSION file on main (for example to 0.4.0): if release v0.4.0 does not exist
+#    yet, it is built, signed, notarized, checked on a clean Mac and published (the tag is created
+#    on that commit).
+#  - Pushing a tag like v1.0.0, or running this workflow by hand with a version, also works.
+# Developer ID signing and Apple notarization are done by kajisho5/runway (mac-notarize.yml).
+# Certificates live in kajisho5/hanger; the secrets are copied here by runway's sync-secrets
+# (this repository is listed in runway's repos.txt).
+on:
+  push:
+    branches: [main]      # releases come only from main
+    paths: ["VERSION"]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (for example 1.0.0). Empty: build and notarize only, do not publish"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+# One run per commit, never cancelled: a version pushed in between is not dropped.
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Passed through the environment, never pasted into the script (no script injection).
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            ver="${GITHUB_REF_NAME#v}"; release=true
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            ver="${INPUT_VERSION#v}"; release=true
+            [ -n "$ver" ] || { ver="$(tr -d '[:space:]' < VERSION)"; release=false; }
+          else
+            ver="$(tr -d '[:space:]' < VERSION)"
+            if gh release view "v$ver" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Release v$ver already exists; nothing to publish."; release=false
+            else
+              release=true
+            fi
+          fi
+          if ! printf '%s' "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::Not a valid version: $ver"; exit 1
+          fi
+          # A tag with this name that points at another commit would make the release
+          # describe one commit while shipping another: stop instead.
+          if [ "$release" = true ]; then
+            tag_sha=$(git ls-remote --tags "https://github.com/$GITHUB_REPOSITORY" "refs/tags/v$ver^{}" "refs/tags/v$ver" | head -1 | cut -f1)
+            if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then
+              echo "::error::Tag v$ver already exists on $tag_sha, not on $GITHUB_SHA. Use a new version."; exit 1
+            fi
+          fi
+          echo "Version $ver / publish: $release"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: check
+    if: needs.check.outputs.release == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift test
+
+  # Build -> Developer ID signature (hardened runtime) -> notarization -> stapled .dmg
+  mac:
+    needs: [check, test]
+    uses: kajisho5/runway/.github/workflows/mac-notarize.yml@main
+    with:
+      name: TwinKeys
+      version: ${{ needs.check.outputs.version }}
+      runner: macos-26
+      build: scripts/build-app.sh "${{ needs.check.outputs.version }}" "${{ github.run_number }}"
+      products: dist/TwinKeys.app
+      package: dmg
+      app_link: true
+    secrets: inherit
+
+  # Open the .dmg on a clean Mac and check Gatekeeper, signature, version and that the app starts.
+  verify:
+    needs: [check, mac]
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: TwinKeys-notarized
+          path: dist
+      - name: Check the dmg and the app
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          dmg=$(ls dist/*.dmg)
+          echo "== $dmg"
+          xcrun stapler validate "$dmg"
+          spctl -a -t open --context context:primary-signature -vv "$dmg"
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" > /dev/null
+          ls -la "$mnt"
+          test -L "$mnt/Applications"
+          app="$mnt/TwinKeys.app"
+          got=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app/Contents/Info.plist")
+          [ "$got" = "$VERSION" ] || { echo "::error::App version $got does not match $VERSION"; exit 1; }
+          lipo -info "$app/Contents/MacOS/TwinKeys" | grep -q "x86_64 arm64"
+          codesign --verify --strict --deep --verbose=2 "$app"
+          codesign -dvv "$app" 2>&1 | tee sig.txt
+          grep -q "Authority=Developer ID Application" sig.txt
+          grep -q "runtime" sig.txt
+          spctl -a -t exec -vv "$app"
+          test -f "$app/Contents/Resources/help/ja.md"
+          test -f "$app/Contents/Resources/AppIcon.icns"
+          sudo rm -rf /Applications/TwinKeys.app
+          sudo ditto "$app" /Applications/TwinKeys.app
+          hdiutil detach "$mnt" > /dev/null
+          /Applications/TwinKeys.app/Contents/MacOS/TwinKeys > run.log 2>&1 &
+          pid=$!
+          sleep 6
+          kill -0 "$pid" || { echo "::error::TwinKeys exited right after launch"; cat run.log; exit 1; }
+          kill -TERM "$pid" || true
+          echo "All checks passed"
+
+  publish:
+    needs: [check, verify]
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: TwinKeys-notarized
+          path: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION"
+          # 0.x versions and versions with a suffix (e.g. 1.0.0-beta.1) are marked as pre-releases.
+          PRE=""
+          case "$TAG" in v0.*|*-*) PRE="--prerelease" ;; esac
+          cat > notes.md <<'NOTES'
+          Universal build for Apple silicon and Intel Macs (macOS 13 Ventura or later).
+          Signed with a Developer ID and notarized by Apple: open the .dmg and drag TwinKeys to Applications.
+
+          **Unofficial third-party tool.** Not made or endorsed by Ableton.
+
+          - The main Mac needs Input Monitoring; both Macs need Local Network access (macOS 15 or later).
+          - Turn off the DAW's own computer MIDI keyboard on the main Mac.
+          - Guide: docs/help/en.md (English) / docs/help/ja.md (日本語), also in the app under Help.
+
+          Made by Shogo Kajiyama / SEVENTHWELL. MIT License.
+          NOTES
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.dmg --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" dist/*.dmg $PRE --target "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" \
+              --title "TwinKeys $TAG" --notes-file notes.md
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease,assets \
+            --jq '{tag: .tagName, prerelease: .isPrerelease, assets: [.assets[].name]}'

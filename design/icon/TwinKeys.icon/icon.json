@@ -1,0 +1,67 @@
+{
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "letter-k.svg",
+          "name" : "K"
+        }
+      ],
+      "name" : "K",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "letter-t.svg",
+          "name" : "T"
+        }
+      ],
+      "name" : "T",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  },
+  "fill-specializations" : [
+    {
+      "value" : {
+        "linear-gradient" : [
+          "srgb:0.18039,0.23922,0.36078,1.00000",
+          "srgb:0.05882,0.08235,0.13333,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "linear-gradient" : [
+          "srgb:0.10588,0.13725,0.20784,1.00000",
+          "srgb:0.02353,0.03529,0.05882,1.00000"
+        ]
+      }
+    }
+  ]
+}
