@@ -195,6 +195,29 @@ public final class Conductor: @unchecked Sendable {
         return swallow
     }
 
+    /// A cue button on the iPhone: the same as pressing and releasing that cue key here
+    /// (works whether or not key capture is on). Returns false if it is not a cue key.
+    @discardableResult
+    public func pressCue(keycode: UInt16) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard sendKeys, !quitting, engine.isCueKey(keycode), !engine.held.keys.contains(keycode) else { return false }
+        for input in [KeyInput(keycode: keycode, isDown: true), KeyInput(keycode: keycode, isDown: false)] {
+            for (m, cue) in engine.handleEvents(input) {
+                emitLocal(m, fromKeys: true)
+                if let cue, case .noteOn = m { sendCue(m, cue); continue }
+                if case .noteOff = m, let i = sentCues.lastIndex(where: { $0.cue.keycode == keycode }) { sentCues[i].keyUp = true }
+                sendRemote(m)
+            }
+        }
+        return true
+    }
+
+    /// Cue keys (for the iPhone's cue buttons).
+    public var cueKeys: [CueKey] {
+        lock.lock(); defer { lock.unlock() }
+        return engine.cueKeys.values.sorted { $0.note < $1.note }
+    }
+
     /// A datagram arrived. `knownPeer` is the peer already bound to the route it
     /// came on, if any. Returns the peer ID the packet belongs to (so the transport
     /// can bind a new route after a hello), or nil if it was not usable.
@@ -282,7 +305,8 @@ public final class Conductor: @unchecked Sendable {
         var f = filters[peer] ?? SequenceFilter()
         let orderFree: Bool
         switch packet.body {
-        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount: orderFree = true
+        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck: orderFree = true
+        case let .liveCommand(_, c): orderFree = !c.isContinuous   // a late fader value must not overwrite a newer one
         default: orderFree = false
         }
         let fresh = f.accept(session: packet.session, seq: packet.seq, allowLate: orderFree)
@@ -365,6 +389,19 @@ public final class Conductor: @unchecked Sendable {
                 sendBody(features(), to: peer)
                 sendCueNames(to: peer)
             }
+        case let .liveCommand(id, cmd):
+            guard link.peer == peer, link.isConnected else { return peer }
+            link.receivedOther(from: peer, now: now)
+            let key = PlayedCue(session: packet.session, seq: id)
+            if !ranLiveCommands.contains(key) {
+                ranLiveCommands.append(key)
+                if ranLiveCommands.count > 256 { ranLiveCommands.removeFirst() }
+                onLiveCommand?(cmd)
+            }
+            sendBody(.liveAck(id: id), to: peer)
+        case let .liveAck(id):
+            guard link.peer == peer else { return peer }
+            if var p = pendingLive[id] { p.delivery = "delivered"; pendingLive[id] = p }
         case let .cueCount(cueSeq, count):
             guard link.peer == peer else { return peer }
             applyPeerCount(session: packet.session, seq: cueSeq, count: Int(count))
@@ -404,6 +441,7 @@ public final class Conductor: @unchecked Sendable {
         perform(link.tick(now: now))
         linkChanged()
         checkCue(now)
+        checkLive(now)
         // A key "held" longer than maxProtectedHold probably lost its key-up: end it on both
         // Macs through the engine, so it also leaves the held list sent to the peer.
         for note in engine.heldNotes {
@@ -699,6 +737,65 @@ public final class Conductor: @unchecked Sendable {
     /// Start counting again. A cue still waiting for its answer is reported as not confirmed
     /// instead of disappearing.
     private var countedSinceReset = false
+
+    // MARK: Live commands from the iPhone (2.0)
+
+    /// The backup runs Live commands forwarded by the main Mac here (called with the lock held:
+    /// hand the work to another queue).
+    public var onLiveCommand: ((LiveCommand) -> Void)?
+    private var ranLiveCommands: [PlayedCue] = []
+    private struct PendingLive { var cmd: LiveCommand; var sentAt: Double; var resends = 0; var delivery = "waiting" }
+    private var pendingLive: [UInt32: PendingLive] = [:]
+    private var liveCommandID: UInt32 = 0
+
+    /// Main Mac: forwards a Live command to the backup (same resend rules as cues).
+    /// Returns its id, or nil when not linked.
+    @discardableResult
+    public func forwardLive(_ cmd: LiveCommand) -> UInt32? {
+        lock.lock(); defer { lock.unlock() }
+        guard cmd.isValid, link.isConnected, let p = link.peer else { return nil }
+        liveCommandID &+= 1
+        let id = liveCommandID
+        // Only the newest value of a fader counts: drop older ones still waiting.
+        if cmd.isContinuous { pendingLive = pendingLive.filter { !Self.sameControl($0.value.cmd, cmd) || $0.value.delivery != "waiting" } }
+        pendingLive[id] = PendingLive(cmd: cmd, sentAt: clock())
+        if pendingLive.count > 64, let oldest = pendingLive.keys.min() { pendingLive.removeValue(forKey: oldest) }
+        sendBody(.liveCommand(id: id, cmd), to: p, copies: redundancy)
+        return id
+    }
+
+    /// "waiting", "delivered", "missing" (no answer in time), "unconfirmed" (old backup), "unknown".
+    public func liveDelivery(_ id: UInt32) -> String {
+        lock.lock(); defer { lock.unlock() }
+        return pendingLive[id]?.delivery ?? "unknown"
+    }
+
+    private static func sameControl(_ a: LiveCommand, _ b: LiveCommand) -> Bool {
+        switch (a, b) {
+        case let (.setVolume(t1, _), .setVolume(t2, _)), let (.setPan(t1, _), .setPan(t2, _)): return t1 == t2
+        case (.setTempo, .setTempo): return true
+        default: return false
+        }
+    }
+
+    private func checkLive(_ now: Double) {
+        guard let p = link.peer, link.isConnected else {
+            for k in pendingLive.keys where pendingLive[k]!.delivery == "waiting" { pendingLive[k]!.delivery = "missing" }
+            return
+        }
+        for (id, var c) in pendingLive where c.delivery == "waiting" {
+            let age = now - c.sentAt
+            if age >= Self.cueAnswerTimeout {
+                c.delivery = peerAnswersCues ? "missing" : "unconfirmed"
+            } else if peerAnswersCues, age >= Self.cueResendInterval * Double(c.resends + 1), c.resends < 2, !c.cmd.isContinuous {
+                c.resends += 1
+                sendBody(.liveCommand(id: id, c.cmd), to: p)
+            }
+            pendingLive[id] = c
+        }
+        // Forget settled commands after a while.
+        pendingLive = pendingLive.filter { $0.value.delivery == "waiting" || now - $0.value.sentAt < 10 }
+    }
     /// The main Mac's count for its cues (by its session and note-on seq), applied when the cue plays.
     private var peerCounts: [PlayedCue: Int] = [:]
     private var lastPlayed: PlayedCue?

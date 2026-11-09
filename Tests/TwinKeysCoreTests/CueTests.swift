@@ -15,6 +15,7 @@ final class CueTests: XCTestCase {
     var mainToBackupUp = true, backupToMainUp = true
     /// Packet types the backup's packets are dropped for (to act like an older version).
     var dropFromBackup: Set<UInt8> = []
+    var dropFromBackupFn: ([UInt8]) -> Bool = { _ in false }
     /// Drop single main -> backup packets chosen by this test (returns true to drop).
     var dropMain: ([UInt8]) -> Bool = { _ in false }
     let secret = PairingSecret(keyBytes: Array(repeating: 7, count: 32))
@@ -40,7 +41,7 @@ final class CueTests: XCTestCase {
             let b = backupNet.outbox; backupNet.outbox.removeAll()
             if a.isEmpty && b.isEmpty { return }
             if mainToBackupUp { for (_, x) in a where !dropMain(x) { backup.receive(x, knownPeer: mainID.uuidString) } }
-            if backupToMainUp { for (_, x) in b where !dropFromBackup.contains(x[3]) { main.receive(x, knownPeer: backupID.uuidString) } }
+            if backupToMainUp { for (_, x) in b where !dropFromBackup.contains(x[3]) && !dropFromBackupFn(x) { main.receive(x, knownPeer: backupID.uuidString) } }
         }
     }
 

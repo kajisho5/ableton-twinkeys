@@ -43,6 +43,11 @@ public enum PacketBody: Equatable, Sendable {
     /// Since 1.0.2: the sender's count for the cue whose note-on had sequence number `seq`, so
     /// both Macs always show the same number (the main Mac's).
     case cueCount(seq: UInt32, count: UInt32)
+    /// Since 2.0: a Live command from the iPhone, forwarded by the main Mac. `id` is per sender
+    /// session; a resend carries the same id and is run only once.
+    case liveCommand(id: UInt32, LiveCommand)
+    /// Since 2.0: the backup ran (or already had run) the Live command with this id.
+    case liveAck(id: UInt32)
 
     var typeCode: UInt8 {
         switch self {
@@ -60,6 +65,8 @@ public enum PacketBody: Equatable, Sendable {
         case .cueName: return 0x15
         case .cueResend: return 0x16
         case .cueCount: return 0x17
+        case .liveCommand: return 0x18
+        case .liveAck: return 0x19
         }
     }
 }
@@ -118,6 +125,10 @@ extension Packet {
             b += [ch & 0x0F, note & 0x7F, vel & 0x7F, released ? 1 : 0]
         case let .cueCount(s, n):
             b.appendBE(s); b.appendBE(n)
+        case let .liveCommand(id, c):
+            b.appendBE(id); b += c.encoded()
+        case let .liveAck(id):
+            b.appendBE(id)
         }
         return b
     }
@@ -176,6 +187,12 @@ extension Packet {
         case 0x17:
             guard p.count >= 8 else { throw DecodeError.badPayload }
             body = .cueCount(seq: p.readBE32(at: 0), count: p.readBE32(at: 4))
+        case 0x18:
+            guard p.count >= 5, let c = LiveCommand.decode(Array(p[4...])) else { throw DecodeError.badPayload }
+            body = .liveCommand(id: p.readBE32(at: 0), c)
+        case 0x19:
+            guard p.count >= 4 else { throw DecodeError.badPayload }
+            body = .liveAck(id: p.readBE32(at: 0))
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)

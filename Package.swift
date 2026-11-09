@@ -3,9 +3,11 @@ import PackageDescription
 
 let package = Package(
     name: "TwinKeys",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v13), .iOS(.v17)],
     products: [
         .executable(name: "TwinKeys", targets: ["TwinKeys"]),
+        // Shared with the iPhone app (TwinKeys Remote, iOS/).
+        .library(name: "TwinKeysCore", targets: ["TwinKeysCore"]),
     ],
     dependencies: [
         // Apple's swift-crypto: re-exports CryptoKit on macOS, same API on Linux for the tests.
