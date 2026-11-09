@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="290" viewBox="0 0 560 290">
+<rect x="0" y="0" width="560" height="290" rx="0" fill="#D9DCE3"/>
+<g transform="translate(20,20)">
+<rect x="0" y="0" width="520" height="250" rx="10" fill="#ECECEC" stroke="#D1D1D6"/>
+<path d="M0.5 10.5 a10 10 0 0 1 10 -10 H509.5 a10 10 0 0 1 10 10 V28 H0.5 Z" fill="#E3E3E3"/>
+<line x1="0" y1="28" x2="520" y2="28" stroke="#D1D1D6"/>
+<circle cx="14" cy="14" r="6" fill="#FF5F57"/>
+<circle cx="34" cy="14" r="6" fill="#FEBC2E"/>
+<circle cx="54" cy="14" r="6" fill="#28C840"/>
+<text x="260.0" y="18.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">設定</text>
+<text x="24" y="58" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">アップデート</text>
+<rect x="20" y="66" width="480" height="120" rx="8" fill="#FFFFFF" stroke="#D1D1D6"/>
+<rect x="36" y="82" width="14" height="14" rx="3" fill="#0060C7"/>
+<path d="M39.5 89.2 l2.7 2.8 l4.6 -5.6" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="58" y="94" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">新しいバージョンを自動で確認してダウンロードする</text>
+<text x="58" y="112" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">起動時と6時間ごとに確認します。入れ替えは TwinKeys を終了したときだけです。</text>
+<line x1="36" y1="126" x2="484" y2="126" stroke="#D1D1D6"/>
+<text x="36" y="152" fill="#5F5F64" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">今のバージョン: 0.5.0（最新です）</text>
+<rect x="340.5" y="138.5" width="139" height="27" rx="6" fill="#FFFFFF" stroke="#8E8E93"/><text x="410.0" y="156.5" fill="#1D1D1F" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="middle">今すぐ確認</text>
+</g>
+</svg>
