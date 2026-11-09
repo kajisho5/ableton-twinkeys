@@ -84,7 +84,7 @@ class LoopbackBindingTest(unittest.TestCase):
             try:
                 host, port = t.bound_address
                 self.assertEqual(host, "127.0.0.1")
-                big = json.dumps({"x": "y" * 50000}).encode()
+                big = json.dumps({"x": "y" * (MAX_DATAGRAM_BYTES - 100)}).encode()
                 self.assertTrue(t.send(big))
                 data, _ = rx.recvfrom(65535)
                 self.assertEqual(data, big)
