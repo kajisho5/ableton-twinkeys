@@ -40,6 +40,9 @@ public enum PacketBody: Equatable, Sendable {
     /// number of the first note-on: the receiver plays it only if that one never arrived.
     /// `released`: the key is already up, so the note ends right away.
     case cueResend(originalSeq: UInt32, channel: UInt8, note: UInt8, velocity: UInt8, released: Bool)
+    /// Since 1.0.2: the sender's count for the cue whose note-on had sequence number `seq`, so
+    /// both Macs always show the same number (the main Mac's).
+    case cueCount(seq: UInt32, count: UInt32)
 
     var typeCode: UInt8 {
         switch self {
@@ -56,6 +59,7 @@ public enum PacketBody: Equatable, Sendable {
         case .noteAck: return 0x14
         case .cueName: return 0x15
         case .cueResend: return 0x16
+        case .cueCount: return 0x17
         }
     }
 }
@@ -112,6 +116,8 @@ extension Packet {
         case let .cueResend(orig, ch, note, vel, released):
             b.appendBE(orig)
             b += [ch & 0x0F, note & 0x7F, vel & 0x7F, released ? 1 : 0]
+        case let .cueCount(s, n):
+            b.appendBE(s); b.appendBE(n)
         }
         return b
     }
@@ -167,6 +173,9 @@ extension Packet {
         case 0x16:
             guard p.count >= 8, p[4] < 16, p[5] < 128, p[6] < 128 else { throw DecodeError.badPayload }
             body = .cueResend(originalSeq: p.readBE32(at: 0), channel: p[4], note: p[5], velocity: p[6], released: p[7] != 0)
+        case 0x17:
+            guard p.count >= 8 else { throw DecodeError.badPayload }
+            body = .cueCount(seq: p.readBE32(at: 0), count: p.readBE32(at: 4))
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)
@@ -198,27 +207,39 @@ extension Array where Element == UInt8 {
 public struct SequenceFilter: Sendable {
     private var session: UInt32?
     private var last: UInt32 = 0
+    /// Bit i set: sequence number `last - 1 - i` was already accepted (late arrivals, see `allowLate`).
+    private var seen: UInt64 = 0
     /// Sessions the peer used before (it restarted since). Late packets from them are dropped.
     private var retired: [UInt32] = []
     public init() {}
 
-    public mutating func accept(session s: UInt32, seq: UInt32) -> Bool {
+    /// `allowLate`: a packet that arrives after a newer one (reordered on the network) is still
+    /// accepted once, if it is among the last 64. Used for packets whose order does not matter
+    /// (heartbeats, held lists, names); never for notes, where a late note-off could end a newer note.
+    public mutating func accept(session s: UInt32, seq: UInt32, allowLate: Bool = false) -> Bool {
         if session != s {
             if retired.contains(s) { return false }
             if let old = session {
                 retired.append(old)
                 if retired.count > 8 { retired.removeFirst() }
             }
-            session = s; last = seq
+            session = s; last = seq; seen = 0
             return true
         }
         let diff = Int32(bitPattern: seq &- last)
-        guard diff > 0 else { return false }
-        last = seq
+        if diff > 0 {
+            seen = diff >= 64 ? 0 : (seen << UInt64(diff)) | (UInt64(1) << UInt64(diff - 1))
+            last = seq
+            return true
+        }
+        guard allowLate, diff < 0, diff >= -64 else { return false }
+        let bit = UInt64(1) << UInt64(-diff - 1)
+        if seen & bit != 0 { return false }
+        seen |= bit
         return true
     }
 
-    public mutating func reset() { session = nil; last = 0; retired.removeAll() }
+    public mutating func reset() { session = nil; last = 0; seen = 0; retired.removeAll() }
 
     /// The peer used this session before and restarted since.
     public func isRetired(_ s: UInt32) -> Bool { retired.contains(s) }

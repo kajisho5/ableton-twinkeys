@@ -220,7 +220,8 @@ final class CueTests: XCTestCase {
     func testNewPacketsRoundTrip() throws {
         for body: PacketBody in [.features(flags: 1), .noteAck(seq: 0xDEADBEEF),
                                  .cueName(channel: 1, note: 37, label: "↓", memo: "次のシーン"),
-                                 .cueResend(originalSeq: 5, channel: 1, note: 37, velocity: 127, released: true)] {
+                                 .cueResend(originalSeq: 5, channel: 1, note: 37, velocity: 127, released: true),
+                                 .cueCount(seq: 9, count: 12), .features(flags: 3, epoch: 200)] {
             let p = Packet(session: 3, seq: 4, body: body)
             XCTAssertEqual(try Packet.decode(p.encode()), p)
         }
@@ -432,5 +433,17 @@ final class CueTests: XCTestCase {
         main.releaseHeldKeys()                    // e.g. Secure Input started; no key-up seen
         tick(0.4)
         XCTAssertEqual(backupMIDI.sent.filter { $0[1] == 37 }.last, [0x80, 37, 0])
+    }
+
+    func testLateOrderFreePacketsAreAcceptedOnceButLateNotesAreNot() {
+        var f = SequenceFilter()
+        XCTAssertTrue(f.accept(session: 1, seq: 10))
+        XCTAssertTrue(f.accept(session: 1, seq: 12))
+        XCTAssertFalse(f.accept(session: 1, seq: 11), "a late note is still dropped")
+        XCTAssertTrue(f.accept(session: 1, seq: 11, allowLate: true))
+        XCTAssertFalse(f.accept(session: 1, seq: 11, allowLate: true), "only once")
+        XCTAssertFalse(f.accept(session: 1, seq: 12, allowLate: true))
+        XCTAssertTrue(f.accept(session: 1, seq: 200))
+        XCTAssertFalse(f.accept(session: 1, seq: 100, allowLate: true), "too old")
     }
 }
