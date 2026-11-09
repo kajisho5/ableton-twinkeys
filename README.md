@@ -102,7 +102,7 @@ The platform-independent logic (`Sources/TwinKeysCore`) also builds and tests on
 ### Releases (GitHub Actions)
 
 - Every push runs **CI** on a macOS runner: tests, universal build, launch check and screenshots (downloadable from the run page).
-- Pushing a tag such as `v1.0.0` runs **Release**, which builds the app and attaches `TwinKeys-1.0.0-universal.zip` to a GitHub Release.
+- **Release:** change the `VERSION` file (for example to `0.2.0`) and push. GitHub Actions builds the app, creates the tag `v0.2.0` on that commit and publishes a release with `TwinKeys-0.2.0-universal.zip`. Versions 0.x and versions with a suffix such as `1.0.0-beta.1` are marked as pre-releases. Pushing a `v*` tag or running the workflow by hand also works.
 
 ## Limitations
 

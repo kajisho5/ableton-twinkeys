@@ -1,17 +1,26 @@
 name: Release
 
-# Push a tag like v1.0.0 to build TwinKeys.app (universal) and attach the zip to a GitHub Release.
+# Two ways to publish a release (the zip of the universal TwinKeys.app is attached):
+#  1. Change the VERSION file (for example to 0.2.0) and push. If release v0.2.0 does not
+#     exist yet, it is built, the tag is created on that commit and the release is published.
+#  2. Push a tag like v1.0.0, or run this workflow by hand with an existing tag.
 on:
   push:
+    branches: ["**"]
+    paths: ["VERSION"]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build (for example v1.0.0)"
+        description: "Tag to build (for example v1.0.0)"
         required: true
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -20,15 +29,36 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ github.event.inputs.tag || github.sha }}
+      - name: Decide the version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="v$(tr -d '[:space:]' < VERSION)"
+          fi
+          if ! echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "Not a valid version: $TAG"; exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          # A VERSION push for a version that is already released does nothing.
+          if [ "${{ github.ref_type }}" = "branch" ] && [ -z "${{ github.event.inputs.tag }}" ] \
+             && gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; nothing to do."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
       - name: Unit tests
+        if: env.SKIP != '1'
         run: swift test
       - name: Build
-        run: |
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          scripts/build-app.sh "${TAG#v}" "${GITHUB_RUN_NUMBER}"
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
+        if: env.SKIP != '1'
+        run: scripts/build-app.sh "${TAG#v}" "${GITHUB_RUN_NUMBER}"
       - name: Create or update the release
+        if: env.SKIP != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -47,5 +77,8 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/*.zip --clobber
           else
-            gh release create "$TAG" dist/*.zip $PRE --title "TwinKeys $TAG" --notes-file notes.md
+            # Creates the tag on this exact commit if it does not exist yet.
+            gh release create "$TAG" dist/*.zip $PRE --target "$GITHUB_SHA" \
+              --title "TwinKeys $TAG" --notes-file notes.md
           fi
+          gh release view "$TAG" --json tagName,isPrerelease,assets --jq '{tag: .tagName, prerelease: .isPrerelease, assets: [.assets[].name]}'
