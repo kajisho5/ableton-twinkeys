@@ -130,7 +130,7 @@ jobs:
   ios:
     name: iPhone and iPad app (TwinKeys Remote)
     runs-on: macos-26
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -152,8 +152,8 @@ jobs:
           plutil -p build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app/Info.plist
           grep -n "INFOPLIST\|PRODUCT_BUNDLE_IDENTIFIER" iOS/TwinKeysRemote.xcodeproj/project.pbxproj | head
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app/Info.plist
-      - name: Screenshots with sample data (iPhone and iPad, light and dark)
-        timeout-minutes: 15
+      - name: Screenshots with sample data (iPhone and iPad, landscape and portrait, light and dark)
+        timeout-minutes: 30
         run: |
           set -euo pipefail
           APP=build/Build/Products/Debug-iphonesimulator/TwinKeysRemote.app
