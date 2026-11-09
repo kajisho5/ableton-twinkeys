@@ -24,6 +24,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var autoUpdate: Bool = true
     /// Show TwinKeys only in the menu bar (no Dock icon).
     public var menuBarOnly: Bool = false
+    /// iPhones / iPads allowed to control Live through this Mac (TwinKeys Remote).
+    public var approvedDevices: [ApprovedDevice] = []
+    /// Wait for TwinKeys Remote on the network.
+    public var remoteEnabled: Bool = true
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -41,6 +45,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case blockCueKeys = "block_cue_keys"
         case autoUpdate = "auto_update"
         case menuBarOnly = "menu_bar_only"
+        case approvedDevices = "approved_devices"
+        case remoteEnabled = "remote_enabled"
     }
 
     public init() {}
@@ -69,6 +75,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         blockCueKeys = try c.decodeIfPresent(Bool.self, forKey: .blockCueKeys) ?? d.blockCueKeys
         autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? d.autoUpdate
         menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? d.menuBarOnly
+        approvedDevices = ((try? c.decodeIfPresent([Lenient<ApprovedDevice>].self, forKey: .approvedDevices)) ?? []).compactMap(\.value)
+        remoteEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .remoteEnabled)) ?? d.remoteEnabled
     }
 }
 

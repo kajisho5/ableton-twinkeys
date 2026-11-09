@@ -37,6 +37,16 @@ final class AppModel: ObservableObject {
     private var localAddresses: [String] = []
     private var lastAddressCheck = -10.0
     let updater = Updater()
+    /// Live on this Mac (through the Bridge Remote Script) and TwinKeys Remote on iPhones.
+    let bridge = LiveBridgeClient()
+    private var remote: RemoteServer!
+    /// Read from the remote queue: guarded by a lock.
+    private let remoteLock = NSLock()
+    private var approvedSnapshot: [ApprovedDevice] = []
+    private var statusSnapshot: RemoteStatus?
+    private var pendingApproval: ((Bool) -> Void)?
+    private var remoteClients = 0
+    private var lastStatusBroadcast = 0.0
     private var hasAccessibility = KeyMonitor.hasAccessibility
     /// "Restart Now" was clicked: open the new version after the swap.
     private var relaunchAfterQuit = false
@@ -76,6 +86,7 @@ final class AppModel: ObservableObject {
 
         self.settings = settings
         self.log = log
+        self.approvedSnapshot = settings.approvedDevices
         self.midi = port
         self.network = network
         self.conductor = conductor
@@ -125,6 +136,7 @@ final class AppModel: ObservableObject {
         started = true
         let conductor = self.conductor
         let network = self.network
+        startRemote(name: Host.current().localizedName ?? "Mac")
         // Key callbacks first: refresh() below may already start the key tap.
         keyMonitor.onKey = { input in conductor.handleKey(input) }
         keyMonitor.onEventsMissed = { conductor.releaseHeldKeys() }
@@ -193,6 +205,8 @@ final class AppModel: ObservableObject {
         conductor.prepareForQuit()
         network.flush(timeout: 0.3)
         network.stop()
+        remote?.stop()
+        bridge.stop()
         try? store.save(settings)
         updater.installOnQuit(relaunch: relaunchAfterQuit)
     }
@@ -215,6 +229,10 @@ final class AppModel: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             let secret = PairingSecret(code: code)
             conductor.setPairing(secret)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.remote?.configure(pairing: self.settings.remoteEnabled ? secret : nil)
+            }
             DispatchQueue.main.async { [weak self] in self?.refresh() }
         }
         refresh()
@@ -357,6 +375,154 @@ final class AppModel: ObservableObject {
         }
         if keyMonitor.isRunning, problems.contains(.keyCaptureFailed) {
             problems.removeAll { $0 == .keyCaptureFailed }
+        }
+    }
+
+    // MARK: TwinKeys Remote and Live
+
+    private func startRemote(name: String) {
+        let conductor = self.conductor, bridge = self.bridge, log = self.log
+        bridge.onLog = { log.write($0) }
+        // Backup: Live commands forwarded by the main Mac run on this Mac's Live.
+        conductor.onLiveCommand = { cmd in bridge.run(cmd) }
+        let r = RemoteServer(serverID: settings.instanceID.uuidString, serverName: name)
+        remote = r
+        bridge.onUpdate = { [weak r] u in r?.broadcast(u) }
+        r.onLog = { log.write($0) }
+        r.isApproved = { [weak self] hello in
+            guard let self else { return false }
+            self.remoteLock.lock(); defer { self.remoteLock.unlock() }
+            return ApprovedDevice.isApproved(hello, in: self.approvedSnapshot)
+        }
+        r.askApproval = { [weak self] deviceName, code, answer in
+            guard let self else { answer(false); return }
+            // One request at a time; a new one replaces (and refuses) an older unanswered one.
+            self.pendingApproval?(false)
+            self.pendingApproval = answer
+            self.sheet = .approveDevice(name: deviceName, code: code)
+            self.refresh()
+            self.showApprovalAlert(name: deviceName, code: code)
+        }
+        r.runCommand = { cmd, done in
+            // Both Macs: forward to the backup and run here at the same moment.
+            let id = conductor.forwardLive(cmd)
+            bridge.run(cmd) { ok, err in
+                bridge.queue.asyncAfter(deadline: .now() + Conductor.cueAnswerTimeout + 0.05) {
+                    done(ok, err, id.map { conductor.liveDelivery($0) } ?? "notLinked")
+                }
+            }
+        }
+        r.onApproved = { [weak self] h in
+            let d = ApprovedDevice(id: h.deviceID, name: h.deviceName, publicKey: h.devicePublicKey)
+            // Also into the lock-protected copy right away, so the next check sees it.
+            self?.remoteLock.lock(); self?.approvedSnapshot.append(d); self?.remoteLock.unlock()
+            DispatchQueue.main.async { self?.rememberDevice(d) }
+        }
+        r.pressCue = { conductor.pressCue(keycode: $0) }
+        r.allNotesOff = { conductor.panic() }
+        r.snapshot = { bridge.snapshot() }
+        r.status = { [weak self] in
+            guard let self else { return nil }
+            self.remoteLock.lock(); defer { self.remoteLock.unlock() }
+            return self.statusSnapshot
+        }
+        r.onClientsChanged = { [weak self] n in self?.remoteClients = n; self?.refresh() }
+        bridge.start()
+    }
+
+    /// Asks on screen (as a sheet on the TwinKeys window when it is open, otherwise as a window).
+    private func showApprovalAlert(name: String, code: String) {
+        let t = state.t
+        let alert = NSAlert()
+        alert.messageText = t.approveTitle
+        alert.informativeText = t.approveMessage(name, code)
+        alert.addButton(withTitle: t.approveAllow)
+        alert.addButton(withTitle: t.approveDeny)
+        alert.buttons.first?.keyEquivalent = ""          // never allowed by pressing Return by accident
+        NSApp.activate(ignoringOtherApps: true)
+        if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain && $0.attachedSheet == nil }) {
+            alert.beginSheetModal(for: w) { [weak self] r in self?.answerApproval(r == .alertFirstButtonReturn) }
+        } else {
+            answerApproval(alert.runModal() == .alertFirstButtonReturn)
+        }
+    }
+
+    /// The approval sheet was answered.
+    func answerApproval(_ allow: Bool) {
+        guard case let .approveDevice(name, _)? = sheet else { return }
+        sheet = nil
+        let answer = pendingApproval
+        pendingApproval = nil
+        if allow { log.write("Remote: \(name) allowed") }
+        answer?(allow)
+        refresh()
+    }
+
+    /// Called by the server through `askApproval` → `answerApproval`; stores an allowed device.
+    func rememberDevice(_ d: ApprovedDevice) {
+        settings.approvedDevices.removeAll { $0.id == d.id }
+        settings.approvedDevices.append(d)
+        saveApproved()
+    }
+
+    func removeDevice(_ id: String) {
+        settings.approvedDevices.removeAll { $0.id == id }
+        saveApproved()
+        remote?.revoke(deviceID: id)
+        log.write("Remote: a device was removed from the allowed list")
+        refresh()
+    }
+
+    private func saveApproved() {
+        remoteLock.lock(); approvedSnapshot = settings.approvedDevices; remoteLock.unlock()
+        try? store.save(settings)
+    }
+
+    func setRemoteEnabled(_ on: Bool) {
+        settings.remoteEnabled = on
+        try? store.save(settings)
+        if let code = pairingCode { applyPairingCode(code, save: false) } else { remote?.configure(pairing: nil) }
+        refresh()
+    }
+
+    func installBridge() -> String? {
+        let err = LiveBridgeInstaller.install()
+        log.write(err == nil ? "Live Bridge installed into \(LiveBridgeInstaller.installed.path)" : "Live Bridge install failed: \(err!)")
+        refresh()
+        return err
+    }
+
+    func revealBridgeFolder() {
+        let url = LiveBridgeInstaller.isInstalled ? LiveBridgeInstaller.installed : LiveBridgeInstaller.remoteScripts
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    private func updateRemoteStatus(_ s: ViewState, _ snap: ConductorSnapshot) {
+        let peerName: String? = { if case let .connected(n, _) = s.link { return n }; return nil }()
+        let cue = snap.lastCue.map { c -> RemoteStatus.CueSummary in
+            let d: String
+            switch c.delivery {
+            case .delivered: d = "delivered"
+            case .waiting: d = "waiting"
+            case .missing: d = "missing"
+            case .unconfirmed: d = "unconfirmed"
+            case .notConnected: d = "notConnected"
+            case .received: d = "received"
+            }
+            return .init(label: c.label, memo: c.memo, count: c.count, delivery: d)
+        }
+        let st = RemoteStatus(mainName: Host.current().localizedName ?? "Mac", mainLiveConnected: s.liveConnected,
+                              backupName: peerName, backupLinked: peerName != nil, backupLiveConnected: false,
+                              latencyMs: { if case let .connected(_, ms) = s.link { return ms }; return nil }(),
+                              lastCue: cue, cueKeys: settings.cueKeys.map { .init(keycode: $0.keycode, label: $0.label, memo: $0.memo) })
+        remoteLock.lock()
+        let changed = statusSnapshot != st
+        statusSnapshot = st
+        remoteLock.unlock()
+        let now = ProcessInfo.processInfo.systemUptime
+        if changed || now - lastStatusBroadcast > 1 {
+            lastStatusBroadcast = now
+            remote?.broadcastStatus()
         }
     }
 
@@ -557,6 +723,12 @@ final class AppModel: ObservableObject {
         s.appVersion = updater.currentVersion
         s.autoUpdate = settings.autoUpdate
         updateShowActivity(linked: s.linkedPeerID != nil)
+        s.liveConnected = bridge.isConnected
+        s.bridgeInstalled = LiveBridgeInstaller.isInstalled
+        s.approvedDevices = settings.approvedDevices
+        s.remoteClients = remoteClients
+        s.remoteEnabled = settings.remoteEnabled
+        updateRemoteStatus(s, snap)
         if s != state { state = s }
     }
 }

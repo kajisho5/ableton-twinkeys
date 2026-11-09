@@ -97,5 +97,34 @@ extension Strings {
     var menuBarOnly: String { s("Show only in the menu bar (no Dock icon)", "メニューバーだけに表示する（Dock に出さない）") }
     var quitTwinKeys: String { s("Quit TwinKeys", "TwinKeys を終了") }
     var reconnecting: String { s("Reconnecting…", "再接続中…") }
+
+    // MARK: TwinKeys Remote (2.0)
+    var approveTitle: String { s("Allow this iPhone?", "この iPhone を許可しますか？") }
+    func approveMessage(_ name: String, _ code: String) -> String {
+        s("“\(name)” wants to control Live through TwinKeys.\n\nCode on the iPhone: \(code)\n\nAllow it only if the iPhone shows the same 4 digits.",
+          "「\(name)」が TwinKeys で Live を操作しようとしています。\n\niPhone の番号: \(code)\n\niPhone に同じ4桁が出ているときだけ許可してください。")
+    }
+    var approveAllow: String { s("Allow", "許可") }
+    var approveDeny: String { s("Don’t Allow", "許可しない") }
+    var liveSection: String { s("Live", "Live との連携") }
+    var liveConnected: String { s("Live: Connected", "Live: 接続済み") }
+    var liveNotConnected: String { s("Live: Not connected", "Live: 未接続") }
+    var liveHowTo: String {
+        s("Click Install into Live, restart Live, then choose “TwinKeysBridge” as a Control Surface in Settings > Link, Tempo & MIDI. Needed on both Macs for TwinKeys Remote.",
+          "「Live に組み込む」を押し、Live を再起動して、「環境設定」>「Link, Tempo & MIDI」の「コントロールサーフェス」で「TwinKeysBridge」を選びます。TwinKeys Remote を使うときは両方の Mac で必要です。")
+    }
+    var installBridge: String { s("Install into Live", "Live に組み込む") }
+    var updateBridge: String { s("Update in Live", "Live の部品を更新") }
+    var showBridgeFolder: String { s("Show in Finder", "Finder で表示") }
+    var remoteSection: String { s("iPhone and iPad (TwinKeys Remote)", "iPhone・iPad（TwinKeys Remote）") }
+    var remoteEnabled: String { s("Allow TwinKeys Remote to connect", "TwinKeys Remote からの接続を受け付ける") }
+    var remoteHelp: String {
+        s("Needs the same pairing code, and each iPhone or iPad is allowed once on this Mac.",
+          "同じ合言葉が必要です。iPhone・iPad ごとに、この Mac で一度だけ許可します。")
+    }
+    var allowedDevices: String { s("Allowed devices", "許可した端末") }
+    var noAllowedDevices: String { s("None yet", "まだありません") }
+    func remoteConnected(_ n: Int) -> String { s("\(n) connected now", "いま \(n) 台が接続中") }
+    var removeDevice: String { s("Remove", "取り消す") }
 }
 #endif

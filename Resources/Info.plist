@@ -42,6 +42,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_twinkeys._udp</string>
+		<string>_twinkeys-remote._tcp</string>
 	</array>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>

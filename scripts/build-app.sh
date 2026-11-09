@@ -40,6 +40,12 @@ for l in en ja; do
   plutil -lint "$APP/Contents/Resources/$l.lproj/InfoPlist.strings"
 done
 cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
+# The Live Bridge Remote Script (installed into Live's User Library from Settings).
+if [ -d LiveBridge/TwinKeysBridge ]; then
+  rm -rf "$APP/Contents/Resources/TwinKeysBridge"
+  cp -R LiveBridge/TwinKeysBridge "$APP/Contents/Resources/TwinKeysBridge"
+  find "$APP/Contents/Resources/TwinKeysBridge" -name '__pycache__' -prune -exec rm -rf {} +
+fi
 
 # Ad-hoc signature (no certificate). Ad-hoc signed only; releases are signed and notarized by the release workflow.
 codesign --force --deep --sign - "$APP"
