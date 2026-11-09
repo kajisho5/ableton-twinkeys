@@ -27,7 +27,8 @@ final class NetworkService: PacketSink {
     // Accessed only on `queue`.
     private var routes: [String: NWConnection] = [:]          // peer ID -> connection we send on
     private var routePeer: [ObjectIdentifier: String] = [:]   // connection -> peer ID (all bound connections)
-    private var unbound: [ObjectIdentifier: NWConnection] = [:]
+    private var unbound: [ObjectIdentifier: (conn: NWConnection, since: Date)] = [:]
+    private var retiredAt: [ObjectIdentifier: Date] = [:]     // latest retirement per connection
     private var endpoints: [String: NWEndpoint] = [:]         // peer ID -> Bonjour endpoint
     private var interfaces: [String: NWInterface] = [:]       // peer ID -> best interface it was seen on
     private var unpinned: Set<String> = []                    // pinned route failed: let the system choose
@@ -91,8 +92,12 @@ final class NetworkService: PacketSink {
             l.serviceRegistrationUpdateHandler = { [weak self] change in
                 switch change {
                 case let .add(endpoint):
-                    self?.advertised = true
-                    self?.onLog?("Advertising on the network as \(endpoint)")
+                    guard let self else { return }
+                    self.advertised = true
+                    self.onLog?("Advertising on the network as \(endpoint)")
+                    // Access works now: clear a "not allowed" shown by the watchdog.
+                    let empty = self.visible.isEmpty
+                    DispatchQueue.main.async { self.onLocalNetworkState?(empty ? .searching : .peersVisible) }
                 case let .remove(endpoint): self?.onLog?("No longer advertised: \(endpoint)")
                 @unknown default: break
                 }
@@ -155,7 +160,7 @@ final class NetworkService: PacketSink {
         queue.sync {
             stopped = true
             listener?.cancel(); browser?.cancel()
-            for c in Array(routes.values) + Array(unbound.values) { c.cancel() }
+            for c in Array(routes.values) + unbound.values.map(\.conn) { c.cancel() }
             routes.removeAll(); routePeer.removeAll(); unbound.removeAll()
         }
     }
@@ -225,10 +230,10 @@ final class NetworkService: PacketSink {
 
     private func accept(_ c: NWConnection) {
         let key = ObjectIdentifier(c)
-        if unbound.count >= Self.maxUnbound, let oldest = unbound.first {
-            unbound.removeValue(forKey: oldest.key); oldest.value.cancel()
+        if unbound.count >= Self.maxUnbound, let oldest = unbound.min(by: { $0.value.since < $1.value.since }) {
+            unbound.removeValue(forKey: oldest.key); oldest.value.conn.cancel()
         }
-        unbound[key] = c
+        unbound[key] = (c, Date())
         c.stateUpdateHandler = { [weak self, weak c] state in
             switch state {
             case .failed, .cancelled: if let c { self?.drop(c) }
@@ -239,8 +244,8 @@ final class NetworkService: PacketSink {
         receive(on: c)
         // Close it if it never says hello (scanners, junk, stale flows).
         queue.asyncAfter(deadline: .now() + Self.unboundTimeout) { [weak self] in
-            guard let self, let c = self.unbound.removeValue(forKey: key) else { return }
-            c.cancel()
+            guard let self, let entry = self.unbound.removeValue(forKey: key) else { return }
+            entry.conn.cancel()
         }
     }
 
@@ -255,10 +260,16 @@ final class NetworkService: PacketSink {
 
     /// Keeps receiving on an old route for a while, then closes it.
     private func retire(_ c: NWConnection) {
+        let key = ObjectIdentifier(c)
+        let stamp = Date()
+        retiredAt[key] = stamp
         queue.asyncAfter(deadline: .now() + 10) { [weak self] in
             guard let self else { return }
-            if let p = self.routePeer[ObjectIdentifier(c)], self.routes[p] === c { return }   // in use again
-            self.routePeer.removeValue(forKey: ObjectIdentifier(c))
+            // Only the latest retirement counts (it may have been re-bound and retired again).
+            guard self.retiredAt[key] == stamp else { return }
+            self.retiredAt.removeValue(forKey: key)
+            if let p = self.routePeer[key], self.routes[p] === c { return }   // in use again
+            self.routePeer.removeValue(forKey: key)
             c.cancel()
         }
     }

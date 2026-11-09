@@ -99,6 +99,13 @@ public struct PerformanceEngine: Sendable {
         return min(127, velocity + step - ((offset + step) % step))
     }
 
+    /// Ends one sounding note as if its key had been released (key-up never seen).
+    public mutating func release(note: UInt8) -> [MIDIMessage] {
+        guard let key = held.first(where: { $0.value == note })?.key else { return [] }
+        held.removeValue(forKey: key)
+        return [.noteOff(channel: channel, note: note)]
+    }
+
     /// Releases every held note (used when capture is turned off, on panic, etc.).
     public mutating func releaseAll() -> [MIDIMessage] {
         let offs = held.values.sorted().map { MIDIMessage.noteOff(channel: channel, note: $0) }

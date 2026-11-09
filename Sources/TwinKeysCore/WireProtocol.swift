@@ -169,4 +169,7 @@ public struct SequenceFilter: Sendable {
     }
 
     public mutating func reset() { session = nil; last = 0; retired.removeAll() }
+
+    /// The session value currently accepted (the peer's running instance).
+    public var currentSession: UInt32? { session }
 }

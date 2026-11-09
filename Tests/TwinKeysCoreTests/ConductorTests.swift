@@ -211,6 +211,44 @@ final class ConductorTests: XCTestCase {
         XCTAssertEqual(backup.snapshot().link, .connected(peer: mainID.uuidString))
     }
 
+    func testSameInstanceMayOpenANewRouteWhileLinkIsAlive() {
+        connect()
+        // Main's route failed and it says hello again on a new route (same session).
+        main.newRoute(to: backupID.uuidString)
+        let hello = mainNet.outbox.removeLast().bytes
+        XCTAssertEqual(backup.receive(hello, knownPeer: nil), mainID.uuidString)   // bound
+    }
+
+    func testKeyHeldBeyondProtectionEndsOnBothMacs() {
+        connect()
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
+        step(Conductor.maxProtectedHold + 1)
+        XCTAssertEqual(mainMIDI.notes.last, [0x80, 60, 0])
+        XCTAssertEqual(backupMIDI.notes.last, [0x80, 60, 0])
+        XCTAssertEqual(main.snapshot().heldNotes, [])
+    }
+
+    func testHelloAckFromStrangerIsNotBound() {
+        let ack = Packet(session: 3, seq: 1, body: .helloAck(instanceID: UUID(), name: "x")).encode()
+        XCTAssertNil(backup.receive(ack, knownPeer: nil))
+    }
+
+    func testDeclinedPeerCanConnectAgainLater() {
+        connect()
+        main.disconnect(); pump()
+        step(Double(LinkStateMachine.declineMemory) + 1)
+        backup.connect(to: mainID.uuidString); pump()
+        XCTAssertEqual(main.snapshot().link, .connected(peer: backupID.uuidString))
+    }
+
+    func testNetworkInputIgnoredWhileQuitting() {
+        connect()
+        backup.prepareForQuit()
+        let before = backupMIDI.sent.count
+        main.handleKey(KeyInput(keycode: 0x00, isDown: true)); pump()
+        XCTAssertFalse(backupMIDI.sent.dropFirst(before).contains([0x90, 60, 100]))
+    }
+
     func testPeerNameControlCharactersAreRemoved() {
         let p = Packet(session: 5, seq: 1, body: .hello(instanceID: UUID(), name: "Evil\nMac\u{7}")).encode()
         let id = backup.receive(p, knownPeer: nil)

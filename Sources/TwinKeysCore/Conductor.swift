@@ -107,6 +107,8 @@ public final class Conductor: @unchecked Sendable {
     public func receive(_ bytes: [UInt8], knownPeer: String?) -> String? {
         guard let packet = try? Packet.decode(bytes) else { return nil }
         lock.lock(); defer { lock.unlock() }
+        // Quitting: the final All Notes Off has gone out; nothing new may start.
+        if quitting { return nil }
         let now = clock()
         let peer: String
         switch packet.body {
@@ -127,11 +129,17 @@ public final class Conductor: @unchecked Sendable {
         case .hello, .helloAck:
             // A hello on a new route must not take over a link that is alive on its own route
             // (the instance ID is public, so it could be someone else).
-            if knownPeer != peer, link.isConnected, link.peer == peer, now - link.lastHeard < 2 {
+            // The same running instance (same session) opening a fresh route is allowed through.
+            if knownPeer != peer, link.isConnected, link.peer == peer, now - link.lastHeard < 2,
+               filters[peer]?.currentSession != packet.session {
                 logIgnored(peer, now, "on a second route while the link is alive")
                 return nil
             }
         default: break
+        }
+        if case .helloAck = packet.body, link.peer != peer {
+            // Only the Mac we are connecting to may answer; anything else is not bound.
+            return nil
         }
         var f = filters[peer] ?? SequenceFilter()
         let fresh = f.accept(session: packet.session, seq: packet.seq)
@@ -185,10 +193,17 @@ public final class Conductor: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         let now = clock()
         perform(link.tick(now: now))
-        // Notes whose keys are still down are not stuck: only the key-up ends them
-        // (up to maxProtectedHold, in case a key-up was never seen).
-        let down = Set(engine.heldNotes.map { NoteGuard.Key(channel: engine.channel, note: $0) }
-            .filter { k in keysGuard.active[k].map { now - $0 < Self.maxProtectedHold } ?? false })
+        // A key "held" longer than maxProtectedHold probably lost its key-up: end it on both
+        // Macs through the engine, so it also leaves the held list sent to the peer.
+        for note in engine.heldNotes {
+            let k = NoteGuard.Key(channel: engine.channel, note: note)
+            if let t = keysGuard.active[k], now - t >= Self.maxProtectedHold {
+                for m in engine.release(note: note) { emitLocal(m, fromKeys: true); sendRemote(m) }
+                log("Released \(noteName(note)) after \(Int(Self.maxProtectedHold)) s without a key-up")
+            }
+        }
+        // Notes whose keys are still down are not stuck: only the key-up ends them.
+        let down = Set(engine.heldNotes.map { NoteGuard.Key(channel: engine.channel, note: $0) })
         for m in keysGuard.expire(now: now, keep: down) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m))") }
         for m in peerGuard.expire(now: now) { midi?.send(m.bytes); log("Auto note-off \(noteNameFor(m)) (from peer)") }
     }
@@ -200,7 +215,7 @@ public final class Conductor: @unchecked Sendable {
 
     public func disconnect() {
         lock.lock(); defer { lock.unlock() }
-        perform(link.disconnect())
+        perform(link.disconnect(now: clock()))
     }
 
     public func panic() {
@@ -224,7 +239,7 @@ public final class Conductor: @unchecked Sendable {
         quitting = true
         if link.peer != nil {
             // Disconnect turns notes off here and on the peer, then says goodbye.
-            perform(link.disconnect())
+            perform(link.disconnect(now: clock()))
         } else {
             apply(.appWillQuit, peer: nil)
         }
