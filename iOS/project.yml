@@ -18,6 +18,13 @@ targets:
     info:
       path: Sources/Info.plist
       properties:
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        CFBundleName: "$(PRODUCT_NAME)"
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
+        LSRequiresIPhoneOS: true
         CFBundleDisplayName: TwinKeys Remote
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
