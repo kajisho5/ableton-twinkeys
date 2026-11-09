@@ -176,6 +176,38 @@ struct Strings {
           "「TwinKeysを非表示」「TwinKeysを終了」などの標準メニュー項目は、macOS の言語で表示されます。")
     }
 
+    // MARK: Pairing
+    var pairingTitle: String { s("Pairing Code", "合言葉") }
+    var pairingExplain: String { s("Macs that use the same pairing code can connect to each other, and nothing else can. Their traffic is also encrypted.", "2台の Mac で同じ合言葉を使うと、その2台だけがつながります。通信の中身も暗号化されます。") }
+    var pairingNeeded: String { s("To connect, both Macs need the same pairing code.", "接続するには、2台で同じ合言葉を使います。") }
+    var pairingNeededHint: String { s("You only need to do this once.", "一度設定すれば、次からは不要です") }
+    var setUpPairing: String { s("Set Up Pairing Code…", "合言葉を設定…") }
+    var needsPairingDetail: String { s("Set a pairing code to connect", "合言葉を設定すると接続できます") }
+    var thisMacCode: String { s("This Mac’s pairing code", "この Mac の合言葉") }
+    var noCodeYet: String { s("Not set", "未設定") }
+    var makeNewCode: String { s("Make New Code", "新しく作る") }
+    var copy: String { s("Copy", "コピー") }
+    var enterCode: String { s("Enter Code…", "合言葉を入力…") }
+    var enterCodeTitle: String { s("Enter Pairing Code", "合言葉を入力") }
+    var enterCodeExplain: String { s("Type the 10 characters shown on the other Mac under Settings > Pairing Code.", "もう1台の Mac の「設定」>「合言葉」に出ている10文字を入れてください。") }
+    var enterCodeRule: String { s("Upper or lower case and hyphens do not matter.", "大文字・小文字、ハイフンの有無は区別しません。") }
+    var invalidCode: String { s("That is not a valid code: it has 10 letters and digits (no 0, 1, I, L or O).", "合言葉の形になっていません。10文字の英数字です（0・1・I・L・O は使いません）。") }
+    var haveOtherCode: String { s("If the other Mac already has a code:", "もう1台の Mac で作った合言葉があるときは") }
+    var replaceCodeTitle: String { s("Make a new pairing code?", "新しい合言葉を作りますか？") }
+    var replaceCodeMessage: String { s("The current code stops working. Enter the new code on the other Mac too.", "今の合言葉は使えなくなります。もう1台の Mac にも新しい合言葉を入れてください。") }
+    var makeNew: String { s("Make New", "作る") }
+    var cancel: String { s("Cancel", "キャンセル") }
+    var save: String { s("Save", "保存") }
+    var codeMismatch: String { s("Different pairing code", "合言葉が違います") }
+    func thisMacAddress(_ a: String) -> String { s("This Mac’s IP address: \(a)", "この Mac の IP アドレス: \(a)") }
+    var noAddress: String { s("none (not on a network)", "なし（ネットワーク未接続）") }
+    var connectByIP: String { s("Connect by IP Address…", "IPアドレスで接続…") }
+    var connectByIPHint: String { s("If the other Mac is not listed (⇧⌘K)", "一覧に出ないときはこちら（⇧⌘K）") }
+    var connectByIPTitle: String { s("Connect by IP Address", "IPアドレスで接続") }
+    var connectByIPExplain: String { s("Use this when the other Mac is not listed. Type the IP address shown on the other Mac under Settings > Pairing Code. Both Macs need the same pairing code.", "相手が一覧に出ないときに使います。相手の Mac の「設定」>「合言葉」に出ている IP アドレスを入れてください。合言葉が同じ必要があります。") }
+    func portLabel(_ p: UInt16) -> String { s("Port \(p)", "ポート \(p)") }
+    var invalidAddress: String { s("Type an IP address such as 192.168.1.20.", "192.168.1.20 のような IP アドレスを入れてください。") }
+
     // MARK: Menus and About
     var connectionMenu: String { s("Connection", "接続") }
     var keyCaptureMenuOff: String { s("Turn Key Capture Off", "キー入力をオフ") }

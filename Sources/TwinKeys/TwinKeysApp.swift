@@ -32,6 +32,10 @@ struct TwinKeysApp: App {
                 Button(model.state.connectMenuTitle) { model.toggleConnection() }
                     .keyboardShortcut("k", modifiers: .command)
                     .disabled(!model.state.canToggleConnection)
+                Button(model.state.t.connectByIP) { model.showSheet(.connectByIP) }
+                    .keyboardShortcut("k", modifiers: [.command, .shift])
+                Button(model.state.t.setUpPairing) { model.showSheet(.pairing) }
+                Divider()
                 Button(model.state.keyCapture ? model.state.t.keyCaptureMenuOff : model.state.t.keyCaptureMenuOn) {
                     model.actions.setKeyCapture(!model.state.keyCapture)
                 }

@@ -3,8 +3,10 @@
 //  2. A fake second Mac (this script) advertises itself with Bonjour, says hello to TwinKeys
 //     over UDP and sends note-on / note-off packets.
 //  3. The same notes come out of the "TwinKeys" MIDI source.
-// Usage: swift scripts/e2e-midi.swift   (exit code 0 = pass)
+// TwinKeys must run with the same pairing code (environment TWINKEYS_PAIRING_CODE).
+// Usage: TWINKEYS_PAIRING_CODE=K7MQ2-WX9TP swift scripts/e2e-midi.swift   (exit code 0 = pass)
 import CoreMIDI
+import CryptoKit
 import Foundation
 import Network
 
@@ -53,26 +55,49 @@ let status = MIDIInputPortCreateWithProtocol(client, "e2e-in" as CFString, ._1_0
 guard status == noErr else { fail("MIDIInputPortCreate \(status)") }
 guard MIDIPortConnectSource(inPort, source, nil) == noErr else { fail("MIDIPortConnectSource") }
 
-// MARK: 2. Pretend to be another Mac
+// MARK: 2. Pretend to be another Mac (protocol v2: same pairing code, signed and encrypted)
 
+guard let rawCode = ProcessInfo.processInfo.environment["TWINKEYS_PAIRING_CODE"] else { fail("TWINKEYS_PAIRING_CODE not set") }
+let code = rawCode.uppercased().filter { $0 != "-" && !$0.isWhitespace }
+// Same derivation as TwinKeysCore.Pairing: PBKDF2-HMAC-SHA256, 100 000 rounds, fixed salt.
+func pbkdf2(_ password: [UInt8], _ salt: [UInt8], _ rounds: Int) -> [UInt8] {
+    let key = SymmetricKey(data: password)
+    var u = Array(HMAC<SHA256>.authenticationCode(for: salt + [0, 0, 0, 1], using: key))
+    var t = u
+    for _ in 1..<rounds {
+        u = Array(HMAC<SHA256>.authenticationCode(for: u, using: key))
+        for i in 0..<t.count { t[i] ^= u[i] }
+    }
+    return t
+}
+let K = SymmetricKey(data: pbkdf2(Array(code.utf8), Array("TwinKeys pairing v2".utf8), 100_000))
+let myNonce: [UInt8] = (0..<16).map { _ in UInt8.random(in: 0...255) }
+var peerNonce: [UInt8] = []
 let myID = UUID()
 let session = UInt32.random(in: 1...UInt32.max)
 var seq: UInt32 = 0
 func be32(_ v: UInt32) -> [UInt8] { [UInt8(v >> 24), UInt8((v >> 16) & 0xFF), UInt8((v >> 8) & 0xFF), UInt8(v & 0xFF)] }
+func header(_ type: UInt8) -> [UInt8] { seq += 1; return [0x54, 0x4B, 2, type] + be32(session) + be32(seq) }
 func packet(_ type: UInt8, _ payload: [UInt8]) -> Data {
-    seq += 1
-    return Data([0x54, 0x4B, 1, type] + be32(session) + be32(seq) + payload)
+    let h = header(type)
+    let dirKey = SymmetricKey(data: Array(HMAC<SHA256>.authenticationCode(for: Array("dir".utf8) + myNonce + peerNonce, using: K)))
+    let nonce = try! ChaChaPoly.Nonce(data: Array(h[4..<12]) + [0, 0, 0, 0])
+    let box = try! ChaChaPoly.seal(payload, using: dirKey, nonce: nonce, authenticating: h)
+    return Data(h + Array(box.ciphertext) + Array(box.tag))
 }
 let u = myID.uuid
 let idBytes: [UInt8] = [u.0, u.1, u.2, u.3, u.4, u.5, u.6, u.7, u.8, u.9, u.10, u.11, u.12, u.13, u.14, u.15]
 let name = Array("CI Test Mac".utf8)
-let hello = { packet(0x01, idBytes + [UInt8(name.count)] + name) }
+let hello: () -> Data = {
+    let plain = header(0x01) + idBytes + myNonce + [UInt8(name.count)] + name
+    return Data(plain + Array(HMAC<SHA256>.authenticationCode(for: plain, using: K).prefix(16)))
+}
 
 let queue = DispatchQueue(label: "e2e")
 // Advertise ourselves: TwinKeys only accepts hellos from Macs it can see on Bonjour.
 let listener = try! NWListener(using: .udp)
 var txt = NWTXTRecord()
-txt["id"] = myID.uuidString; txt["v"] = "1"; txt["modes"] = "s"; txt["boot"] = UUID().uuidString
+txt["id"] = myID.uuidString; txt["v"] = "2"; txt["modes"] = "s"; txt["boot"] = UUID().uuidString
 listener.service = NWListener.Service(name: "CI Test Mac", type: "_twinkeys._udp", domain: nil, txtRecord: txt)
 listener.newConnectionHandler = { $0.start(queue: queue) }
 listener.start(queue: queue)
@@ -104,7 +129,16 @@ let conn = NWConnection(to: endpoint, using: .udp)
 let acked = DispatchSemaphore(value: 0)
 func receiveLoop() {
     conn.receiveMessage { data, _, _, error in
-        if let d = data, d.count >= 4, d[3] == 0x02 { acked.signal() }   // HelloAck
+        // HelloAck: check its signature, then take the peer's nonce from it.
+        if let d = data, d.count > 12 + 33 + 16, d[3] == 0x02 {
+            let b = [UInt8](d)
+            let plain = Array(b.dropLast(16))
+            if Array(HMAC<SHA256>.authenticationCode(for: plain, using: K).prefix(16)) == Array(b.suffix(16)) {
+                DispatchQueue.main.async { peerNonce = Array(b[28..<44]); acked.signal() }
+            } else {
+                print("   HelloAck with a bad signature (different pairing code?)")
+            }
+        }
         if error == nil { receiveLoop() }
     }
 }
@@ -115,7 +149,9 @@ receiveLoop()
 var linked = false
 for _ in 0..<20 {
     conn.send(content: hello(), completion: .idempotent)
-    if acked.wait(timeout: .now() + 1) == .success { linked = true; break }
+    if acked.wait(timeout: .now() + 0.2) == .success { linked = true; break }
+    RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+    if !peerNonce.isEmpty { linked = true; break }
 }
 guard linked else { fail("no HelloAck from TwinKeys") }
 print("PASS: linked (HelloAck received)")

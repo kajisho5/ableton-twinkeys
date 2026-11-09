@@ -27,6 +27,12 @@ final class AppModel: ObservableObject {
     private var lastPermissionCheck = 0.0
     private var lastTapAttempt = 0.0
     private var secureInputOn = false
+    /// Pairing code as shown ("K7MQ2-WX9TP"); nil if none.
+    private var pairingCode: String?
+    private var sheet: AppSheet?
+    private var listenPort: UInt16?
+    private var localAddresses: [String] = []
+    private var lastAddressCheck = -10.0
 
     init() {
         let store = ConfigStore()
@@ -86,7 +92,20 @@ final class AppModel: ObservableObject {
             setKeyCapture: { [weak self] on in self?.setKeyCapture(on) },
             openInputMonitoringSettings: { [weak self] in self?.openInputMonitoringSettings() },
             openLocalNetworkSettings: { Self.openSettingsPane("Privacy_LocalNetwork") },
-            recheckPermissions: { [weak self] in self?.checkPermissions() }
+            recheckPermissions: { [weak self] in self?.checkPermissions() },
+            setSheet: { [weak self] s in self?.sheet = s; self?.refreshAddresses(); self?.refresh() },
+            makeNewPairingCode: { [weak self] in self?.applyPairingCode(Pairing.generate(), save: true) },
+            savePairingCode: { [weak self] code in
+                guard let self, let n = Pairing.normalize(code) else { return false }
+                self.applyPairingCode(Pairing.formatted(n), save: true)
+                return true
+            },
+            copyPairingCode: { [weak self] in
+                guard let code = self?.pairingCode else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(code, forType: .string)
+            },
+            connectByAddress: { [weak self] address in self?.connectByAddress(address) ?? false }
         )
     }
 
@@ -101,6 +120,10 @@ final class AppModel: ObservableObject {
         network.onDuplicateID = { [weak self] in self?.handleDuplicateID() }
         let log = self.log
         network.onLog = { log.write($0) }
+        network.onListenPort = { [weak self] port in self?.listenPort = port; self?.refresh() }
+        if let code = PairingStore.load(), let n = Pairing.normalize(code) {
+            applyPairingCode(Pairing.formatted(n), save: false)
+        }
         network.onPeersChanged = { [weak self] list in
             guard let self else { return }
             self.peers = list
@@ -151,6 +174,42 @@ final class AppModel: ObservableObject {
         conductor.connect(to: id)
         settings.lastPeerID = id
         try? store.save(settings)
+        refresh()
+    }
+
+    /// Uses a pairing code: derives the key off the main thread (about 100 000 HMAC rounds).
+    private func applyPairingCode(_ code: String, save: Bool) {
+        if save { PairingStore.save(code) }
+        pairingCode = code
+        let conductor = self.conductor
+        DispatchQueue.global(qos: .userInitiated).async {
+            let secret = PairingSecret(code: code)
+            conductor.setPairing(secret)
+            DispatchQueue.main.async { [weak self] in self?.refresh() }
+        }
+        refresh()
+    }
+
+    private func connectByAddress(_ raw: String) -> Bool {
+        let address = raw.trimmingCharacters(in: .whitespaces)
+        guard AddressCheck.isValid(address) else { return false }
+        let placeholder = network.addManual(host: address)
+        conductor.connect(to: placeholder)
+        settings.manualAddress = address
+        try? store.save(settings)
+        log.write("Connecting by address \(address)")
+        refresh()
+        return true
+    }
+
+    private func refreshAddresses() {
+        lastAddressCheck = ProcessInfo.processInfo.systemUptime
+        localAddresses = NetworkService.localAddresses()
+    }
+
+    func showSheet(_ s: AppSheet) {
+        sheet = s
+        refreshAddresses()
         refresh()
     }
 
@@ -302,7 +361,8 @@ final class AppModel: ObservableObject {
         let snap = conductor.snapshot()
         var s = ViewState()
         let nameFor: (String) -> String = { id in
-            snap.peerNames[id] ?? self.peers.first { $0.id == id }?.name ?? Strings(self.language).anotherMac
+            snap.peerNames[id] ?? self.peers.first { $0.id == id }?.name
+                ?? (id.hasPrefix(PeerInfo.manualPrefix) ? String(id.dropFirst(PeerInfo.manualPrefix.count)) : Strings(self.language).anotherMac)
         }
         switch snap.link {
         case .idle: s.link = .notConnected
@@ -326,6 +386,14 @@ final class AppModel: ObservableObject {
         s.problems = problems
         s.language = language
         s.secureInput = secureInputOn
+        s.isPaired = snap.isPaired
+        s.pairingCode = pairingCode
+        s.mismatchedPeers = snap.mismatchedPeers
+        s.listenPort = listenPort
+        if ProcessInfo.processInfo.systemUptime - lastAddressCheck > 5 { refreshAddresses() }
+        s.localAddresses = localAddresses
+        s.lastManualAddress = settings.manualAddress ?? ""
+        s.sheet = sheet
         if s != state { state = s }
     }
 }

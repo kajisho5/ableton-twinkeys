@@ -14,6 +14,7 @@ struct ContentView: View {
             Rectangle().fill(Theme.separator).frame(height: 1)
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.groupSpacing) {
+                    if !state.isPaired { pairingBanner }
                     if state.inputMonitoring != .granted && state.sendKeys { permissionBanner }
                     if !state.midiPortReady || !state.problems.isEmpty { problemBanner }
                     peersSection
@@ -28,6 +29,12 @@ struct ContentView: View {
         .foregroundStyle(Theme.textPrimary)
         .font(.system(size: Theme.body))
         .sheet(isPresented: $showingHelp) { HelpView(t: t, onClose: { showingHelp = false }, actions: actions) }
+        .sheet(isPresented: Binding(get: { state.sheet == .pairing }, set: { if !$0 { actions.setSheet(nil) } })) {
+            PairingSheet(state: state, actions: actions)
+        }
+        .sheet(isPresented: Binding(get: { state.sheet == .connectByIP }, set: { if !$0 { actions.setSheet(nil) } })) {
+            ConnectByIPSheet(state: state, actions: actions)
+        }
     }
 
     // MARK: Header (always visible: status + panic)
@@ -85,6 +92,30 @@ struct ContentView: View {
         }
     }
 
+    private var pairingBanner: some View {
+        TKGroup(border: Theme.warning) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(t.pairingNeeded)
+                    .font(.system(size: 12, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { pairingButton; pairingHint }
+                    VStack(alignment: .leading, spacing: 6) { pairingButton; pairingHint }
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    private var pairingButton: some View {
+        Button(t.setUpPairing) { actions.setSheet(.pairing) }
+            .buttonStyle(TKButtonStyle(kind: .primary))
+    }
+
+    private var pairingHint: some View {
+        Text(t.pairingNeededHint).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+    }
+
     private var problemBanner: some View {
         TKGroup(border: Theme.warning) {
             VStack(alignment: .leading, spacing: 4) {
@@ -118,7 +149,21 @@ struct ContentView: View {
                     }
                 }
             }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { ipButton; ipHint }
+                VStack(alignment: .leading, spacing: 4) { ipButton; ipHint }
+            }
+            .padding(.top, 4)
         }
+    }
+
+    private var ipButton: some View {
+        Button(t.connectByIP) { actions.setSheet(.connectByIP) }
+            .buttonStyle(TKButtonStyle())
+    }
+
+    private var ipHint: some View {
+        Text(t.connectByIPHint).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
     }
 
     private var emptyState: some View {
@@ -138,8 +183,10 @@ struct ContentView: View {
 
     private func peerRow(_ peer: PeerInfo) -> some View {
         let isLinked = state.linkedPeerID == peer.id
+        let mismatch = state.mismatchedPeers.contains(peer.id) && !isLinked
         var detail = peer.isCompatible ? t.modes(peer) : t.incompatible
-        var dot = Theme.idleDot
+        if mismatch { detail += "  ·  " + t.codeMismatch }
+        var dot = mismatch ? Theme.warning : Theme.idleDot
         if isLinked {
             switch state.link {
             case let .connected(_, ms): detail += "  ·  " + state.latencyText(ms); dot = Theme.ok
@@ -151,7 +198,8 @@ struct ContentView: View {
             StatusDot(color: dot)
             VStack(alignment: .leading, spacing: 2) {
                 Text(peer.name).font(.system(size: Theme.body, weight: .medium)).lineLimit(1)
-                Text(detail).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                Text(detail).font(.system(size: Theme.caption))
+                    .foregroundStyle(mismatch ? Theme.warning : Theme.textSecondary).lineLimit(1)
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 8)
@@ -163,7 +211,7 @@ struct ContentView: View {
             } else {
                 Button(t.connect) { actions.connect(peer.id) }
                     .buttonStyle(TKButtonStyle())
-                    .disabled(!peer.isCompatible)
+                    .disabled(!peer.isCompatible || !state.isPaired)
                     .accessibilityLabel(t.connectTo(peer.name))
             }
         }

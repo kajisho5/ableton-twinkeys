@@ -9,6 +9,8 @@ final class NetworkService: PacketSink {
     /// Inbound routes that do not identify themselves with a hello in this time are closed.
     static let unboundTimeout: TimeInterval = 5
     static let maxUnbound = 16
+    /// Fixed UDP port, so another Mac can connect by IP address. Falls back to any free port.
+    static let fixedPort: UInt16 = 47801
 
     let queue = DispatchQueue(label: "TwinKeys.network", qos: .userInteractive)
     private let ownID: String
@@ -20,6 +22,10 @@ final class NetworkService: PacketSink {
     private var listener: NWListener?
     private var browser: NWBrowser?
     private var stopped = false
+    private var useFixedPort = true
+    /// The UDP port actually listened on (main queue reads it through `onListenPort`).
+    var onListenPort: ((UInt16?) -> Void)?
+    private var manualEndpoints: [String: NWEndpoint] = [:]   // placeholder or real peer ID -> typed address
     /// Set once Bonjour confirms our advertisement. macOS Local Network privacy blocks it
     /// silently (no error) when permission is missing, so its absence is the best signal.
     private var advertised = false
@@ -86,7 +92,12 @@ final class NetworkService: PacketSink {
     private func startListener() {
         guard !stopped else { return }
         do {
-            let l = try NWListener(using: Self.parameters())
+            let l: NWListener
+            if useFixedPort, let port = NWEndpoint.Port(rawValue: Self.fixedPort) {
+                l = try NWListener(using: Self.parameters(), on: port)
+            } else {
+                l = try NWListener(using: Self.parameters())
+            }
             l.service = service()
             l.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
             l.serviceRegistrationUpdateHandler = { [weak self] change in
@@ -105,10 +116,21 @@ final class NetworkService: PacketSink {
             l.stateUpdateHandler = { [weak self, weak l] state in
                 guard let self else { return }
                 self.onLog?("Listener state: \(state)\(l?.port.map { " (UDP port \($0))" } ?? "")")
+                if case .ready = state {
+                    let port = l?.port?.rawValue
+                    DispatchQueue.main.async { self.onListenPort?(port) }
+                }
                 if case let .failed(error) = state {
-                    self.report("Listening for other Macs failed (\(error)); retrying")
                     l?.cancel()
-                    self.queue.asyncAfter(deadline: .now() + 2) { self.startListener() }
+                    if self.useFixedPort {
+                        // Port 47801 is taken (for example by another copy): use any free port.
+                        self.onLog?("UDP port \(Self.fixedPort) unavailable (\(error)); using another port")
+                        self.useFixedPort = false
+                        self.queue.async { self.startListener() }
+                    } else {
+                        self.report("Listening for other Macs failed (\(error)); retrying")
+                        self.queue.asyncAfter(deadline: .now() + 2) { self.startListener() }
+                    }
                 }
             }
             l.start(queue: queue)
@@ -146,6 +168,35 @@ final class NetworkService: PacketSink {
         }
         b.start(queue: queue)
         browser = b
+    }
+
+    /// Registers a typed IP address (IPv4 or IPv6) and returns a placeholder peer ID for it.
+    /// The real peer ID is learned from its first authenticated answer.
+    func addManual(host: String) -> String {
+        let key = PeerInfo.manualPrefix + host
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: Self.fixedPort)!)
+        queue.sync { manualEndpoints[key] = endpoint }
+        return key
+    }
+
+    /// This Mac's IPv4 addresses on Ethernet / Wi-Fi / bridge interfaces, for display.
+    static func localAddresses() -> [String] {
+        var result: [String] = []
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return [] }
+        defer { freeifaddrs(ifaddr) }
+        for p in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            let ifa = p.pointee
+            guard let addr = ifa.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET),
+                  (ifa.ifa_flags & UInt32(IFF_UP)) != 0, (ifa.ifa_flags & UInt32(IFF_LOOPBACK)) == 0 else { continue }
+            let name = String(cString: ifa.ifa_name)
+            guard name.hasPrefix("en") || name.hasPrefix("bridge") else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            if getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                result.append(String(cString: host))
+            }
+        }
+        return result
     }
 
     func updateModes(sends: Bool, receives: Bool) {
@@ -188,7 +239,7 @@ final class NetworkService: PacketSink {
             guard let self, let old = self.routes[peer] else { return }
             // We can only open a new route to a peer we can see on Bonjour; otherwise keep the
             // current route (for example one the peer opened to us).
-            guard self.endpoints[peer] != nil else { return }
+            guard self.endpoints[peer] != nil || self.manualEndpoints[peer] != nil else { return }
             self.routes.removeValue(forKey: peer)
             self.retire(old)
         }
@@ -207,7 +258,7 @@ final class NetworkService: PacketSink {
 
     private func route(to peer: String) -> NWConnection? {
         if let c = routes[peer] { return c }
-        guard let ep = endpoints[peer] else { return nil }
+        guard let ep = endpoints[peer] ?? manualEndpoints[peer] else { return nil }
         let pin = unpinned.contains(peer) ? nil : interfaces[peer]
         let c = NWConnection(to: ep, using: Self.parameters(on: pin))
         bind(c, to: peer)
@@ -288,7 +339,13 @@ final class NetworkService: PacketSink {
             if let data, !data.isEmpty {
                 let known = self.routePeer[ObjectIdentifier(c)]
                 if let peer = self.onDatagram?([UInt8](data), known), peer != known || self.routes[peer] !== c {
-                    // A hello told us who is on the other end of this route.
+                    // A hello told us who is on the other end of this route. A route opened to a
+                    // typed address keeps that address for reconnecting to the real peer.
+                    if let k = known, k.hasPrefix(PeerInfo.manualPrefix), let ep = self.manualEndpoints[k] {
+                        self.manualEndpoints[peer] = ep
+                        self.manualEndpoints.removeValue(forKey: k)
+                        if self.routes[k] === c { self.routes.removeValue(forKey: k) }
+                    }
                     self.bind(c, to: peer)
                 }
             }

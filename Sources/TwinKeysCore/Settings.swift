@@ -14,6 +14,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var midiUniqueID: Int32?
     /// UI language: "system", "en" or "ja".
     public var language: String = "system"
+    /// Last IP address typed in "Connect by IP Address…".
+    public var manualAddress: String?
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -26,6 +28,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case lastPeerID = "last_peer_id"
         case midiUniqueID = "midi_unique_id"
         case language
+        case manualAddress = "manual_address"
     }
 
     public init() {}
@@ -45,6 +48,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         midiUniqueID = try c.decodeIfPresent(Int32.self, forKey: .midiUniqueID)
         let lang = try c.decodeIfPresent(String.self, forKey: .language) ?? d.language
         language = ["system", "en", "ja"].contains(lang) ? lang : "system"
+        manualAddress = try c.decodeIfPresent(String.self, forKey: .manualAddress)
     }
 }
 

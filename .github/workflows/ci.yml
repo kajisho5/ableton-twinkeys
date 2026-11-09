@@ -55,6 +55,8 @@ jobs:
         # answer the permission prompt for (CI has no user). The same build, run as a plain
         # executable from the shell, is not subject to it, so the check uses that binary.
         run: |
+          # Both sides use the same (test-only) pairing code.
+          export TWINKEYS_PAIRING_CODE=K7MQ2-WX9TP
           BIN=$(find .build -path '*Release/TwinKeys' -type f -perm +111 | head -1)
           echo "Using $BIN"
           "$BIN" > e2e-app.log 2>&1 &
