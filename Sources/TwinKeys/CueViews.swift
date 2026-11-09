@@ -15,6 +15,18 @@ struct CuePanel: View {
 
     var body: some View {
         TKGroup(border: state.lastCue?.delivery == .missing ? Theme.dangerText : Theme.separator) {
+            if state.lastCue == nil {
+                // Nothing yet: one short line, no status column.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(isBackupView ? t.receivedCue : t.lastCue)
+                        .font(.system(size: Theme.caption, weight: .semibold)).foregroundStyle(Theme.textSecondary)
+                    Text(isBackupView ? t.noCueReceivedYet : t.noCueYet)
+                        .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            } else {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: 16) {
                     cueSide.frame(minWidth: 200, alignment: .leading)
@@ -29,6 +41,7 @@ struct CuePanel: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            }
         }
         .accessibilityElement(children: .combine)
     }
