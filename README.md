@@ -86,7 +86,7 @@ Keys pressed together with ⌘, ⌃, ⌥ or ⇧ never play notes, so shortcuts i
 | Copies of each note packet | 2 | `Sources/TwinKeysCore/Conductor.swift` (`redundancy`) |
 | Default auto note-off | 10 s | `Sources/TwinKeysCore/Settings.swift` |
 | Default MIDI channel | 1 | `settings.json` (`midi_channel`) |
-| App icon | placeholder | `Resources/AppIcon-1024.png` (or add `Resources/AppIcon.icns`) |
+| App icon | made with fresnel | source: `design/icon/` (`twinkeys.spec.json`, `TwinKeys.icon`); built `.icns`: `Resources/AppIcon.icns` |
 
 ## Building from source
 
