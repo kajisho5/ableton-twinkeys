@@ -8,7 +8,11 @@ import SwiftUI
 enum MenuBarIcon {
     enum Kind { case connected, idle, reconnecting }
 
-    static func image(_ kind: Kind) -> NSImage {
+    private static let cache: [Kind: NSImage] = [.connected: draw(.connected), .idle: draw(.idle), .reconnecting: draw(.reconnecting)]
+
+    static func image(_ kind: Kind) -> NSImage { cache[kind]! }
+
+    private static func draw(_ kind: Kind) -> NSImage {
         let size = NSSize(width: 20, height: 16)
         let img = NSImage(size: size, flipped: false) { _ in
             let body = NSRect(x: 1.5, y: 2.5, width: kind == .reconnecting ? 13 : 17, height: 11)

@@ -27,6 +27,8 @@ final class Updater {
     private(set) var state: UpdateState = .idle { didSet { if state != oldValue { onChange?() } } }
     var onChange: (() -> Void)?
     var log: (String) -> Void = { _ in }
+    /// True while connected (a show may be running): scheduled checks wait until later.
+    var isInShow: () -> Bool = { false }
 
     private let current: AppVersion?
     private var timer: Timer?
@@ -50,13 +52,24 @@ final class Updater {
     /// Starts the schedule (first check after a minute, then every six hours).
     func start(enabled: Bool) {
         timer?.invalidate(); timer = nil
+        // Leftovers of earlier downloads (a swap that did not happen, a crash) are removed.
+        if staged == nil { try? FileManager.default.removeItem(at: cacheDir) }
         guard enabled else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + UpdateCheck.firstCheckDelay) { [weak self] in
             guard let self, self.timer != nil else { return }
-            self.check()
+            self.scheduledCheck()
         }
         timer = Timer.scheduledTimer(withTimeInterval: UpdateCheck.interval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.check() }
+            MainActor.assumeIsolated { self?.scheduledCheck() }
+        }
+    }
+
+    /// A scheduled check never downloads during a show: it waits (checked again every 10 min).
+    private func scheduledCheck() {
+        guard isInShow() else { check(); return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 600) { [weak self] in
+            guard let self, self.timer != nil else { return }
+            self.scheduledCheck()
         }
     }
 
@@ -167,6 +180,10 @@ final class Updater {
     func installOnQuit(relaunch: Bool = false) {
         guard let staged, FileManager.default.fileExists(atPath: staged.path) else { return }
         let app = Bundle.main.bundleURL.path
+        // Never replace a newer copy someone put there by hand meanwhile.
+        let onDisk = (NSDictionary(contentsOfFile: app + "/Contents/Info.plist")?["CFBundleShortVersionString"] as? String).flatMap(AppVersion.init)
+        let new = (NSDictionary(contentsOf: staged.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String).flatMap(AppVersion.init)
+        if let onDisk, let new, onDisk >= new { log("Update not installed: \(onDisk) is already in place"); return }
         let old = app + ".old-\(ProcessInfo.processInfo.processIdentifier)"
         // A small shell script waits for TwinKeys to exit, swaps the bundles, and keeps the old
         // one if anything fails. Paths are passed as arguments, never pasted into the script.

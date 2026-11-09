@@ -8,6 +8,10 @@ on:
       - 'docs/help/**'
       - 'release-notes/**'
       - '.github/workflows/pages.yml'
+  # After a release is published, so the download button and notes match what is out.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
   workflow_dispatch:
 
 permissions:

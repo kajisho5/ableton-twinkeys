@@ -27,13 +27,13 @@ Both Macs need the same pairing code. Only Macs with the same code can connect, 
 
 ## Live settings (both Macs)
 
-1. Open Live's Settings (Preferences in Live 11) and choose the Link, Tempo & MIDI tab.
+1. Open Live's Settings (⌘,) and choose the Link, Tempo & MIDI tab (in Live 11: Preferences > Link/Tempo/MIDI).
 2. If your set plays to tempo or bars, turn on Link (it keeps tempo and bar position in sync).
-3. In the MIDI ports list, turn on Track and Remote for the input TwinKeys.
+3. In the MIDI ports list, turn on Remote for the input TwinKeys. Track is not needed (with Track on, keys you have not mapped can play armed MIDI tracks).
 4. Map your cues: press MIDI at the top right of Live (⌘M) to enter MIDI Map Mode. Click what you want to control (a clip slot, scene up/down, launch the selected scene, the Play or Stop button…), then press one of TwinKeys' cue keys (↓ and so on) on the main Mac. Press MIDI again to finish.
 5. Use the same mapping on both Macs (the same Set file is the safest way).
 6. If the same keys are mapped in Live's Key Map Mode (⌘K), remove them. Otherwise Live on the main Mac moves twice.
-7. Keep each clip's Launch Mode at Trigger (the default). Gate and Repeat stop the clip when the key is released, so when TwinKeys turns notes off (for example when the network drops) those clips would stop too.
+7. Keep each clip's Launch Mode at Trigger. With Gate or Repeat, the clip stops (or stops repeating) as soon as you release the cue key, and also when TwinKeys turns notes off after a network drop.
 8. On the main Mac, turn off Live's Computer MIDI Keyboard (shortcut M). Otherwise letter keys also play notes in Live.
 
 ## Connecting
@@ -91,7 +91,7 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 ## Menu bar
 
 - TwinKeys shows a keyboard icon in the menu bar: filled while connected, outlined while not, with "!" while reconnecting.
-- Its menu has All Notes Off, Connect, Key capture, Open TwinKeys, Settings, Open at Login and Quit.
+- Its menu has All Notes Off, Connect, Key capture, Open TwinKeys, Settings, Open at Login, Check for Updates and Quit.
 - Closing the window keeps TwinKeys running. Choose Quit TwinKeys (⌘Q) to stop it.
 - Settings > Menu Bar has Open at Login and Show only in the menu bar (both off to begin with).
 
@@ -99,7 +99,7 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 
 - The red All Notes Off button (⌃⌘P) stops every note on this Mac and the connected Mac.
 - Quitting TwinKeys and clicking Disconnect also stop notes on both Macs.
-- A note whose note-off never arrives stops after 10 seconds (notes whose keys are still held keep playing). Change this in Settings; 0 turns it off. Notes received from the other Mac always wait at least 3 seconds.
+- A note whose note-off never arrives stops after 10 seconds (notes whose keys are still held keep playing). Change this in Settings; 0 turns it off. Even at 1–2 seconds, notes received from the other Mac wait at least 3 seconds.
 - When the network drops, only notes that came from the other Mac stop. Notes you are playing on the main Mac keep sounding.
 
 ## Troubleshooting
@@ -132,11 +132,11 @@ Turn Key capture off (⌃⌘K) while typing in other apps.
 - Check that Input Monitoring is allowed (shown at the bottom of the window).
 - Check that Send my keys and Key capture are on.
 - Check that the key is one of the cue keys.
-- Check that Track and Remote are on for TwinKeys in Live's MIDI settings.
-- While you type in a password field (macOS Secure Input), keys are hidden from TwinKeys. The window shows "Key capture: Paused", and held notes are ended when that starts.
+- Check that Remote is on for TwinKeys in Live's MIDI settings.
+- While you type in a password field (macOS Secure Input), keys are hidden from TwinKeys. The window shows "Key capture: Paused (password field)", and held notes are ended when that starts.
 
 **"Different pairing code" next to the other Mac**
-- The two Macs use different codes. On one Mac, open Set Up Pairing Code… and use Enter Code… to type the other Mac's code.
+- The two Macs use different codes. On one Mac, choose Connection > Set Up Pairing Code… (or Settings > Pairing Code), click Enter Code… and type the other Mac's code.
 
 **Only Live on the main Mac plays, or it moves twice**
 - Turn off Live's Computer MIDI Keyboard on the main Mac.

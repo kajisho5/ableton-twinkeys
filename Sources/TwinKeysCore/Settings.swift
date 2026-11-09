@@ -55,18 +55,27 @@ public struct AppSettings: Codable, Equatable, Sendable {
         receiveNotes = try c.decodeIfPresent(Bool.self, forKey: .receiveNotes) ?? d.receiveNotes
         keyCapture = try c.decodeIfPresent(Bool.self, forKey: .keyCapture) ?? d.keyCapture
         autoNoteOffSeconds = try c.decodeIfPresent(Double.self, forKey: .autoNoteOffSeconds) ?? d.autoNoteOffSeconds
-        midiChannel = min(16, max(1, try c.decodeIfPresent(Int.self, forKey: .midiChannel) ?? d.midiChannel))
+        midiChannel = min(16, max(1, (try? c.decodeIfPresent(Int.self, forKey: .midiChannel)) ?? d.midiChannel))
         lastPeerID = try c.decodeIfPresent(String.self, forKey: .lastPeerID)
         midiUniqueID = try c.decodeIfPresent(Int32.self, forKey: .midiUniqueID)
         let lang = try c.decodeIfPresent(String.self, forKey: .language) ?? d.language
         language = ["system", "en", "ja"].contains(lang) ? lang : "system"
         manualAddress = try c.decodeIfPresent(String.self, forKey: .manualAddress)
         // A broken cue key list falls back to the defaults instead of losing every setting.
-        if let keys = try? c.decodeIfPresent([CueKey].self, forKey: .cueKeys) { cueKeys = CueKey.sanitized(keys) }
+        // One unreadable entry drops only that entry, not the whole list.
+        if let keys = try? c.decodeIfPresent([Lenient<CueKey>].self, forKey: .cueKeys) {
+            cueKeys = CueKey.sanitized(keys.compactMap(\.value))
+        }
         blockCueKeys = try c.decodeIfPresent(Bool.self, forKey: .blockCueKeys) ?? d.blockCueKeys
         autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? d.autoUpdate
         menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? d.menuBarOnly
     }
+}
+
+/// Decodes an element if it can, nil otherwise (so one bad entry does not fail the array).
+struct Lenient<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
 }
 
 /// File locations. `home` is injectable for tests.

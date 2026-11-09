@@ -38,7 +38,7 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Shogo Kajiyama / SEVENTHWELL. MIT License.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>TwinKeys finds and talks to TwinKeys on your other Mac over the local network so both Macs can play the same notes.</string>
+	<string>TwinKeys finds and talks to TwinKeys on your other Mac over the local network so both Macs fire the same cues.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_twinkeys._udp</string>

@@ -39,6 +39,12 @@ final class KeyMonitor {
         set { tapLock.lock(); _paused = newValue; tapLock.unlock() }
     }
     private var _paused = false
+    /// While true (a TwinKeys text field or sheet has the keyboard), keys are passed on untouched.
+    var passThrough: Bool {
+        get { tapLock.lock(); defer { tapLock.unlock() }; return _passThrough }
+        set { tapLock.lock(); _passThrough = newValue; tapLock.unlock() }
+    }
+    private var _passThrough = false
 
     /// Accessibility permission (needed to keep keys from other apps).
     static var hasAccessibility: Bool { AXIsProcessTrusted() }
@@ -103,6 +109,8 @@ final class KeyMonitor {
             return false
         case .keyDown, .keyUp:
             if paused { return false }
+            // Key-ups still go through, so a cue key released while typing ends its note.
+            if passThrough && type == .keyDown { return false }
             let code = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             var mods: Modifiers = []
