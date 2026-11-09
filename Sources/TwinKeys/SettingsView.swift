@@ -5,36 +5,48 @@ struct SettingsView: View {
     @ObservedObject var model: AppModel
     @State private var seconds: Double = 10
 
+    private var t: Strings { model.state.t }
+
     var body: some View {
         Form {
             Section {
-                HStack {
-                    Stepper(value: $seconds, in: 0...120, step: 1) {
-                        Text("Automatic note-off after \(Int(seconds)) s")
-                    }
-                    .onChange(of: seconds) { model.setAutoNoteOff($0) }
-                    .accessibilityHint("A note that never receives its note-off is stopped after this time. 0 turns it off.")
+                Picker(t.language, selection: Binding(get: { model.language }, set: { model.setLanguage($0) })) {
+                    ForEach(AppLanguage.allCases) { l in Text(t.languageName(l)).tag(l) }
                 }
-                Text("Protects against stuck notes if a note-off is lost. 0 turns it off.")
+                Text(t.languageNote)
                     .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Section {
-                HStack(spacing: 8) {
-                    Button("Show Mapping File in Finder") { model.revealSettingsFolder() }
-                        .buttonStyle(TKButtonStyle())
-                    Button("Reload Mapping") { model.reloadMapping() }
-                        .buttonStyle(TKButtonStyle())
-                    Button("Restore Default Mapping") { model.resetMapping() }
-                        .buttonStyle(TKButtonStyle())
+                Stepper(value: $seconds, in: 0...120, step: 1) {
+                    Text(t.autoNoteOff(Int(seconds)))
                 }
-                Text("Edit mapping.json to change which physical keys play which notes.")
+                .onChange(of: seconds) { model.setAutoNoteOff($0) }
+                .accessibilityHint(t.autoNoteOffHint)
+                Text(t.autoNoteOffHelp)
                     .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { mappingButtons }
+                    VStack(alignment: .leading, spacing: 8) { mappingButtons }
+                }
+                Text(t.mappingHelp)
+                    .font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
+        .frame(width: 520)
         .padding(.vertical, 8)
         .onAppear { seconds = model.settings.autoNoteOffSeconds }
+    }
+
+    @ViewBuilder private var mappingButtons: some View {
+        Button(t.showMappingFile) { model.revealSettingsFolder() }.buttonStyle(TKButtonStyle())
+        Button(t.reloadMapping) { model.reloadMapping() }.buttonStyle(TKButtonStyle())
+        Button(t.restoreMapping) { model.resetMapping() }.buttonStyle(TKButtonStyle())
     }
 }
 #endif

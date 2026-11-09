@@ -12,6 +12,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var lastPeerID: String?
     /// CoreMIDI unique ID of the virtual port, kept stable so a DAW remembers it.
     public var midiUniqueID: Int32?
+    /// UI language: "system", "en" or "ja".
+    public var language: String = "system"
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -23,6 +25,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case midiChannel = "midi_channel"
         case lastPeerID = "last_peer_id"
         case midiUniqueID = "midi_unique_id"
+        case language
     }
 
     public init() {}
@@ -40,6 +43,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         midiChannel = min(16, max(1, try c.decodeIfPresent(Int.self, forKey: .midiChannel) ?? d.midiChannel))
         lastPeerID = try c.decodeIfPresent(String.self, forKey: .lastPeerID)
         midiUniqueID = try c.decodeIfPresent(Int32.self, forKey: .midiUniqueID)
+        let lang = try c.decodeIfPresent(String.self, forKey: .language) ?? d.language
+        language = ["system", "en", "ja"].contains(lang) ? lang : "system"
     }
 }
 

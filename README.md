@@ -6,7 +6,8 @@ TwinKeys plays the same MIDI notes on two Macs at once. Press keys on the main M
 
 - macOS 13 Ventura or later, Apple silicon and Intel (universal app)
 - MIT License
-- English UI
+- English and Japanese UI (Settings → Language: Same as System / English / 日本語)
+- Made by **Shogo Kajiyama / SEVENTHWELL**
 
 ## How it works
 
@@ -111,6 +112,10 @@ The platform-independent logic (`Sources/TwinKeysCore`) also builds and tests on
 - Key capture does not see keys typed into password fields (macOS Secure Input).
 - Wi-Fi adds variable delay that TwinKeys cannot control. Prefer a wired network.
 
+## Credits
+
+TwinKeys is made by **Shogo Kajiyama / SEVENTHWELL**. Released under the MIT License (see [LICENSE](LICENSE)). The app icon uses the letters "TK" from Inter (SIL Open Font License), converted to outlines.
+
 ## Roadmap
 
 - RTP-MIDI (AppleMIDI) compatibility (v2 candidate)
@@ -123,7 +128,7 @@ Not planned: Windows, audio processing, automatic audio failover, setlist manage
 
 ## 日本語の概要
 
-TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らすための小さな Mac アプリです。メイン機のキーボードを押すと、メイン機とバックアップ機の両方の音楽ソフトに同じノートが届きます。ライブでメインとバックアップの2台を並べて動かす構成向けです。
+TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らすための小さな Mac アプリです。制作は Shogo Kajiyama / SEVENTHWELL です。メイン機のキーボードを押すと、メイン機とバックアップ機の両方の音楽ソフトに同じノートが届きます。ライブでメインとバックアップの2台を並べて動かす構成向けです。
 
 > **非公式のサードパーティ製ツールです。** Ableton 社ほか DAW メーカーとは関係ありません。「Ableton」「Live」は Ableton AG の商標で、対応状況の説明のためにだけ記載しています。
 
@@ -134,3 +139,4 @@ TwinKeys は、2台の Mac で同じ MIDI ノートを同時に鳴らすため�
 - 初回起動は、上の「Download and first launch」の手順（右クリック→開く、または「このまま開く」）に従ってください。メイン機では「入力監視」、両方の Mac で「ローカルネットワーク」の許可が必要です。
 - メイン機では Live 本体のコンピュータMIDIキーボードを OFF にしてください（ON のままだと同じ音が2回鳴ります）。
 - 音声そのものの自動切り替え（オーディオフェイルオーバー）は対象外です。
+- 表示言語は「設定」（⌘,）の「言語」で、「システムに合わせる」「English」「日本語」から選べます。

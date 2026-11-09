@@ -34,6 +34,14 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(s.autoNoteOffSeconds, 4)
         XCTAssertEqual(s.midiChannel, 16)
         XCTAssertTrue(s.sendKeys)
+        XCTAssertEqual(s.language, "system")
+    }
+
+    func testLanguageSetting() throws {
+        let ja = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"language": "ja"}"#.utf8))
+        XCTAssertEqual(ja.language, "ja")
+        let bad = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"language": "fr"}"#.utf8))
+        XCTAssertEqual(bad.language, "system")
     }
 
     func testBrokenMappingFallsBackToDefault() throws {

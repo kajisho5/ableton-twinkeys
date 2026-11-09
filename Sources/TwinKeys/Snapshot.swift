@@ -32,10 +32,14 @@ enum Snapshot {
             ("min-size", empty, Theme.minWindow),
             ("min-size-connected", connected, Theme.minWindow),
         ]
-        for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
-            for (name, state, size) in shots {
-                let file = dir.appendingPathComponent("\(name)-\(appearanceName).png")
-                renderWindow(state: state, size: size, appearance: appearance, to: file)
+        for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
+            for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                for (name, base, size) in shots {
+                    var state = base
+                    state.language = language
+                    let file = dir.appendingPathComponent("\(name)-\(appearanceName)\(suffix).png")
+                    renderWindow(state: state, size: size, appearance: appearance, to: file)
+                }
             }
         }
     }

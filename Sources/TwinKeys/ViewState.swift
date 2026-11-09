@@ -34,45 +34,48 @@ struct ViewState: Equatable {
     var velocity = 100
     var heldNotes: [UInt8] = []
     var midiPortReady = true
-    var problems: [String] = []
+    var problems: [AppProblem] = []
+    var language: AppLanguage = .system
+
+    var t: Strings { Strings(language) }
 
     var canToggleConnection: Bool { linkedPeerID != nil || peers.count == 1 }
     var connectMenuTitle: String {
-        if linkedPeerID != nil { return "Disconnect" }
-        if peers.count == 1 { return "Connect to \(peers[0].name)" }
-        return "Connect"
+        if linkedPeerID != nil { return t.disconnect }
+        if peers.count == 1 { return t.connectTo(peers[0].name) }
+        return t.connect
     }
 
     var keyCaptureActive: Bool { keyCapture && sendKeys && inputMonitoring == .granted }
 
     var headline: String {
         switch link {
-        case .notConnected: return "Not connected"
-        case let .connecting(name, _): return "Connecting to \(name)…"
-        case let .connected(name, _): return "Connected to \(name)"
+        case .notConnected: return t.notConnected
+        case let .connecting(name, _): return t.connecting(name)
+        case let .connected(name, _): return t.connected(name)
         }
     }
 
     var detail: String {
         let roles: String
         switch (sendKeys, receiveNotes) {
-        case (true, true): roles = "Sending and receiving"
-        case (true, false): roles = "Sending"
-        case (false, true): roles = "Receiving"
-        case (false, false): roles = "Sending and receiving are off"
+        case (true, true): roles = t.sendingAndReceiving
+        case (true, false): roles = t.sending
+        case (false, true): roles = t.receiving
+        case (false, false): roles = t.bothOff
         }
         switch link {
         case .notConnected:
-            return peers.isEmpty ? "Searching for TwinKeys…" : "Choose a Mac below and click Connect"
+            return peers.isEmpty ? t.searching : t.chooseMac
         case let .connecting(_, attempt):
-            return attempt > 1 ? "No answer yet, retrying (attempt \(attempt))" : "Waiting for an answer…"
+            return attempt > 1 ? t.retrying(attempt) : t.waitingForAnswer
         case let .connected(_, latency):
-            return "Latency \(Self.latencyText(latency))  ·  \(roles)"
+            return t.latencyLine(latencyText(latency), roles)
         }
     }
 
-    static func latencyText(_ ms: Double?) -> String {
-        guard let ms else { return "measuring…" }
+    func latencyText(_ ms: Double?) -> String {
+        guard let ms else { return t.measuring }
         return ms < 1 ? "<1 ms" : "\(Int(ms.rounded())) ms"
     }
 }

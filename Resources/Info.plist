@@ -4,6 +4,13 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ja</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>TwinKeys</string>
 	<key>CFBundleExecutable</key>
@@ -29,7 +36,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>MIT License. Unofficial third-party tool.</string>
+	<string>© 2026 Shogo Kajiyama / SEVENTHWELL. MIT License.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>TwinKeys finds and talks to TwinKeys on your other Mac over the local network so both Macs can play the same notes.</string>
 	<key>NSBonjourServices</key>

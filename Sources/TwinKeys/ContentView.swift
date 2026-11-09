@@ -6,6 +6,7 @@ struct ContentView: View {
     let state: ViewState
     let actions: ViewActions
     @State private var showingHelp = false
+    private var t: Strings { state.t }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,7 +27,7 @@ struct ContentView: View {
         .background(Theme.windowBackground)
         .foregroundStyle(Theme.textPrimary)
         .font(.system(size: Theme.body))
-        .sheet(isPresented: $showingHelp) { HelpView(onClose: { showingHelp = false }, actions: actions) }
+        .sheet(isPresented: $showingHelp) { HelpView(t: t, onClose: { showingHelp = false }, actions: actions) }
     }
 
     // MARK: Header (always visible: status + panic)
@@ -47,12 +48,12 @@ struct ContentView: View {
                 Text(state.detail).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary).lineLimit(1)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Connection status: \(state.headline). \(state.detail)")
+            .accessibilityLabel("\(t.connectionStatus): \(state.headline). \(state.detail)")
             Spacer(minLength: 8)
-            Button("All Notes Off", action: actions.panic)
+            Button(t.allNotesOff, action: actions.panic)
                 .buttonStyle(TKButtonStyle(kind: .destructive))
-                .help("Stop every sounding note on this Mac and the connected Mac (⌃⌘P)")
-                .accessibilityHint("Sends All Notes Off to this Mac and to the connected Mac")
+                .help(t.allNotesOffHelp)
+                .accessibilityHint(t.allNotesOffHint)
         }
         .padding(.horizontal, Theme.outerPadding)
         .padding(.vertical, 12)
@@ -68,14 +69,14 @@ struct ContentView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Key capture needs Input Monitoring permission.")
+                    Text(t.needsInputMonitoring)
                         .font(.system(size: 12, weight: .semibold))
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
-                        Button("Open System Settings…", action: actions.openInputMonitoringSettings)
+                        Button(t.openSystemSettings, action: actions.openInputMonitoringSettings)
                             .buttonStyle(TKButtonStyle(kind: .primary))
-                            .accessibilityHint("Opens Privacy & Security, Input Monitoring")
-                        Button("Check Again", action: actions.recheckPermissions)
+                            .accessibilityHint(t.openSystemSettingsHint)
+                        Button(t.checkAgain, action: actions.recheckPermissions)
                             .buttonStyle(TKButtonStyle())
                     }
                 }
@@ -88,11 +89,11 @@ struct ContentView: View {
         TKGroup(border: Theme.warning) {
             VStack(alignment: .leading, spacing: 4) {
                 if !state.midiPortReady {
-                    Text("The TwinKeys MIDI port could not be created. Notes cannot reach your music software.")
+                    Text(t.midiPortFailed)
                         .font(.system(size: 12, weight: .semibold))
                 }
-                ForEach(state.problems, id: \.self) { p in
-                    Text(p).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                ForEach(state.problems.filter { $0 != .midiPort }, id: \.self) { p in
+                    Text(t.problem(p)).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -104,7 +105,7 @@ struct ContentView: View {
 
     private var peersSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("Nearby TwinKeys")
+            SectionLabel(t.nearbyTwinKeys)
             TKGroup {
                 if state.peers.isEmpty {
                     emptyState
@@ -122,15 +123,13 @@ struct ContentView: View {
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Text("No TwinKeys found on this network").font(.system(size: Theme.body, weight: .semibold))
-            Text(state.localNetwork == .denied
-                 ? "macOS is blocking local network access for TwinKeys. Allow it in System Settings > Privacy & Security > Local Network."
-                 : "Make sure both Macs are on the same Wi-Fi or wired network, and that TwinKeys is allowed in System Settings > Privacy & Security > Local Network.")
+            Text(t.noPeersTitle).font(.system(size: Theme.body, weight: .semibold))
+            Text(state.localNetwork == .denied ? t.noPeersDenied : t.noPeersBody)
                 .font(.system(size: Theme.caption))
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("How to Fix…") { showingHelp = true }
+            Button(t.howToFix) { showingHelp = true }
                 .buttonStyle(TKButtonStyle())
         }
         .frame(maxWidth: .infinity)
@@ -139,12 +138,12 @@ struct ContentView: View {
 
     private func peerRow(_ peer: PeerInfo) -> some View {
         let isLinked = state.linkedPeerID == peer.id
-        var detail = peer.modeText
+        var detail = t.modes(peer)
         var dot = Theme.idleDot
         if isLinked {
             switch state.link {
-            case let .connected(_, ms): detail += "  ·  " + ViewState.latencyText(ms); dot = Theme.ok
-            case .connecting: detail += "  ·  connecting…"; dot = Theme.warning
+            case let .connected(_, ms): detail += "  ·  " + state.latencyText(ms); dot = Theme.ok
+            case .connecting: detail += "  ·  " + t.connectingShort; dot = Theme.warning
             case .notConnected: break
             }
         }
@@ -157,14 +156,14 @@ struct ContentView: View {
             .accessibilityElement(children: .combine)
             Spacer(minLength: 8)
             if isLinked {
-                Button("Disconnect", action: actions.disconnect)
+                Button(t.disconnect, action: actions.disconnect)
                     .buttonStyle(TKButtonStyle())
-                    .accessibilityLabel("Disconnect from \(peer.name)")
-                    .help("Disconnect (⌘K)")
+                    .accessibilityLabel(t.disconnectFrom(peer.name))
+                    .help(t.disconnectHelp)
             } else {
-                Button("Connect") { actions.connect(peer.id) }
+                Button(t.connect) { actions.connect(peer.id) }
                     .buttonStyle(TKButtonStyle())
-                    .accessibilityLabel("Connect to \(peer.name)")
+                    .accessibilityLabel(t.connectTo(peer.name))
             }
         }
         .padding(.horizontal, 14)
@@ -176,7 +175,7 @@ struct ContentView: View {
 
     private var modeSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("Mode and Keyboard")
+            SectionLabel(t.modeAndKeyboard)
             TKGroup {
                 VStack(alignment: .leading, spacing: 0) {
                     ViewThatFits(in: .horizontal) {
@@ -200,7 +199,7 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 14)
                     .padding(.top, 10)
-                    Text("Turn off the computer MIDI keyboard in your music software to avoid double notes.")
+                    Text(t.doubleNotesHint)
                         .font(.system(size: Theme.caption))
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -212,14 +211,14 @@ struct ContentView: View {
     }
 
     @ViewBuilder private var modeToggles: some View {
-        Toggle("Send my keys", isOn: Binding(get: { state.sendKeys }, set: actions.setSendKeys))
+        Toggle(t.sendMyKeys, isOn: Binding(get: { state.sendKeys }, set: actions.setSendKeys))
             .toggleStyle(.checkbox)
             .fixedSize()
-            .accessibilityHint("Keys you press play notes here and on the connected Mac")
-        Toggle("Receive notes", isOn: Binding(get: { state.receiveNotes }, set: actions.setReceiveNotes))
+            .accessibilityHint(t.sendMyKeysHint)
+        Toggle(t.receiveNotes, isOn: Binding(get: { state.receiveNotes }, set: actions.setReceiveNotes))
             .toggleStyle(.checkbox)
             .fixedSize()
-            .accessibilityHint("Notes from the connected Mac play on this Mac")
+            .accessibilityHint(t.receiveNotesHint)
     }
 
     private var keyCaptureToggle: some View {
@@ -230,23 +229,23 @@ struct ContentView: View {
         }
         .toggleStyle(.checkbox)
         .fixedSize()
-        .help("Turn key capture on or off (⌃⌘K)")
-        .accessibilityLabel("Key capture")
+        .help(t.keyCaptureHelp)
+        .accessibilityLabel(t.keyCapture)
         .accessibilityValue(keyCaptureText)
     }
 
     private var keyCaptureText: String {
-        if !state.keyCapture { return "Key capture: Off" }
-        if !state.sendKeys { return "Key capture: Not sending" }
-        if state.inputMonitoring != .granted { return "Key capture: Needs permission" }
-        return "Key capture: On"
+        if !state.keyCapture { return t.keyCaptureOff }
+        if !state.sendKeys { return t.keyCaptureNotSending }
+        if state.inputMonitoring != .granted { return t.keyCaptureNeedsPermission }
+        return t.keyCaptureOn
     }
 
     @ViewBuilder private var valueBlocks: some View {
-        valueBlock(title: "Octave", value: "C\(state.octave)", keys: "Z / X")
-        valueBlock(title: "Velocity", value: "\(state.velocity)", keys: "C / V")
+        valueBlock(title: t.octave, value: "C\(state.octave)", keys: ("Z", "X"))
+        valueBlock(title: t.velocity, value: "\(state.velocity)", keys: ("C", "V"))
         VStack(alignment: .leading, spacing: 2) {
-            Text("Held notes").font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+            Text(t.heldNotes).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
             Text(state.heldNotes.isEmpty ? "—" : state.heldNotes.map(noteName).joined(separator: "  "))
                 .font(.system(size: Theme.body, weight: .medium, design: .monospaced))
                 .frame(minHeight: 22, alignment: .bottomLeading)
@@ -254,16 +253,16 @@ struct ContentView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func valueBlock(title: String, value: String, keys: String) -> some View {
+    private func valueBlock(title: String, value: String, keys: (String, String)) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(value).font(.system(size: Theme.value, weight: .semibold)).monospacedDigit()
-                Text(keys).font(.system(size: Theme.caption, design: .monospaced)).foregroundStyle(Theme.textSecondary)
+                Text("\(keys.0) / \(keys.1)").font(.system(size: Theme.caption, design: .monospaced)).foregroundStyle(Theme.textSecondary)
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title) \(value). Change with \(keys.replacingOccurrences(of: " / ", with: " and "))")
+        .accessibilityLabel(t.changeWith(title, value, keys.0, keys.1))
     }
 
     // MARK: Permissions row
@@ -279,16 +278,16 @@ struct ContentView: View {
     @ViewBuilder private var permissionItems: some View {
         let im: (Color, String) = {
             switch state.inputMonitoring {
-            case .granted: return (Theme.ok, "Input Monitoring: Allowed")
-            case .denied: return (Theme.warning, "Input Monitoring: Not allowed")
-            case .unknown: return (Theme.idleDot, "Input Monitoring: Checking…")
+            case .granted: return (Theme.ok, t.inputMonitoringAllowed)
+            case .denied: return (Theme.warning, t.inputMonitoringNotAllowed)
+            case .unknown: return (Theme.idleDot, t.inputMonitoringChecking)
             }
         }()
         let ln: (Color, String) = {
             switch state.localNetwork {
-            case .peersVisible: return (Theme.ok, "Local Network: Peers visible")
-            case .searching: return (Theme.idleDot, "Local Network: Searching")
-            case .denied: return (Theme.warning, "Local Network: Not allowed")
+            case .peersVisible: return (Theme.ok, t.localNetworkVisible)
+            case .searching: return (Theme.idleDot, t.localNetworkSearching)
+            case .denied: return (Theme.warning, t.localNetworkNotAllowed)
             }
         }()
         HStack(spacing: 6) { StatusDot(color: im.0); Text(im.1) }

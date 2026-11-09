@@ -17,7 +17,7 @@ final class AppModel: ObservableObject {
     private let keyMonitor = KeyMonitor()
     private var peers: [PeerInfo] = []
     private var localNetwork: LocalNetworkState = .searching
-    private var problems: [String] = []
+    private var problems: [AppProblem] = []
     private var tickTimer: DispatchSourceTimer?
     private var uiTimer: Timer?
     private var started = false
@@ -25,15 +25,16 @@ final class AppModel: ObservableObject {
     init() {
         let store = ConfigStore()
         var settings = store.loadSettings()
-        var problems: [String] = []
+        var problems: [AppProblem] = []
         let (mapping, mappingProblem) = store.loadMapping()
-        if let mappingProblem { problems.append(mappingProblem) }
+        if mappingProblem != nil { problems.append(.mappingUnreadable) }
 
         var port: VirtualMIDIPort?
         do {
             port = try VirtualMIDIPort(name: "TwinKeys", uniqueID: settings.midiUniqueID)
         } catch {
-            problems.append("MIDI port error: \(error)")
+            problems.append(.midiPort)
+            FileLog(dir: store.paths.logsDir).write("MIDI port error: \(error)")
         }
         if let port, settings.midiUniqueID != port.uniqueID {
             settings.midiUniqueID = port.uniqueID
@@ -62,6 +63,7 @@ final class AppModel: ObservableObject {
         initial.sendKeys = settings.sendKeys
         initial.receiveNotes = settings.receiveNotes
         initial.keyCapture = settings.keyCapture
+        initial.language = AppLanguage(rawValue: settings.language) ?? .system
         self.state = initial
     }
 
@@ -92,7 +94,9 @@ final class AppModel: ObservableObject {
         }
         network.onLocalNetworkState = { [weak self] s in self?.localNetwork = s; self?.refresh() }
         network.onProblem = { [weak self] msg in
-            self?.problems.append(msg); self?.log.write(msg); self?.refresh()
+            guard let self else { return }
+            if !self.problems.contains(.listenFailed) { self.problems.append(.listenFailed) }
+            self.log.write(msg); self.refresh()
         }
         network.start(sends: settings.sendKeys, receives: settings.receiveNotes)
 
@@ -161,6 +165,24 @@ final class AppModel: ObservableObject {
         refresh()
     }
 
+    var language: AppLanguage { AppLanguage(rawValue: settings.language) ?? .system }
+
+    func setLanguage(_ l: AppLanguage) {
+        settings.language = l.rawValue
+        try? store.save(settings)
+        refresh()
+    }
+
+    func showAbout() {
+        let t = state.t
+        let credits = NSAttributedString(string: t.aboutCredits, attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.labelColor,
+        ])
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     func setAutoNoteOff(_ seconds: Double) {
         settings.autoNoteOffSeconds = seconds
         conductor.setAutoNoteOff(seconds: seconds)
@@ -170,8 +192,8 @@ final class AppModel: ObservableObject {
     func reloadMapping() {
         let (m, problem) = store.loadMapping()
         conductor.setMapping(m)
-        problems.removeAll { $0.hasPrefix("mapping.json") }
-        if let problem { problems.append(problem) }
+        problems.removeAll { $0 == .mappingUnreadable }
+        if problem != nil { problems.append(.mappingUnreadable) }
         refresh()
     }
 
@@ -183,7 +205,7 @@ final class AppModel: ObservableObject {
     func checkPermissions() {
         if KeyMonitor.hasPermission {
             if !keyMonitor.isRunning, !keyMonitor.start() {
-                problems.append("Key capture could not start even though permission is granted. Try quitting and reopening TwinKeys.")
+                if !problems.contains(.keyCaptureFailed) { problems.append(.keyCaptureFailed) }
             }
         }
         refresh()
@@ -220,7 +242,7 @@ final class AppModel: ObservableObject {
         let snap = conductor.snapshot()
         var s = ViewState()
         let nameFor: (String) -> String = { id in
-            snap.peerNames[id] ?? self.peers.first { $0.id == id }?.name ?? "another Mac"
+            snap.peerNames[id] ?? self.peers.first { $0.id == id }?.name ?? Strings(self.language).anotherMac
         }
         switch snap.link {
         case .idle: s.link = .notConnected
@@ -242,6 +264,7 @@ final class AppModel: ObservableObject {
         s.heldNotes = snap.heldNotes
         s.midiPortReady = midi != nil
         s.problems = problems
+        s.language = language
         if s != state { state = s }
         if KeyMonitor.hasPermission && !keyMonitor.isRunning { _ = keyMonitor.start() }
     }

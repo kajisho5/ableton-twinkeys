@@ -31,6 +31,12 @@ else
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 fi
 cp Resources/mapping.default.json "$APP/Contents/Resources/mapping.default.json"
+# Localized Info.plist strings (English / Japanese). Their presence also tells macOS the app supports both.
+for l in en ja; do
+  mkdir -p "$APP/Contents/Resources/$l.lproj"
+  cp "Resources/$l.lproj/InfoPlist.strings" "$APP/Contents/Resources/$l.lproj/"
+  plutil -lint "$APP/Contents/Resources/$l.lproj/InfoPlist.strings"
+done
 cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
 
 # Ad-hoc signature (no certificate). Not notarized: see README for first launch.

@@ -24,22 +24,25 @@ struct TwinKeysApp: App {
         }
         .defaultSize(width: 560, height: 420)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button(model.state.t.aboutMenu) { model.showAbout() }
+            }
             CommandGroup(replacing: .newItem) {}
-            CommandMenu("Connection") {
+            CommandMenu(model.state.t.connectionMenu) {
                 Button(model.state.connectMenuTitle) { model.toggleConnection() }
                     .keyboardShortcut("k", modifiers: .command)
                     .disabled(!model.state.canToggleConnection)
-                Button(model.state.keyCapture ? "Turn Key Capture Off" : "Turn Key Capture On") {
+                Button(model.state.keyCapture ? model.state.t.keyCaptureMenuOff : model.state.t.keyCaptureMenuOn) {
                     model.actions.setKeyCapture(!model.state.keyCapture)
                 }
                 .keyboardShortcut("k", modifiers: [.command, .control])
                 Divider()
-                Button("All Notes Off") { model.actions.panic() }
+                Button(model.state.t.allNotesOff) { model.actions.panic() }
                     .keyboardShortcut("p", modifiers: [.command, .control])
             }
             CommandGroup(replacing: .help) {
-                Button("TwinKeys Help") { model.openHelp() }
-                Button("Show Log Folder in Finder") { model.revealLogs() }
+                Button(model.state.t.help) { model.openHelp() }
+                Button(model.state.t.showLogs) { model.revealLogs() }
             }
         }
 

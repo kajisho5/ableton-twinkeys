@@ -91,4 +91,7 @@ Prepare the same set on both Macs: one MIDI track with an instrument, input from
 | 6-2 | Switch System Settings > Appearance between Light and Dark. | Colors follow immediately and text stays readable. | | | |
 | 6-3 | Turn on VoiceOver (⌘F5) and move through the window. | Status, buttons, checkboxes and values are read with meaningful labels. | | | |
 | 6-4 | Check the menu bar. | TwinKeys (About, Settings…, Quit), Edit, Connection (Connect/Disconnect ⌘K, Key Capture ⌃⌘K, All Notes Off ⌃⌘P), Window, Help. | | | |
+| 6-6 | Settings (⌘,) > Language: choose 日本語, then English, then Same as System. | The window, Settings and the Connection / Help menus switch at once. Standard items (Hide, Quit) follow the macOS language. | | | |
+| 6-7 | TwinKeys menu > About TwinKeys. | Shows "Shogo Kajiyama / SEVENTHWELL", the unofficial-tool note and the copyright. | | | |
+| 6-8 | macOS language set to Japanese, first launch (macOS 15+). | The Local Network dialog shows the Japanese reason text. | | | |
 | 6-5 | Help > Show Log Folder in Finder; open today's log. | Start, connect, disconnect and panic events are listed with times. | | | |
