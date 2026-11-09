@@ -49,6 +49,10 @@ jobs:
           dist/TwinKeys.app/Contents/MacOS/TwinKeys > e2e-app.log 2>&1 &
           PID=$!
           sleep 3
+          echo "--- Bonjour services seen by macOS (dns-sd, 5 s)"
+          (dns-sd -B _twinkeys._udp local. & DPID=$!; sleep 5; kill $DPID) || true
+          echo "--- UDP sockets of TwinKeys"
+          lsof -nP -iUDP -a -p $PID || true
           set +e
           swift scripts/e2e-midi.swift 2>&1 | tee e2e.txt
           RESULT=${PIPESTATUS[0]}

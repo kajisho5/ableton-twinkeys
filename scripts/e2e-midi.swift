@@ -77,7 +77,10 @@ listener.start(queue: queue)
 let found = DispatchSemaphore(value: 0)
 var target: NWEndpoint?
 let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_twinkeys._udp", domain: nil), using: NWParameters())
+browser.stateUpdateHandler = { print("   browser state: \($0)") }
+listener.stateUpdateHandler = { print("   listener state: \($0)") }
 browser.browseResultsChangedHandler = { results, _ in
+    print("   browse results: \(results.map { "\($0.endpoint)" })")
     for r in results {
         if case let .bonjour(t) = r.metadata, t.dictionary["id"] != myID.uuidString, target == nil {
             target = r.endpoint; found.signal()
