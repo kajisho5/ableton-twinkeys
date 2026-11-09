@@ -3,14 +3,19 @@ import XCTest
 
 final class SafetyTests: XCTestCase {
     func testAllNotesOffDestinations() {
-        let remoteWhenConnected: [SafetyTrigger] = [.panicButton, .appWillQuit, .manualDisconnect, .sendingTurnedOff, .keyCaptureTurnedOff]
-        for t in remoteWhenConnected {
-            XCTAssertEqual(Safety.plan(for: t, connected: true), SafetyPlan(local: true, remote: true), "\(t)")
-            XCTAssertEqual(Safety.plan(for: t, connected: false), SafetyPlan(local: true, remote: false), "\(t)")
+        for t in [SafetyTrigger.panicButton, .appWillQuit, .manualDisconnect] {
+            XCTAssertEqual(Safety.plan(for: t, connected: true), SafetyPlan(local: .all, remote: true), "\(t)")
+            XCTAssertEqual(Safety.plan(for: t, connected: false), SafetyPlan(local: .all, remote: false), "\(t)")
+        }
+        for t in [SafetyTrigger.sendingTurnedOff, .keyCaptureTurnedOff] {
+            XCTAssertEqual(Safety.plan(for: t, connected: true), SafetyPlan(local: .notesFromKeys, remote: true), "\(t)")
         }
         for t in [SafetyTrigger.connectionLost, .peerSaidBye] {
-            XCTAssertEqual(Safety.plan(for: t, connected: true), SafetyPlan(local: true, remote: false), "\(t)")
+            // Never cut the main Mac's own playing because the network dropped.
+            XCTAssertEqual(Safety.plan(for: t, connected: true), SafetyPlan(local: .notesFromPeer, remote: false), "\(t)")
         }
+        // Every trigger turns off at least something on this Mac.
+        for t in SafetyTrigger.allCases { XCTAssertNotEqual(Safety.plan(for: t, connected: true).local, .none) }
     }
 
     func testAutoNoteOffAfterTimeout() {

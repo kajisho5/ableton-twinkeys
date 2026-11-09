@@ -1,5 +1,5 @@
 /// When All Notes Off is sent, and where to.
-public enum SafetyTrigger: Equatable, Sendable {
+public enum SafetyTrigger: Equatable, Sendable, CaseIterable {
     case panicButton
     case appWillQuit
     case connectionLost
@@ -10,21 +10,34 @@ public enum SafetyTrigger: Equatable, Sendable {
 }
 
 public struct SafetyPlan: Equatable, Sendable {
-    /// Send All Notes Off to this Mac's virtual port.
-    public var local: Bool
-    /// Send All Notes Off to the connected peer (only if there is one).
+    public enum Local: Equatable, Sendable {
+        /// Leave this Mac's port alone.
+        case none
+        /// Turn off only notes that came from the peer.
+        case notesFromPeer
+        /// Turn off notes played by this Mac's own keys.
+        case notesFromKeys
+        /// All Notes Off (CC 123 on every channel) plus note-offs for every tracked note.
+        case all
+    }
+    public var local: Local
+    /// Tell the connected peer (only if there is one): All Notes Off for `.all`,
+    /// the matching note-offs for `.notesFromKeys`.
     public var remote: Bool
 }
 
 public enum Safety {
     public static func plan(for trigger: SafetyTrigger, connected: Bool) -> SafetyPlan {
         switch trigger {
-        case .panicButton, .appWillQuit, .manualDisconnect, .sendingTurnedOff, .keyCaptureTurnedOff:
-            // Notes played by our keys may be sounding on both Macs.
-            return SafetyPlan(local: true, remote: connected)
+        case .panicButton, .appWillQuit, .manualDisconnect:
+            return SafetyPlan(local: .all, remote: connected)
+        case .sendingTurnedOff, .keyCaptureTurnedOff:
+            // Our keys stop producing notes: end the ones they started, on both Macs.
+            return SafetyPlan(local: .notesFromKeys, remote: connected)
         case .connectionLost, .peerSaidBye:
-            // The peer cannot be reached (or is leaving); its own side cleans up itself.
-            return SafetyPlan(local: true, remote: false)
+            // The peer is gone. Notes it started here must not hang, but notes
+            // played on this Mac's own keys keep sounding.
+            return SafetyPlan(local: .notesFromPeer, remote: false)
         }
     }
 }

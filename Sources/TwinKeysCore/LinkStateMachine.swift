@@ -16,7 +16,11 @@ public struct LinkStateMachine: Sendable {
         case sendHeartbeatAck(peer: String, timestampNanos: UInt64)
         case sendBye(peer: String)
         case sendAllNotesOff(peer: String)
+        /// All Notes Off on this Mac's port (every note, including ones from our own keys).
         case allNotesOffLocal
+        /// Note-offs only for notes that arrived from the peer. Used when the link drops:
+        /// notes played on this Mac's own keys must keep sounding during a network blip.
+        case releaseNotesFromPeer
         case log(String)
     }
 
@@ -113,7 +117,7 @@ public struct LinkStateMachine: Sendable {
         guard self.peer == peer else { return [] }
         state = .idle
         rtts.removeAll()
-        return [.allNotesOffLocal, .log("\(peer) disconnected")]
+        return [.releaseNotesFromPeer, .log("\(peer) disconnected")]
     }
 
     public mutating func receivedHeartbeat(from peer: String, timestampNanos: UInt64, now: Double) -> [Action] {
@@ -144,7 +148,7 @@ public struct LinkStateMachine: Sendable {
             if now - lastHeard >= Self.timeout {
                 state = .connecting(peer: p, attempt: 1, nextRetryAt: now + Self.retryDelay(attempt: 1))
                 rtts.removeAll()
-                return [.allNotesOffLocal, .log("Lost connection to \(p); reconnecting"), .sendHello(peer: p)]
+                return [.releaseNotesFromPeer, .log("Lost connection to \(p); reconnecting"), .sendHello(peer: p)]
             }
             if now - lastHeartbeatSent >= Self.heartbeatInterval {
                 lastHeartbeatSent = now
