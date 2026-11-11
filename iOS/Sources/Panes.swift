@@ -316,18 +316,24 @@ struct CuesView: View {
                 let keys = model.status?.cueKeys ?? []
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: cols), spacing: 8) {
                     ForEach(keys) { k in
-                        Button { model.cue(k.keycode) } label: {
-                            VStack(spacing: 3) {
-                                Text(k.label).font(.title3.bold()).lineLimit(1).minimumScaleFactor(0.6)
-                                if !compact { Text(k.memo.isEmpty ? "—" : k.memo).font(.caption2).foregroundStyle(.secondary).lineLimit(1) }
-                            }
-                            .frame(maxWidth: .infinity, minHeight: compact ? 50 : 64)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCard))
-                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.3)))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(k.memo.isEmpty ? k.label : "\(k.label) \(k.memo)")
+                        Button { model.cue(k.keycode) } label: { cueButton(k) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(k.memo.isEmpty ? k.label : "\(k.memo), \(k.label)")
                     }
+                }
+                if keys.contains(where: { $0.memo.isEmpty }) || !compact {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if keys.contains(where: { $0.memo.isEmpty }) {
+                            Label(L.s("Keys without a memo: write one in the Mac's Settings > Cue Keys and it shows here.",
+                                      "メモのないキーは、Mac の「設定」>「キューのキー」でメモを書くと、何をするかがここに出ます。"),
+                                  systemImage: "info.circle")
+                        }
+                        if !compact {
+                            Text(L.s("A button does what that key does on the Mac. What moves in Live depends on your MIDI Map.",
+                                     "押すと、Mac でそのキーを押したのと同じ。何が動くかは Live の MIDI マップで決まります。"))
+                        }
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
                 }
                 if !compact {
                     Button(action: model.allNotesOff) {
@@ -342,6 +348,29 @@ struct CuesView: View {
         }
     }
 
+    /// What the key does (its memo) first; the key itself small. Keys without a memo show the key large.
+    @ViewBuilder private func cueButton(_ k: RemoteStatus.CueKeySummary) -> some View {
+        VStack(alignment: k.memo.isEmpty ? .center : .leading, spacing: 5) {
+            if k.memo.isEmpty {
+                Text(k.label).font(.title2.bold()).lineLimit(1).minimumScaleFactor(0.6)
+                if !compact { Text(L.s("No memo", "メモなし")).font(.caption2).foregroundStyle(.secondary) }
+            } else {
+                Text(k.memo).font(compact ? .subheadline.bold() : .headline).lineLimit(2).minimumScaleFactor(0.7)
+                    .multilineTextAlignment(.leading)
+                HStack(spacing: 6) {
+                    Text(k.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Color.tkCell))
+                    if !compact { Text(L.s("key", "キー")).font(.caption2).foregroundStyle(.secondary) }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: compact ? 52 : 68, alignment: k.memo.isEmpty ? .center : .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCard))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.3)))
+    }
+
     private var lastCue: some View {
         let c = model.status?.lastCue
         return HStack(spacing: 12) {
@@ -350,7 +379,7 @@ struct CuesView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(L.s("Last cue", "直前のキュー")).font(.caption.bold()).foregroundStyle(.secondary)
                 Text(c.map { $0.memo.isEmpty ? $0.label : $0.memo } ?? L.s("No cue yet", "まだありません")).font(.headline).lineLimit(1)
-                if let c { Text(L.s("Cue \(c.count) since connecting", "接続してから \(c.count) 回目")).font(.caption).foregroundStyle(.secondary) }
+                if let c { Text(L.s("\(c.label) key · cue \(c.count) since connecting", "\(c.label) キー ・ 接続してから \(c.count) 回目")).font(.caption).foregroundStyle(.secondary) }
             }
             Spacer()
             if let d = c?.delivery {

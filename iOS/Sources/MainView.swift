@@ -16,7 +16,7 @@ enum Pane: String, CaseIterable, Identifiable {
         switch self {
         case .session: return "square.grid.3x3.fill"
         case .mixer: return "slider.vertical.3"
-        case .cues: return "keyboard"
+        case .cues: return "bolt.fill"
         case .settings: return "gearshape"
         }
     }
