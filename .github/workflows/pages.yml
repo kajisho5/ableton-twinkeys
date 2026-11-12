@@ -6,6 +6,8 @@ on:
     paths:
       - 'site/**'
       - 'docs/help/**'
+      - 'docs/privacy/**'
+      - 'docs/support/**'
       - 'release-notes/**'
       - '.github/workflows/pages.yml'
   # After a release is published, so the download button and notes match what is out.

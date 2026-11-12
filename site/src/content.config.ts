@@ -16,6 +16,13 @@ export const collections = {
   help: defineCollection({
     loader: glob({ pattern: '*.md', base: '../docs/help' }),
   }),
+  // Linked from App Store Connect (privacy policy URL and support URL of TwinKeys Remote).
+  privacy: defineCollection({
+    loader: glob({ pattern: '*.md', base: '../docs/privacy' }),
+  }),
+  support: defineCollection({
+    loader: glob({ pattern: '*.md', base: '../docs/support' }),
+  }),
   releasesEn: defineCollection({
     loader: glob({ pattern: '*.md', base: '../release-notes/en', generateId: versionId }),
     schema: releaseSchema,

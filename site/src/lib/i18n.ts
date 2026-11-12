@@ -12,8 +12,14 @@ export function url(path = ''): string {
 }
 
 /** Page key -> path without language prefix. */
-export type PageKey = 'home' | 'guide' | 'releases';
-const PATHS: Record<PageKey, string> = { home: '', guide: 'guide/', releases: 'releases/' };
+export type PageKey = 'home' | 'guide' | 'releases' | 'privacy' | 'support';
+const PATHS: Record<PageKey, string> = {
+  home: '',
+  guide: 'guide/',
+  releases: 'releases/',
+  privacy: 'privacy/',
+  support: 'support/',
+};
 
 export function pageUrl(lang: Lang, page: PageKey): string {
   return url((lang === 'ja' ? 'ja/' : '') + PATHS[page]);
@@ -66,6 +72,13 @@ export const t = {
     releasesDocTitle: 'Release notes — TwinKeys',
     releasesLead: 'What is new and what was fixed in each version.',
     latest: 'Latest',
+    navPrivacy: 'Privacy',
+    navSupport: 'Support',
+    privacyDocTitle: 'Privacy Policy — TwinKeys',
+    privacyDescription:
+      'TwinKeys and TwinKeys Remote collect no data. No accounts, no analytics, no ads. Traffic stays on your local network.',
+    supportDocTitle: 'Support — TwinKeys Remote',
+    supportDescription: 'Help for TwinKeys Remote, the iPhone and iPad app that controls Live on two Macs, and how to contact us.',
     footerMade: 'Made by Shogo Kajiyama / SEVENTHWELL',
     footerLicense: 'MIT License',
     footerTrademark:
@@ -122,6 +135,13 @@ export const t = {
     releasesDocTitle: 'リリースノート — TwinKeys',
     releasesLead: 'バージョンごとに、新しくなったことと直した不具合をまとめています。',
     latest: '最新',
+    navPrivacy: 'プライバシー',
+    navSupport: 'サポート',
+    privacyDocTitle: 'プライバシーポリシー — TwinKeys',
+    privacyDescription:
+      'TwinKeys と TwinKeys Remote は、データを一切集めません。アカウント・分析・広告はありません。通信は手元のネットワークの中だけです。',
+    supportDocTitle: 'サポート — TwinKeys Remote',
+    supportDescription: '2台の Mac の Live を操作する iPhone・iPad アプリ「TwinKeys Remote」の困ったときと、問い合わせ先です。',
     footerMade: '制作: Shogo Kajiyama / SEVENTHWELL',
     footerLicense: 'MIT License',
     footerTrademark:
