@@ -74,6 +74,8 @@ enum Snapshot {
         many.cueKeys = CueKey.adding(CueKey.alphanumericKeyCodes, to: CueKey.defaults)
         var leaking = cue
         leaking.accessibility = .denied; leaking.cueKeysBlocked = false; leaking.lastCue = nil
+        // 2.4 console takeover (experimental), on the backup Mac. Only these shots turn it on.
+        let (deskReady, deskSwitched, deskMismatch) = deskSamples(backup: cueBackup)
 
         let shots: [(String, ViewState, CGSize)] = [
             ("main", connected, CGSize(width: 560, height: 420)),
@@ -88,6 +90,9 @@ enum Snapshot {
             ("update-ready", updateReady, CGSize(width: 560, height: 520)),
             ("accessibility-needed", leaking, CGSize(width: 560, height: 520)),
             ("cue-many-keys", many, Theme.minWindow),
+            ("desk-backup", deskReady, CGSize(width: 560, height: 520)),
+            ("desk-switched", deskSwitched, CGSize(width: 560, height: 560)),
+            ("desk-mismatch", deskMismatch, CGSize(width: 560, height: 560)),
         ]
         for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
             for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
@@ -103,6 +108,7 @@ enum Snapshot {
         }
         renderHelp(to: dir)
         renderMenuBarIcons(to: dir)
+        renderDeskSettings(state: deskReady, to: dir)
         for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
             for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
                 var s = connected
@@ -115,6 +121,55 @@ enum Snapshot {
                 renderWindow(view: ConnectByIPSheet(state: s, actions: ViewActions()), size: CGSize(width: 440, height: 270),
                              appearance: appearance, title: "TwinKeys",
                              to: dir.appendingPathComponent("sheet-ip-\(appearanceName)\(suffix).png"))
+            }
+        }
+    }
+
+    /// Console sample (fictional names and address): a QL5 with four rows, levels read.
+    static func deskSamples(backup: ViewState) -> (ViewState, ViewState, ViewState) {
+        var d = DeskSettings()
+        d.enabled = true
+        d.model = .ql5
+        d.host = "192.168.0.128"
+        d.rows = [
+            DeskRow(mainChannel: 1, backupChannel: 9, name: "Music L"),
+            DeskRow(mainChannel: 2, backupChannel: 10, name: "Music R"),
+            DeskRow(mainChannel: 3, backupChannel: 11, name: "SE"),
+            DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2, name: "Amb"),
+        ]
+        let before: [DeskChannel: Int] = [
+            DeskChannel(.input, 1): -600, DeskChannel(.input, 2): -600, DeskChannel(.input, 3): -1000, DeskChannel(.stereoIn, 1): -1200,
+            DeskChannel(.input, 9): -32768, DeskChannel(.input, 10): -32768, DeskChannel(.input, 11): -32768, DeskChannel(.stereoIn, 2): -32768,
+        ]
+        var ready = backup
+        ready.deskSettings = d
+        ready.deskActive = true
+        ready.desk = DeskSnapshot(model: .ql5, status: .reading, readiness: .ready(.rcp, readLevels: true),
+                                  levels: before, fresh: Set(before.keys))
+        var switched = ready
+        switched.sendKeys = true; switched.receiveNotes = false
+        switched.claimsMain = true
+        switched.link = .connecting(name: "Main Stage Mac", attempt: 3)
+        switched.linkedPeerID = "m"
+        let done = DeskMoveSummary(kind: .takeover, fade: 0.5, running: false, path: .rcp, readLevels: true, rows: 4, check: .ok)
+        switched.desk = DeskSnapshot(model: .ql5, status: .reading, readiness: .notReady(.alreadyMoved), levels: before,
+                                     fresh: Set(before.keys), move: done, canRestore: true, needsLink: true)
+        var mismatch = switched
+        var off = done
+        off.check = .mismatches([DeskMismatch(channel: DeskChannel(.input, 10), expected: -600, problem: .level(-2000))])
+        mismatch.desk?.move = off
+        return (ready, switched, mismatch)
+    }
+
+    /// Settings > Console (Yamaha) with the sample, as in docs/design/mac-ql-dark.
+    static func renderDeskSettings(state: ViewState, to dir: URL) {
+        for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
+            for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                var s = state
+                s.language = language
+                let view = Form { DeskSettingsSection(state: s, actions: DeskSettingsActions()) }.formStyle(.grouped)
+                renderWindow(view: view, size: CGSize(width: 640, height: 1000), appearance: appearance, title: Strings(language).deskSection,
+                             to: dir.appendingPathComponent("settings-desk-\(appearanceName)\(suffix).png"))
             }
         }
     }

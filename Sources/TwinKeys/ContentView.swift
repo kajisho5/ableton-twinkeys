@@ -23,6 +23,9 @@ struct ContentView: View {
                     if state.cueKeysLeaking { cueLeakBanner }
                     if state.mainLost && !state.claimsMain { mainLostBanner }
                     if state.claimsMain { claimsMainBanner }
+                    if let d = state.desk, DeskBanner.shows(d) {
+                        DeskBanner(desk: d, t: t, onRestore: actions.restoreDesk, onDismiss: actions.dismissDeskBanner)
+                    }
                     if let d = state.setDiff { setDiffBanner(d) }
                     if !state.cueKeys.isEmpty || state.lastCue != nil { CuePanel(state: state) }
                     peersSection
@@ -145,6 +148,7 @@ struct ContentView: View {
         case .mac: return "desktopcomputer"
         case .phone: return "iphone"
         case .watch: return "applewatch"
+        case .desk: return "slider.vertical.3"
         }
     }
 

@@ -11,6 +11,7 @@ struct SettingsView: View {
         Form {
             CueKeySettings(model: model)
             RemoteSettings(model: model)
+            DeskSettingsSection(state: model.state, actions: model.deskActions)
             Section(t.pairingTitle) {
                 PairingPanel(state: model.state, actions: model.actions)
                     .padding(.vertical, 4)

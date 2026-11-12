@@ -113,6 +113,8 @@ jobs:
         with:
           persist-credentials: false
       - run: cd LiveBridge && python3 -m unittest -v
+      - name: Fake Yamaha console for the console takeover (scripts/fake-yamaha-desk.py)
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
 
   site:
     name: Website builds
