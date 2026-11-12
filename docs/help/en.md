@@ -164,8 +164,8 @@ TwinKeys 2.2 or later. On the backup Mac, also turn on **Allow TwinKeys Remote t
 
 - When the main Mac has not answered for 3 seconds, the iPhone shows "The main Mac is not answering". The screens stay usable (they show the last state).
 - Tap "Switch to the backup" and hold "Hold to switch" for 1 second. The iPhone connects to the backup Mac and that Mac becomes the main; its keyboard fires the cues too.
-- To switch on the Macs alone, click "Make This Mac the Main" on the backup Mac.
-- When the old main Mac comes back, it only receives (the two Macs never send keys at the same time). To switch back, click "Make This Mac the Main" on the old main Mac, or "Return to Main" on the current main Mac.
+- To switch on the Macs alone, click "Make This Mac the Main" on the backup Mac. It is offered only when the link to the main Mac dropped (not after clicking Disconnect, or when TwinKeys was quit on the main Mac).
+- When the old main Mac comes back, it only receives (the two Macs never send keys at the same time). To switch back, click "Make This Mac the Main" on the old main Mac, or "Return to Main" on the current main Mac ("Return to Main" works only while the two Macs are linked).
 
 ### Apple Watch
 
@@ -184,12 +184,13 @@ Tap "Try with sample data" on the pairing screen to try the screens with made-up
 
 An experimental feature of TwinKeys 2.4 or later, off to begin with. Until it has been checked on real consoles, always try it in a rehearsal before a show.
 
-When the main Mac stops, the backup Mac moves the faders of a Yamaha console: it raises the channels that carry the backup Mac's sound to the level the main Mac's channels had just before, and at the same time pulls the main Mac's channels to −∞.
+When the main Mac stops, the other Mac moves the faders of a Yamaha console: it pulls the channels that carry the stopped Mac's sound to −∞, and at the same time raises the channels of the Mac still running to the level the stopped Mac's channels had just before.
 
 ### What it moves
 
 - Only fader levels. EQ, dynamics, routing, scenes and channel ON are never touched.
-- Only the backup Mac connects to the console (when the main Mac stops, the Mac still running moves it).
+- Both Macs connect to the console and read the levels. Only the Mac that is not the main (the one still running) ever moves faders; while a Mac is the main it only reads.
+- The same works after the roles switch: if the current main stops, the other Mac moves the faders the same way.
 
 ### Consoles
 
@@ -199,32 +200,35 @@ When the main Mac stops, the backup Mac moves the faders of a Yamaha console: it
 - DM5 (inputs 1–60), DM5 Compact (inputs 1–48)
 - Reading levels (`get` and the console's `NOTIFY` on TCP 49280) is not in Yamaha's documents; there are only reports from people who use it (QL5, DM7, DM7 Compact). Whether DM5 and DM5 Compact can be read has not been checked yet.
 - Writing levels uses Yamaha's own script example for QL (TCP 49280) and Yamaha's OSC specifications for DM3, DM5 and DM7 (UDP 49900).
-- When levels cannot be read, each backup channel goes to the level set in its row (with "Raise to set levels" on; DM consoles get it over Yamaha's OSC). QL has no OSC, so while it cannot be reached it cannot be moved.
+- When levels cannot be read, the channels go to the level set in each row (with "Raise to set levels" on; DM consoles get it over Yamaha's OSC). QL has no OSC, so while it cannot be reached it cannot be moved.
+- How many connections a console takes at once (two TwinKeys plus StageMix, Editor and so on) has not been checked yet.
 
-### Setting it up on the backup Mac
+### Setting it up (on either Mac)
 
-1. Find the console's "For Mixer Control" IP address and connect the backup Mac to the same network as the console.
-2. On the backup Mac, open Settings (⌘,) > Console (Yamaha) and check "Turn on the experimental feature".
-3. Choose the console model, type its IP address and click Check Connection. Green "Connected to QL5 · Reading fader levels" means levels are read. Yellow "Levels cannot be read: raises to the set levels" means each backup channel goes to its row's set level. Red means the console cannot be reached.
-4. Under Channel assignment, click "+ Add Row" and enter, row by row, the channel that carries the main Mac's sound and the channel that carries the backup Mac's sound. Numbers are as on the console (from 1); numbers above the model's limit cannot be entered. An ST IN row moves L and R together.
-5. While levels are read, each row shows the main channel's level now. Move a fader on the console and it changes right away.
-6. Choose When switching (After confirming, Automatically), the Fade time (Instant, 0.5 s, 1 s, 2 s) and "Pull the main channels to −∞".
+The console settings are the same on both Macs: a change on one Mac is copied to the other automatically (over the Macs' usual encrypted link; both need TwinKeys 2.4 or later). Only the "Also switch the console's faders" checkbox of the confirmation is remembered per Mac.
+
+1. Find the console's "For Mixer Control" IP address and connect both Macs to the same network as the console.
+2. Open Settings (⌘,) > Console (Yamaha) and check "Turn on the experimental feature".
+3. Choose the console model, type its IP address and click Check Connection. Green "Connected to QL5 · Reading fader levels" means levels are read; "The other Mac (name) is connected too" under it means the other Mac is connected to the console as well. Yellow "Levels cannot be read: raises to the set levels" means the channels go to each row's set level. Red means the console cannot be reached.
+4. Under Channel assignment, click "+ Add Row" and enter, row by row, the channel that carries this Mac's sound and the channel that carries the other Mac's. The table is written by Mac name, not by role ("Main Stage Mac Ch ⇄ Backup Stage Mac Ch"); on the other Mac the two columns swap places. Numbers are as on the console (from 1); numbers above the model's limit cannot be entered. An ST IN row moves L and R together.
+5. A table made before the other Mac was linked gets that Mac's column when they link.
+6. While levels are read, each row shows the level now of the channel of the Mac that is the main. Move a fader on the console and it changes right away.
+7. Choose When switching (After confirming, Automatically), the Fade time (Instant, 0.5 s, 1 s, 2 s) and "Pull the main channels to −∞".
 
 ### Switching
 
-- **After confirming** (the default): "Make this Mac the main Mac?" also shows "Also switch the console's faders (QL5: 4 rows, 0.5 s)". Leave it checked and click Make It the Main to switch the console too. Your answer is remembered and also used when an iPhone switches to this Mac.
+- **After confirming** (the default): on the Mac that is not the main, "Make this Mac the main Mac?" also shows "Also switch the console's faders (QL5: 4 rows, 0.5 s)". Leave it checked and click Make It the Main to switch the console too. Your answer is remembered and also used when an iPhone switches to this Mac.
 - When the console is not connected, or the levels read are old (not updated for 2 seconds or more), the confirmation says "The console cannot be moved" and only the Mac switches.
-- **Automatically**: when the main Mac has not answered for 3 seconds, only the console's faders are switched, once (the Macs' roles still switch only by a person or an iPhone, as before). It may also move when the network drops for a moment, so choosing it asks first. It never moves the console when it is not connected or the levels are old.
+- **Automatically**: when the main Mac has not answered for 3 seconds, the Mac that is not the main switches only the console's faders, once (the Macs' roles still switch only by a person or an iPhone, as before). It may also move when the network drops for a moment, so choosing it asks first. It never moves the console when it is not connected or the levels are old.
 - After switching, the window says "Console switched (0.5 s)". The levels are read back from the console; any channel that did not end up where it should is shown in yellow.
-- "Restore the Console" puts the backup channels back to their levels before the switch and the main channels back to theirs.
-- The Connections row at the top shows "Console QL5 ✓": green "Reading levels", yellow "Raises to set levels" or "Not connected".
+- "Restore the Console" makes the Mac that switched put its own channels back to their levels before the switch and the other Mac's channels back to theirs.
+- The Connections row at the top shows "Console QL5 ✓" on both Macs: green "Reading levels", yellow "Raises to set levels" or "Not connected".
 
 ### Trying it without a console
 
-- A small fake console, `scripts/fake-yamaha-desk.py` (Python 3 only), is in the source code on GitHub.
+- A small fake console, `scripts/fake-yamaha-desk.py` (Python 3 only), is in the source code on GitHub. Any number of Macs can connect to it.
 - Run `python3 scripts/fake-yamaha-desk.py --model ql5 --set 1=-6 --set 9=-inf` in Terminal and enter the IP address of the Mac running it in TwinKeys (127.0.0.1 on the same Mac).
-- Type `in 1 -10` in its Terminal window to move a fader as if on the console. `--no-read` acts like a console whose levels cannot be read, and `--model dm5` (and so on) changes the model.
-- Try it on a receiving Mac too ("Send my keys" off).
+- Type `in 1 -10` in its Terminal window to move a fader as if on the console; every connected Mac hears about it. `--no-read` acts like a console whose levels cannot be read, and `--model dm5` (and so on) changes the model.
 
 ## Troubleshooting
 

@@ -107,13 +107,21 @@ class FakeDeskSocketTests(unittest.TestCase):
         server = desk.Server(desk.FakeDesk("ql5"), out=lines.append)
         rcp, osc_port = await server.start("127.0.0.1", 0, 0)
         try:
+            # Both Macs (and StageMix) can be connected at once.
             r1, w1 = await asyncio.open_connection("127.0.0.1", rcp)
             r2, w2 = await asyncio.open_connection("127.0.0.1", rcp)
+            r3, w3 = await asyncio.open_connection("127.0.0.1", rcp)
             w1.write(("set %s 8 0 -600\n" % IN).encode())
             await w1.drain()
             self.assertEqual(await asyncio.wait_for(r1.readline(), 2), ('OK set %s 8 0 -600 "-6.00"\n' % IN).encode())
-            # The other client hears about it; the one that set it does not.
-            self.assertEqual(await asyncio.wait_for(r2.readline(), 2), ('NOTIFY set %s 8 0 -600 "-6.00"\n' % IN).encode())
+            # Every other client hears about it; the one that set it does not.
+            for r in (r2, r3):
+                self.assertEqual(await asyncio.wait_for(r.readline(), 2), ('NOTIFY set %s 8 0 -600 "-6.00"\n' % IN).encode())
+            # A fader moved on the console itself reaches every client.
+            self.assertTrue(desk.console_command(server, "in 2 -10"))
+            for r in (r1, r2, r3):
+                self.assertEqual(await asyncio.wait_for(r.readline(), 2), ('NOTIFY set %s 1 0 -1000 "-10.00"\n' % IN).encode())
+            w3.close()
             w2.write(("get %s 8 0\n" % IN).encode())
             await w2.drain()
             self.assertEqual(await asyncio.wait_for(r2.readline(), 2), ('OK get %s 8 0 -600 "-6.00"\n' % IN).encode())

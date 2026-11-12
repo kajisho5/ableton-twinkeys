@@ -201,6 +201,8 @@ struct ContentView: View {
         Button(t.becomeMainButton, action: actions.becomeMain).buttonStyle(TKButtonStyle(kind: .destructive))
     }
 
+    private var isLinked: Bool { if case .connected = state.link { return true }; return false }
+
     /// 2.3: this Mac made itself the main.
     private var claimsMainBanner: some View {
         TKGroup(border: Theme.accent) {
@@ -214,6 +216,8 @@ struct ContentView: View {
                 }
                 Spacer()
                 Button(t.handOverMain, action: actions.handOverMain).buttonStyle(TKButtonStyle())
+                    .disabled(!isLinked)
+                    .help(isLinked ? "" : t.handOverNeedsLink)
             }
             .padding(12)
         }

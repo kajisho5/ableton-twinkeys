@@ -231,7 +231,7 @@ struct MixerView: View {
                     }
                 }
             }
-            if model.locked {
+            if model.mixerLocked {
                 Label(L.s("Show lock: the mixer cannot be changed", "本番ロック中はミキサーを変えられません"), systemImage: "lock.fill")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -354,7 +354,7 @@ struct MixerView: View {
                     guard let start = dragStart[i], start.mode == mode else { return }
                     setFader(i, min(1, max(0, start.value - d.translation.height / h)), sends: sends)
                 }.onEnded { _ in dragStart[i] = nil })
-                .opacity(model.locked || value == nil ? 0.5 : 1)
+                .opacity(model.mixerLocked || value == nil ? 0.5 : 1)
             }
             .frame(minHeight: 120)
             if i >= 0 {
@@ -392,7 +392,7 @@ struct MixerView: View {
                 .background(RoundedRectangle(cornerRadius: 7).fill(on ? color : Color.tkCell))
         }
         .buttonStyle(.plain)
-        .disabled(model.locked)
+        .disabled(model.mixerLocked)
     }
 }
 

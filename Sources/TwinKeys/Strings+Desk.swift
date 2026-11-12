@@ -7,14 +7,18 @@ extension Strings {
     // MARK: Settings > Console (Yamaha)
     var deskSection: String { s("Console (Yamaha)", "卓（Yamaha）") }
     var deskSubtitle: String {
-        s("Used on the backup Mac only (when the main Mac stops, the Mac still running moves the console).",
-          "バックアップの Mac でだけ使います（メインが止まったとき、生きている側が卓を動かすため）")
+        s("Both Macs connect to the console. Only the Mac that has not stopped moves it.",
+          "両方の Mac が卓につながります。動かすのは、止まっていない側の Mac だけです")
     }
     var deskModel: String { s("Console model", "卓の機種") }
     var deskAddress: String { s("Console IP address", "卓の IP アドレス") }
     var deskCheck: String { s("Check Connection", "接続を確かめる") }
     var deskPortNote: String {
-        s("(TCP 49280. The console’s “For Mixer Control” IP address)", "（TCP 49280。卓の「For Mixer Control」の IP アドレス）")
+        s("TCP 49280 (the console’s “For Mixer Control” IP)", "TCP 49280（卓の「For Mixer Control」の IP）")
+    }
+    func deskPeerConnected(_ name: String) -> String { s("The other Mac (\(name)) is connected too", "相手の Mac（\(name)）も接続済み") }
+    func deskPeerNotConnected(_ name: String) -> String {
+        s("The other Mac (\(name)) is not connected to the console", "相手の Mac（\(name)）は卓につながっていません")
     }
     func deskReadUnverified(_ model: String) -> String {
         s("Whether \(model) can read levels has not been checked yet. If it cannot, the backup channels go to the set levels.",
@@ -25,9 +29,6 @@ extension Strings {
     var deskStatusOff: String { s("Off (turn on the experimental feature below)", "オフ（下の「試験的な機能」をオンにすると使えます）") }
     var deskStatusNoAddress: String { s("Enter the console’s IP address", "卓の IP アドレスを入れてください") }
     var deskStatusBadAddress: String { s("Not a valid IP address (for example 192.168.0.128)", "IP アドレスの形が違います（例：192.168.0.128）") }
-    var deskStatusNotBackup: String {
-        s("Connects only on the backup Mac (this Mac sends the keys)", "バックアップの Mac でだけつなぎます（この Mac はキーを送っています）")
-    }
     func deskStatusConnecting(_ m: String) -> String { s("Connecting to \(m)…", "\(m) に接続中…") }
     var deskStatusChecking: String { s("Connected · checking whether levels can be read…", "接続済み ・ 高さを読めるか確かめています…") }
     func deskStatusReading(_ m: String) -> String { s("Connected to \(m) · Reading fader levels", "\(m) に接続済み ・ フェーダーの高さを読めています") }
@@ -52,8 +53,7 @@ extension Strings {
     // Channel table
     var deskMapping: String { s("Channel assignment", "チャンネルの割り当て") }
     var deskColumnKind: String { s("Type", "種類") }
-    var deskColumnMain: String { s("Main", "メイン") }
-    var deskColumnBackup: String { s("Backup (this Mac)", "バックアップ（この Mac）") }
+    func deskColumnMac(_ name: String) -> String { s("\(name) Ch", "\(name) の Ch") }
     var deskColumnLevel: String { s("Level now", "いまの高さ") }
     var deskColumnFixed: String { s("Set level", "決めた高さ") }
     var deskKindInput: String { s("Input", "入力") }
@@ -61,12 +61,11 @@ extension Strings {
     var deskNamePlaceholder: String { s("Name", "名前") }
     var deskAddRow: String { s("+ Add Row", "＋ 行を足す") }
     var deskRowHint: String {
-        s("Numbers as on the console (from 1). Numbers above the model’s limit cannot be entered.",
-          "番号は卓の画面と同じ（1 から）。機種ごとの上限を超える番号は入れられません")
+        s("Numbers as on the console (from 1). These settings are copied to the other Mac automatically.",
+          "番号は卓の画面と同じ（1 から）。この設定は、もう片方の Mac にも自動で写ります")
     }
     var deskRemoveRow: String { s("Remove row", "行を消す") }
-    func deskMainChannel(_ row: Int) -> String { s("Main channel, row \(row)", "\(row) 行目のメインのチャンネル") }
-    func deskBackupChannel(_ row: Int) -> String { s("Backup channel, row \(row)", "\(row) 行目のバックアップのチャンネル") }
+    func deskMacChannel(_ name: String, row: Int) -> String { s("Channel on \(name), row \(row)", "\(row) 行目の \(name) の Ch") }
     func deskFixedLevelFor(_ row: Int) -> String { s("Set level in dB, row \(row)", "\(row) 行目の決めた高さ（dB）") }
     func deskChannel(_ c: DeskChannel) -> String {
         c.kind == .input ? "Ch \(c.number)" : "ST IN \(c.number)"
@@ -77,6 +76,7 @@ extension Strings {
             return limit == 0 ? s("Row \(row): \(model) has no \(deskChannel(ch))", "\(row) 行目：\(model) に \(deskChannel(ch)) はありません")
                 : s("Row \(row): \(deskChannel(ch)) is outside \(model)’s 1–\(limit)", "\(row) 行目：\(deskChannel(ch)) は \(model) の 1–\(limit) の外です")
         case let .noStereoIn(row): return s("Row \(row): \(model) has no ST IN", "\(row) 行目：\(model) に ST IN はありません")
+        case let .channelMissing(row): return s("Row \(row): a channel is missing", "\(row) 行目：チャンネルが入っていません")
         case let .sameChannel(row): return s("Row \(row): main and backup are the same channel", "\(row) 行目：メインとバックアップが同じチャンネルです")
         case let .usedTwice(ch): return s("\(deskChannel(ch)) is used in more than one row", "\(deskChannel(ch)) が複数の行で使われています")
         case let .fixedLevelMinusInfinity(row): return s("Row \(row): the set level is −∞", "\(row) 行目：決めた高さが −∞ です")
@@ -121,8 +121,8 @@ extension Strings {
         s("Turn on the experimental feature (off until checked on a real console)", "試験的な機能をオンにする（実機で確かめるまで、初期状態はオフ）")
     }
     var deskOnlyFaders: String {
-        s("Only fader levels are moved. EQ, dynamics, routing and scenes are never touched.",
-          "動かすのはフェーダーの高さだけ。EQ・ダイナミクス・ルーティング・シーンにはさわりません。")
+        s("Only fader levels are moved. While a Mac is the main, it only reads.",
+          "動かすのはフェーダーの高さだけ。メインの Mac は、メインでいる間は読むだけで動かしません。")
     }
 
     // MARK: "Make this Mac the main" confirmation

@@ -43,26 +43,30 @@ public struct DeskMove: Equatable, Sendable {
 
 /// What a takeover did, kept for "Restore the console".
 public struct DeskTakeoverRecord: Equatable, Sendable {
-    public var rows: [DeskRow]
+    public var rows: [DeskRoute]
     public var fade: Double
-    public var pulledMain: Bool
+    /// The other Mac's channels were pulled to −∞.
+    public var pulledOther: Bool
     /// The levels were read from the console (false: each row's fixed level was used).
     public var levelsWereRead: Bool
-    /// Main channels before: read, or the row's fixed level when levels could not be read.
-    public var mainBefore: [DeskChannel: Int]
-    /// Backup channels before, when they were read (missing: assumed down, −∞).
-    public var backupBefore: [DeskChannel: Int]
+    /// The other Mac's channels before: read, or the row's fixed level when levels could not be read.
+    public var otherBefore: [DeskChannel: Int]
+    /// This Mac's channels before, when they were read (missing: assumed down, −∞).
+    public var ownBefore: [DeskChannel: Int]
     public var plan: DeskPlan
 }
 
 public enum DeskPlanError: Error, Equatable, Sendable {
     case noRows
     case invalidRows([DeskRowProblem])
-    /// Levels are read, but this main channel has none.
+    /// Levels are read, but this channel of the other Mac has none.
     case missingLevel(DeskChannel)
 }
 
 /// Builds the fader moves for a takeover and for undoing it. Pure: the caller sends the writes.
+///
+/// A takeover always runs on the Mac that is still running: the other Mac (the main) stopped.
+/// Its channels go to −∞; this Mac's channels rise to the level the other Mac's had.
 public enum DeskPlanner {
     /// A write every 50 ms during a fade.
     public static let stepInterval = 0.05
@@ -93,57 +97,57 @@ public enum DeskPlanner {
         return DeskPlan(steps: steps)
     }
 
-    /// Raises each backup channel to the level its main channel had (or to the row's fixed level
-    /// when `mainLevels` is nil: levels could not be read) and, with `pullMainToMinusInfinity`,
-    /// pulls the main channels to −∞ at the same time.
+    /// Raises each of this Mac's channels to the level the other Mac's channel had (or to the
+    /// row's fixed level when `otherLevels` is nil: levels could not be read) and, with
+    /// `pullOtherToMinusInfinity`, pulls the other Mac's channels to −∞ at the same time.
     ///
-    /// `backupLevels`: the backup channels' levels now, when read (a missing one is assumed to be
-    /// down at −∞, so it rises from the bottom). A main channel whose level is not known (not
-    /// read) is not faded: it goes to −∞ at the end of the fade.
-    public static func takeover(rows: [DeskRow], model: DeskModel, mainLevels: [DeskChannel: Int]?,
-                                backupLevels: [DeskChannel: Int]?, fade seconds: Double,
-                                pullMainToMinusInfinity: Bool) throws -> DeskTakeoverRecord {
+    /// `ownLevels`: this Mac's channels now, when read (a missing one is assumed to be down at
+    /// −∞, so it rises from the bottom). An other-Mac channel whose level is not known (not read)
+    /// is not faded: it goes to −∞ at the end of the fade.
+    public static func takeover(rows: [DeskRoute], model: DeskModel, otherLevels: [DeskChannel: Int]?,
+                                ownLevels: [DeskChannel: Int]?, fade seconds: Double,
+                                pullOtherToMinusInfinity: Bool) throws -> DeskTakeoverRecord {
         guard !rows.isEmpty else { throw DeskPlanError.noRows }
-        let problems = DeskSettings.problems(rows: rows, model: model)
+        let problems = DeskRoute.problems(rows, model: model)
         guard problems.isEmpty else { throw DeskPlanError.invalidRows(problems) }
         var moves: [DeskMove] = []
-        var mainBefore: [DeskChannel: Int] = [:]
-        var backupBefore: [DeskChannel: Int] = [:]
+        var otherBefore: [DeskChannel: Int] = [:]
+        var ownBefore: [DeskChannel: Int] = [:]
         for r in rows {
             let target: Int
-            if let mainLevels {
-                guard let v = mainLevels[r.main] else { throw DeskPlanError.missingLevel(r.main) }
+            if let otherLevels {
+                guard let v = otherLevels[r.other] else { throw DeskPlanError.missingLevel(r.other) }
                 target = DeskLevel.clamped(v)
             } else {
                 target = DeskLevel.clamped(r.fixedLevel)
             }
-            mainBefore[r.main] = target
-            let backupNow = backupLevels?[r.backup].map(DeskLevel.clamped)
-            if let b = backupNow { backupBefore[r.backup] = b }
-            moves.append(DeskMove(r.backup, from: backupNow ?? DeskLevel.minusInfinity, to: target))
-            if pullMainToMinusInfinity {
-                moves.append(DeskMove(r.main, from: mainLevels == nil ? nil : target, to: DeskLevel.minusInfinity))
+            otherBefore[r.other] = target
+            let ownNow = ownLevels?[r.own].map(DeskLevel.clamped)
+            if let b = ownNow { ownBefore[r.own] = b }
+            moves.append(DeskMove(r.own, from: ownNow ?? DeskLevel.minusInfinity, to: target))
+            if pullOtherToMinusInfinity {
+                moves.append(DeskMove(r.other, from: otherLevels == nil ? nil : target, to: DeskLevel.minusInfinity))
             }
         }
         let fade = DeskSettings.nearestFade(seconds)
-        return DeskTakeoverRecord(rows: rows, fade: fade, pulledMain: pullMainToMinusInfinity,
-                                  levelsWereRead: mainLevels != nil, mainBefore: mainBefore,
-                                  backupBefore: backupBefore, plan: Self.fade(moves, over: fade))
+        return DeskTakeoverRecord(rows: rows, fade: fade, pulledOther: pullOtherToMinusInfinity,
+                                  levelsWereRead: otherLevels != nil, otherBefore: otherBefore,
+                                  ownBefore: ownBefore, plan: Self.fade(moves, over: fade))
     }
 
-    /// Undoes a takeover with the same fade: backup channels back to their level before (−∞ when
-    /// it was not read), main channels (if they were pulled) back to theirs (the fixed level when
-    /// levels could not be read). `current`: levels read now (the fades start from them);
-    /// without one a channel starts from where the takeover left it.
+    /// Undoes a takeover with the same fade: this Mac's channels back to their level before (−∞
+    /// when it was not read), the other Mac's channels (if they were pulled) back to theirs (the
+    /// fixed level when levels could not be read). `current`: levels read now (the fades start
+    /// from them); without one a channel starts from where the takeover left it.
     public static func restore(_ record: DeskTakeoverRecord, current: [DeskChannel: Int]?) -> DeskPlan {
         let after = record.plan.targets
         var moves: [DeskMove] = []
         for r in record.rows {
-            let backupFrom = current?[r.backup] ?? after[r.backup]
-            moves.append(DeskMove(r.backup, from: backupFrom, to: record.backupBefore[r.backup] ?? DeskLevel.minusInfinity))
-            if record.pulledMain {
-                let mainFrom = current?[r.main] ?? after[r.main]
-                moves.append(DeskMove(r.main, from: mainFrom, to: record.mainBefore[r.main] ?? DeskLevel.clamped(r.fixedLevel)))
+            let ownFrom = current?[r.own] ?? after[r.own]
+            moves.append(DeskMove(r.own, from: ownFrom, to: record.ownBefore[r.own] ?? DeskLevel.minusInfinity))
+            if record.pulledOther {
+                let otherFrom = current?[r.other] ?? after[r.other]
+                moves.append(DeskMove(r.other, from: otherFrom, to: record.otherBefore[r.other] ?? DeskLevel.clamped(r.fixedLevel)))
             }
         }
         return fade(moves, over: record.fade)

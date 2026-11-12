@@ -125,18 +125,21 @@ enum Snapshot {
         }
     }
 
-    /// Console sample (fictional names and address): a QL5 with four rows, levels read.
+    /// Console sample (fictional names, IDs and address), seen on the backup Mac: a QL5 with four
+    /// rows, levels read, the main Mac connected to the console too.
     static func deskSamples(backup: ViewState) -> (ViewState, ViewState, ViewState) {
+        let me = "00000000-0000-4000-8000-00000000000B", main = "00000000-0000-4000-8000-00000000000A"
         var d = DeskSettings()
         d.enabled = true
         d.model = .ql5
         d.host = "192.168.0.128"
         d.rows = [
-            DeskRow(mainChannel: 1, backupChannel: 9, name: "Music L"),
-            DeskRow(mainChannel: 2, backupChannel: 10, name: "Music R"),
-            DeskRow(mainChannel: 3, backupChannel: 11, name: "SE"),
-            DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2, name: "Amb"),
+            DeskRow(channels: [main: 1, me: 9], name: "Music L"),
+            DeskRow(channels: [main: 2, me: 10], name: "Music R"),
+            DeskRow(channels: [main: 3, me: 11], name: "SE"),
+            DeskRow(kind: .stereoIn, channels: [main: 1, me: 2], name: "Amb"),
         ]
+        d.macNames = [me: "Backup Stage Mac", main: "Main Stage Mac"]
         let before: [DeskChannel: Int] = [
             DeskChannel(.input, 1): -600, DeskChannel(.input, 2): -600, DeskChannel(.input, 3): -1000, DeskChannel(.stereoIn, 1): -1200,
             DeskChannel(.input, 9): -32768, DeskChannel(.input, 10): -32768, DeskChannel(.input, 11): -32768, DeskChannel(.stereoIn, 2): -32768,
@@ -144,6 +147,11 @@ enum Snapshot {
         var ready = backup
         ready.deskSettings = d
         ready.deskActive = true
+        ready.deskMeID = me
+        ready.deskOtherID = main
+        ready.deskMeName = "Backup Stage Mac"
+        ready.deskOtherName = "Main Stage Mac"
+        ready.peerDesk = .reading
         ready.desk = DeskSnapshot(model: .ql5, status: .reading, readiness: .ready(.rcp, readLevels: true),
                                   levels: before, fresh: Set(before.keys))
         var switched = ready

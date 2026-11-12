@@ -83,6 +83,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         remoteEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .remoteEnabled)) ?? d.remoteEnabled
         // A broken console section falls back to its defaults (feature off), never the whole file.
         desk = (try? c.decodeIfPresent(DeskSettings.self, forKey: .desk)) ?? d.desk
+        // Rows from the first 2.4 builds (by role) are keyed to this Mac now; the other Mac's
+        // side keeps a placeholder until the two Macs are linked.
+        desk.normalize(me: instanceID.uuidString)
     }
 }
 

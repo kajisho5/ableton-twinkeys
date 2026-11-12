@@ -181,6 +181,10 @@ final class DeskOSCTests: XCTestCase {
     }
 }
 
+/// The two Macs in the settings tests (their TwinKeys IDs).
+let macA = "AAAAAAAA-0000-0000-0000-000000000001"
+let macB = "BBBBBBBB-0000-0000-0000-000000000002"
+
 final class DeskSettingsTests: XCTestCase {
     func testDefaultsAreOff() throws {
         let d = DeskSettings()
@@ -190,6 +194,7 @@ final class DeskSettingsTests: XCTestCase {
         XCTAssertTrue(d.pullMainToMinusInfinity)
         XCTAssertTrue(d.useFixedLevels)
         XCTAssertTrue(d.moveDeskWhenConfirming)
+        XCTAssertEqual(d.revision, 0)
         XCTAssertFalse(AppSettings().desk.enabled)
         // Old settings files have no "desk": the feature stays off.
         let old = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"send_keys": false}"#.utf8))
@@ -199,24 +204,28 @@ final class DeskSettingsTests: XCTestCase {
 
     func testRoundTripAndLenientDecoding() throws {
         var a = AppSettings()
+        let me = a.instanceID.uuidString
         a.desk.enabled = true
         a.desk.model = .dm7Compact
         a.desk.host = "192.168.0.128"
-        a.desk.rows = [DeskRow(mainChannel: 1, backupChannel: 9, fixedLevel: -600, name: "Music L")]
+        a.desk.rows = [DeskRow(channels: [me: 9, macB: 1], fixedLevel: -600, name: "Music L")]
+        a.desk.macNames = [me: "Backup Stage Mac", macB: "Main Stage Mac"]
         a.desk.trigger = .automatic
         a.desk.fade = 2
+        a.desk.revision = 1_700_000_000_123
         let back = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(a))
         XCTAssertEqual(back.desk, a.desk)
 
-        let json = #"{"desk": {"enabled": true, "model": "dm9", "fade": 0.7, "trigger": "sometimes", "host": " 10.0.0.2 ", "#
-            + #""rows": [{"kind": "stereo_in", "main_channel": 1, "backup_channel": 2}, {"main_channel": "x"}, "#
-            + #"{"main_channel": 3, "backup_channel": 4, "fixed_level": 99999}]}}"#
+        let json = #"{"desk": {"enabled": true, "model": "dm9", "fade": 0.7, "trigger": "sometimes", "host": " 10.0.0.2 ", "revision": 5, "#
+            + #""rows": [{"kind": "stereo_in", "channels": {"x": 1, "y": 2}}, {"channels": "x"}, "#
+            + #"{"channels": {"x": 3}, "fixed_level": 99999}]}}"#
         let d = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8)).desk
         XCTAssertTrue(d.enabled)
         XCTAssertEqual(d.model, .ql5)               // unknown model: the default
         XCTAssertEqual(d.fade, 0.5)                 // nearest offered fade
         XCTAssertEqual(d.trigger, .confirm)
         XCTAssertEqual(d.host, "10.0.0.2")
+        XCTAssertEqual(d.revision, 5)
         XCTAssertEqual(d.rows.count, 2)             // the broken row is dropped, not the others
         XCTAssertEqual(d.rows[0].kind, .stereoIn)
         XCTAssertEqual(d.rows[1].fixedLevel, 1000)
@@ -225,6 +234,88 @@ final class DeskSettingsTests: XCTestCase {
         let broken = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"desk": 5, "language": "ja"}"#.utf8))
         XCTAssertEqual(broken.desk, DeskSettings())
         XCTAssertEqual(broken.language, "ja")       // the rest of the file still loads
+    }
+
+    /// The first 2.4 builds wrote the table by role, and used it only on the receiving Mac:
+    /// "main" was the other Mac (also after this Mac had become the main by a takeover).
+    func testRoleBasedRowsFromTheFirstBuildsAreKeyedByMac() throws {
+        let me = "11111111-2222-3333-4444-555555555555"
+        for sendKeys in [false, true] {
+            let json = #"{"instance_id": "\#(me)", "send_keys": \#(sendKeys), "desk": {"enabled": true, "#
+                + #""rows": [{"main_channel": 1, "backup_channel": 9, "fixed_level": -600}, {"kind": "stereo_in", "main_channel": 1, "backup_channel": 2}]}}"#
+            let s = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+            XCTAssertEqual(s.desk.rows.map(\.channels), [[me: 9, DeskSettings.otherMacKey: 1], [me: 2, DeskSettings.otherMacKey: 1]])
+            XCTAssertTrue(s.desk.enabled)
+            XCTAssertEqual(s.desk.revision, 1)        // set by hand once: beats a Mac that never set it
+            // Once linked, the placeholder becomes the other Mac.
+            var d = s.desk
+            d.normalize(me: me, other: macB, myName: "Backup Stage Mac", otherName: "Main Stage Mac")
+            XCTAssertEqual(d.routes(me: me, other: macB), [DeskRoute(other: 1, own: 9, fixedLevel: -600), DeskRoute(kind: .stereoIn, other: 1, own: 2)])
+            XCTAssertEqual(d.macNames, [me: "Backup Stage Mac", macB: "Main Stage Mac"])
+        }
+    }
+
+    func testNormalizeFollowsTheLinkedMac() {
+        var d = DeskSettings()
+        d.rows = [DeskRow(channels: [macA: 1, DeskSettings.otherMacKey: 9])]
+        XCTAssertEqual(d.otherMac(me: macA), DeskSettings.otherMacKey)
+        d.normalize(me: macA, other: macB)
+        XCTAssertEqual(d.rows[0].channels, [macA: 1, macB: 9])
+        XCTAssertEqual(d.otherMac(me: macA), macB)
+        XCTAssertEqual(d.otherMac(me: macB), macA)
+        // Seen from the other Mac the two channels swap places.
+        XCTAssertEqual(d.routes(me: macA, other: macB), [DeskRoute(other: 9, own: 1)])
+        XCTAssertEqual(d.routes(me: macB, other: macA), [DeskRoute(other: 1, own: 9)])
+        // Linked to another Mac now (the backup was replaced): the other side follows it.
+        let macC = "CCCCCCCC-0000-0000-0000-000000000003"
+        d.normalize(me: macA, other: macC)
+        XCTAssertEqual(d.rows[0].channels, [macA: 1, macC: 9])
+        // This Mac got a new ID (its settings were copied): its side follows it.
+        let macA2 = "AAAAAAAA-0000-0000-0000-00000000000A"
+        d.normalize(me: macA2, other: macC)
+        XCTAssertEqual(d.rows[0].channels, [macA2: 1, macC: 9])
+        // Nothing to change: the same.
+        let same = d.normalized(me: macA2, other: macC)
+        XCTAssertEqual(same, d)
+    }
+
+    func testRevisionsAndSharedContent() throws {
+        var d = DeskSettings()
+        d.markChanged(nowMillis: 1000)
+        XCTAssertEqual(d.revision, 1000)
+        d.markChanged(nowMillis: 500)                // a clock that went back still moves forward
+        XCTAssertEqual(d.revision, 1001)
+        var e = d
+        e.moveDeskWhenConfirming = false             // this Mac only
+        e.macNames = [macA: "x"]
+        e.revision = 7
+        XCTAssertTrue(d.sameShared(as: e))
+        e.fade = 2
+        XCTAssertFalse(d.sameShared(as: e))
+        // Saved before revisions: untouched settings stay at 0.
+        XCTAssertEqual(try JSONDecoder().decode(DeskSettings.self, from: Data(#"{"fade": 0.5}"#.utf8)).revision, 0)
+        XCTAssertEqual(try JSONDecoder().decode(DeskSettings.self, from: Data(#"{"fade": 1}"#.utf8)).revision, 1)
+    }
+
+    func testShareHashIsTheSameOnBothMacs() {
+        var a = DeskSettings()
+        a.enabled = true
+        a.host = "192.168.0.128"
+        a.rows = [DeskRow(channels: [macA: 1, macB: 9], name: "Music L"), DeskRow(kind: .stereoIn, channels: [macA: 1, macB: 2])]
+        var b = a
+        b.rows = a.rows.map { DeskRow(kind: $0.kind, channels: $0.channels, fixedLevel: $0.fixedLevel, name: $0.name) }   // other row IDs
+        b.moveDeskWhenConfirming = false
+        XCTAssertEqual(a.shareHash(me: macA, peer: macB), b.shareHash(me: macB, peer: macA))
+        var c = a
+        c.rows[0].channels = [macA: 9, macB: 1]                    // the Macs swapped: different
+        XCTAssertNotEqual(a.shareHash(me: macA, peer: macB), c.shareHash(me: macA, peer: macB))
+        c = a; c.model = .dm3
+        XCTAssertNotEqual(a.shareHash(me: macA, peer: macB), c.shareHash(me: macA, peer: macB))
+        c = a; c.rows[1].fixedLevel = -300
+        XCTAssertNotEqual(a.shareHash(me: macA, peer: macB), c.shareHash(me: macA, peer: macB))
+        // A placeholder counts as the linked Mac.
+        c = a; c.rows = a.rows.map { r in var r = r; r.channels = [macA: r.channels[macA]!, DeskSettings.otherMacKey: r.channels[macB]!]; return r }
+        XCTAssertEqual(a.shareHash(me: macA, peer: macB), c.shareHash(me: macA, peer: macB))
     }
 
     func testFadesAndHosts() {
@@ -241,50 +332,51 @@ final class DeskSettingsTests: XCTestCase {
     }
 
     func testProblems() {
-        let ok = [DeskRow(mainChannel: 1, backupChannel: 9), DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2)]
-        XCTAssertEqual(DeskSettings.problems(rows: ok, model: .ql5), [])
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(mainChannel: 1, backupChannel: 65)], model: .ql5),
-                       [.channelOutOfRange(row: 1, channel: DeskChannel(.input, 65), limit: 64)])
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(mainChannel: 0, backupChannel: 2)], model: .ql5),
-                       [.channelOutOfRange(row: 1, channel: DeskChannel(.input, 0), limit: 64)])
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2)], model: .dm7), [.noStereoIn(row: 1)])
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2)], model: .dm3),
-                       [.channelOutOfRange(row: 1, channel: DeskChannel(.stereoIn, 2), limit: 1)])
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(mainChannel: 3, backupChannel: 3)], model: .ql1), [.sameChannel(row: 1)])
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(mainChannel: 1, backupChannel: 9), DeskRow(mainChannel: 9, backupChannel: 10)], model: .ql1),
-                       [.usedTwice(DeskChannel(.input, 9))])
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(mainChannel: 1, backupChannel: 2, fixedLevel: -32768)], model: .ql1),
-                       [.fixedLevelMinusInfinity(row: 1)])
+        func p(_ r: [DeskRoute], _ m: DeskModel) -> [DeskRowProblem] { DeskRoute.problems(r, model: m) }
+        let ok = [DeskRoute(other: 1, own: 9), DeskRoute(kind: .stereoIn, other: 1, own: 2)]
+        XCTAssertEqual(p(ok, .ql5), [])
+        XCTAssertEqual(p([DeskRoute(other: 1, own: 65)], .ql5), [.channelOutOfRange(row: 1, channel: DeskChannel(.input, 65), limit: 64)])
+        XCTAssertEqual(p([DeskRoute(other: 0, own: 2)], .ql5), [.channelMissing(row: 1)])
+        XCTAssertEqual(p([DeskRoute(other: 3, own: 0)], .ql5), [.channelMissing(row: 1)])
+        XCTAssertEqual(p([DeskRoute(kind: .stereoIn, other: 1, own: 2)], .dm7), [.noStereoIn(row: 1)])
+        XCTAssertEqual(p([DeskRoute(kind: .stereoIn, other: 1, own: 2)], .dm3), [.channelOutOfRange(row: 1, channel: DeskChannel(.stereoIn, 2), limit: 1)])
+        XCTAssertEqual(p([DeskRoute(other: 3, own: 3)], .ql1), [.sameChannel(row: 1)])
+        XCTAssertEqual(p([DeskRoute(other: 1, own: 9), DeskRoute(other: 9, own: 10)], .ql1), [.usedTwice(DeskChannel(.input, 9))])
+        XCTAssertEqual(p([DeskRoute(other: 1, own: 2, fixedLevel: -32768)], .ql1), [.fixedLevelMinusInfinity(row: 1)])
         // The same numbers as an input and as a stereo input are different channels.
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(mainChannel: 1, backupChannel: 2), DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2)], model: .ql5), [])
-        XCTAssertEqual(DeskSettings.problems(rows: [DeskRow(mainChannel: 120, backupChannel: 119)], model: .dm7), [])
-        XCTAssertFalse(DeskSettings.problems(rows: [DeskRow(mainChannel: 61, backupChannel: 1)], model: .dm5).isEmpty)
-        XCTAssertFalse(DeskSettings.problems(rows: [DeskRow(mainChannel: 49, backupChannel: 1)], model: .dm5Compact).isEmpty)
+        XCTAssertEqual(p([DeskRoute(other: 1, own: 2), DeskRoute(kind: .stereoIn, other: 1, own: 2)], .ql5), [])
+        XCTAssertEqual(p([DeskRoute(other: 120, own: 119)], .dm7), [])
+        XCTAssertFalse(p([DeskRoute(other: 61, own: 1)], .dm5).isEmpty)
+        XCTAssertFalse(p([DeskRoute(other: 49, own: 1)], .dm5Compact).isEmpty)
+        // Through the settings, as one Mac sees them.
+        var d = DeskSettings()
+        d.rows = [DeskRow(channels: [macA: 1])]
+        XCTAssertEqual(d.problems(me: macA, other: macB), [.channelMissing(row: 1)])
     }
 
     func testNewRowUsesFreeChannels() {
         var s = DeskSettings()
         s.model = .dm3
-        let r1 = s.newRow()!
-        XCTAssertEqual([r1.mainChannel, r1.backupChannel], [1, 2])
-        s.rows = [r1, DeskRow(mainChannel: 3, backupChannel: 9)]
-        let r2 = s.newRow()!
-        XCTAssertEqual([r2.mainChannel, r2.backupChannel], [4, 5])
-        s.rows = (0..<8).map { DeskRow(mainChannel: 2 * $0 + 1, backupChannel: 2 * $0 + 2) }
-        XCTAssertNil(s.newRow())                     // all 16 DM3 inputs used
+        let r1 = s.newRow(me: macA, other: macB)!
+        XCTAssertEqual(r1.channels, [macA: 1, macB: 2])
+        s.rows = [r1, DeskRow(channels: [macA: 3, macB: 9])]
+        XCTAssertEqual(s.newRow(me: macA, other: macB)?.channels, [macA: 4, macB: 5])
+        s.rows = (0..<8).map { DeskRow(channels: [macA: 2 * $0 + 1, macB: 2 * $0 + 2]) }
+        XCTAssertNil(s.newRow(me: macA, other: macB))           // all 16 DM3 inputs used
     }
 }
 
 final class DeskPlannerTests: XCTestCase {
+    // The other Mac (the one that stopped) on Ch 1, 2 and ST IN 1; this Mac on Ch 9, 10 and ST IN 2.
     let rows = [
-        DeskRow(mainChannel: 1, backupChannel: 9, name: "Music L"),
-        DeskRow(mainChannel: 2, backupChannel: 10, name: "Music R"),
-        DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2, fixedLevel: -1200, name: "Amb"),
+        DeskRoute(other: 1, own: 9, name: "Music L"),
+        DeskRoute(other: 2, own: 10, name: "Music R"),
+        DeskRoute(kind: .stereoIn, other: 1, own: 2, fixedLevel: -1200, name: "Amb"),
     ]
     let main: [DeskChannel: Int] = [DeskChannel(.input, 1): -600, DeskChannel(.input, 2): -600, DeskChannel(.stereoIn, 1): -1200]
 
     func testInstantTakeover() throws {
-        let r = try DeskPlanner.takeover(rows: rows, model: .ql5, mainLevels: main, backupLevels: [:], fade: 0, pullMainToMinusInfinity: true)
+        let r = try DeskPlanner.takeover(rows: rows, model: .ql5, otherLevels: main, ownLevels: [:], fade: 0, pullOtherToMinusInfinity: true)
         XCTAssertEqual(r.plan.steps.count, 1)
         XCTAssertEqual(r.plan.steps[0].at, 0)
         XCTAssertEqual(r.plan.targets, [
@@ -292,13 +384,13 @@ final class DeskPlannerTests: XCTestCase {
             DeskChannel(.input, 1): -32768, DeskChannel(.input, 2): -32768, DeskChannel(.stereoIn, 1): -32768,
         ])
         XCTAssertTrue(r.levelsWereRead)
-        XCTAssertEqual(r.mainBefore[DeskChannel(.input, 1)], -600)
-        XCTAssertTrue(r.backupBefore.isEmpty)
+        XCTAssertEqual(r.otherBefore[DeskChannel(.input, 1)], -600)
+        XCTAssertTrue(r.ownBefore.isEmpty)
     }
 
     func testFadeStepsEvery50msInFaderPosition() throws {
-        let r = try DeskPlanner.takeover(rows: rows, model: .ql5, mainLevels: main,
-                                         backupLevels: [DeskChannel(.input, 9): -32768], fade: 0.5, pullMainToMinusInfinity: true)
+        let r = try DeskPlanner.takeover(rows: rows, model: .ql5, otherLevels: main,
+                                         ownLevels: [DeskChannel(.input, 9): -32768], fade: 0.5, pullOtherToMinusInfinity: true)
         let steps = r.plan.steps
         XCTAssertEqual(steps.count, 10)
         for (i, s) in steps.enumerated() { XCTAssertEqual(s.at, 0.05 * Double(i + 1), accuracy: 1e-9) }
@@ -323,7 +415,7 @@ final class DeskPlannerTests: XCTestCase {
 
     func testLongerFadesAndUnchangedChannels() throws {
         for (fade, n) in [(1.0, 20), (2.0, 40)] {
-            let r = try DeskPlanner.takeover(rows: [rows[0]], model: .ql5, mainLevels: main, backupLevels: nil, fade: fade, pullMainToMinusInfinity: false)
+            let r = try DeskPlanner.takeover(rows: [rows[0]], model: .ql5, otherLevels: main, ownLevels: nil, fade: fade, pullOtherToMinusInfinity: false)
             XCTAssertEqual(r.plan.steps.count, n)
             XCTAssertEqual(r.plan.duration, fade, accuracy: 1e-9)
             XCTAssertEqual(Set(r.plan.steps.flatMap(\.writes).map(\.channel)), [DeskChannel(.input, 9)])   // main untouched
@@ -335,34 +427,34 @@ final class DeskPlannerTests: XCTestCase {
     }
 
     func testUnreadableUsesFixedLevelsAndCutsMainAtTheEnd() throws {
-        let r = try DeskPlanner.takeover(rows: rows, model: .ql5, mainLevels: nil, backupLevels: nil, fade: 0.5, pullMainToMinusInfinity: true)
+        let r = try DeskPlanner.takeover(rows: rows, model: .ql5, otherLevels: nil, ownLevels: nil, fade: 0.5, pullOtherToMinusInfinity: true)
         XCTAssertFalse(r.levelsWereRead)
         XCTAssertEqual(r.plan.targets[DeskChannel(.input, 9)], 0)
         XCTAssertEqual(r.plan.targets[DeskChannel(.stereoIn, 2)], -1200)
-        XCTAssertEqual(r.mainBefore[DeskChannel(.stereoIn, 1)], -1200)
+        XCTAssertEqual(r.otherBefore[DeskChannel(.stereoIn, 1)], -1200)
         // Where the main channel is now is not known: it is not faded (never raised by a guess).
         for s in r.plan.steps.dropLast() { XCTAssertFalse(s.writes.contains { $0.channel == DeskChannel(.input, 1) }) }
         XCTAssertTrue(r.plan.steps.last!.writes.contains(DeskWrite(DeskChannel(.input, 1), -32768)))
     }
 
     func testRejectsBadRowsAndMissingLevels() {
-        XCTAssertThrowsError(try DeskPlanner.takeover(rows: [], model: .ql5, mainLevels: nil, backupLevels: nil, fade: 0, pullMainToMinusInfinity: true)) {
+        XCTAssertThrowsError(try DeskPlanner.takeover(rows: [], model: .ql5, otherLevels: nil, ownLevels: nil, fade: 0, pullOtherToMinusInfinity: true)) {
             XCTAssertEqual($0 as? DeskPlanError, .noRows)
         }
-        XCTAssertThrowsError(try DeskPlanner.takeover(rows: [DeskRow(mainChannel: 1, backupChannel: 33)], model: .ql1, mainLevels: nil,
-                                                      backupLevels: nil, fade: 0, pullMainToMinusInfinity: true)) {
+        XCTAssertThrowsError(try DeskPlanner.takeover(rows: [DeskRoute(other: 1, own: 33)], model: .ql1, otherLevels: nil,
+                                                      ownLevels: nil, fade: 0, pullOtherToMinusInfinity: true)) {
             XCTAssertEqual($0 as? DeskPlanError, .invalidRows([.channelOutOfRange(row: 1, channel: DeskChannel(.input, 33), limit: 32)]))
         }
-        XCTAssertThrowsError(try DeskPlanner.takeover(rows: rows, model: .ql5, mainLevels: [DeskChannel(.input, 1): 0],
-                                                      backupLevels: nil, fade: 0, pullMainToMinusInfinity: true)) {
+        XCTAssertThrowsError(try DeskPlanner.takeover(rows: rows, model: .ql5, otherLevels: [DeskChannel(.input, 1): 0],
+                                                      ownLevels: nil, fade: 0, pullOtherToMinusInfinity: true)) {
             XCTAssertEqual($0 as? DeskPlanError, .missingLevel(DeskChannel(.input, 2)))
         }
-        XCTAssertThrowsError(try DeskPlanner.takeover(rows: [rows[2]], model: .dm7, mainLevels: nil, backupLevels: nil, fade: 0, pullMainToMinusInfinity: true))
+        XCTAssertThrowsError(try DeskPlanner.takeover(rows: [rows[2]], model: .dm7, otherLevels: nil, ownLevels: nil, fade: 0, pullOtherToMinusInfinity: true))
     }
 
     func testRestoreUndoesTheTakeover() throws {
         let backup: [DeskChannel: Int] = [DeskChannel(.input, 9): -32768, DeskChannel(.input, 10): -2000]
-        let r = try DeskPlanner.takeover(rows: rows, model: .ql5, mainLevels: main, backupLevels: backup, fade: 1, pullMainToMinusInfinity: true)
+        let r = try DeskPlanner.takeover(rows: rows, model: .ql5, otherLevels: main, ownLevels: backup, fade: 1, pullOtherToMinusInfinity: true)
         let undo = DeskPlanner.restore(r, current: nil)
         XCTAssertEqual(undo.duration, 1, accuracy: 1e-9)
         XCTAssertEqual(undo.targets, [
@@ -375,10 +467,10 @@ final class DeskPlannerTests: XCTestCase {
         let first9 = now.steps.first!.writes.first { $0.channel == DeskChannel(.input, 9) }!.value
         XCTAssertLessThan(first9, -300)
         // Main channels not pulled: the restore leaves them alone.
-        let noPull = try DeskPlanner.takeover(rows: rows, model: .ql5, mainLevels: main, backupLevels: nil, fade: 0, pullMainToMinusInfinity: false)
+        let noPull = try DeskPlanner.takeover(rows: rows, model: .ql5, otherLevels: main, ownLevels: nil, fade: 0, pullOtherToMinusInfinity: false)
         XCTAssertEqual(Set(DeskPlanner.restore(noPull, current: nil).targets.keys), [DeskChannel(.input, 9), DeskChannel(.input, 10), DeskChannel(.stereoIn, 2)])
         // Unreadable: the main channels come back to the fixed level.
-        let fixed = try DeskPlanner.takeover(rows: rows, model: .ql5, mainLevels: nil, backupLevels: nil, fade: 0, pullMainToMinusInfinity: true)
+        let fixed = try DeskPlanner.takeover(rows: rows, model: .ql5, otherLevels: nil, ownLevels: nil, fade: 0, pullOtherToMinusInfinity: true)
         XCTAssertEqual(DeskPlanner.restore(fixed, current: nil).targets[DeskChannel(.input, 1)], 0)
     }
 }
@@ -427,6 +519,18 @@ struct FakeConsole {
     }
 }
 
+/// A row of the DeskLink tests: `mainChannel` on the other Mac ("B", the one that stops),
+/// `backupChannel` on this Mac ("A").
+func deskRow(kind: DeskChannelKind = .input, mainChannel: Int, backupChannel: Int, fixedLevel: Int = 0) -> DeskRow {
+    DeskRow(kind: kind, channels: ["B": mainChannel, "A": backupChannel], fixedLevel: fixedLevel)
+}
+
+extension DeskLink {
+    /// As Mac "A", linked to "B".
+    init(_ s: DeskSettings) { self.init(settings: s, routes: s.routes(me: "A", other: "B")) }
+    mutating func configure(_ s: DeskSettings, now: Double) -> [Action] { configure(s, routes: s.routes(me: "A", other: "B"), now: now) }
+}
+
 final class DeskLinkTests: XCTestCase {
     var link: DeskLink!
     var console = FakeConsole()
@@ -440,8 +544,8 @@ final class DeskLinkTests: XCTestCase {
         s.enabled = true
         s.model = model
         s.host = "192.168.0.128"
-        s.rows = rows ?? [DeskRow(mainChannel: 1, backupChannel: 9), DeskRow(mainChannel: 2, backupChannel: 10),
-                          DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2)]
+        s.rows = rows ?? [deskRow(mainChannel: 1, backupChannel: 9), deskRow(mainChannel: 2, backupChannel: 10),
+                          deskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 2)]
         return s
     }
 
@@ -464,7 +568,7 @@ final class DeskLinkTests: XCTestCase {
     }
 
     func start(_ s: DeskSettings? = nil) {
-        link = DeskLink(settings: s ?? settings())
+        link = DeskLink(s ?? settings())
         run(link.start(now: now))
         run(link.connected(now: now))
     }
@@ -486,7 +590,7 @@ final class DeskLinkTests: XCTestCase {
     }
 
     func testConnectReadsAssignedChannelsMainFirst() {
-        link = DeskLink(settings: settings())
+        link = DeskLink(settings())
         XCTAssertEqual(link.start(now: now).first, .open)
         XCTAssertEqual(link.status(now: now), .connecting)
         let a = link.connected(now: now)
@@ -517,12 +621,12 @@ final class DeskLinkTests: XCTestCase {
         XCTAssertEqual(link.channelLevel(DeskChannel(.input, 1))?.value, -300)
         console.sent = []
         advance(1.0)
-        // Main channels every second; every channel every 5 s.
-        XCTAssertEqual(Set(console.sent), Set([0, 1].map { DeskRCP.get(FaderAddress(.input, x: $0)) }
-                                                + [0, 1].map { DeskRCP.get(FaderAddress(.stereoIn, x: $0)) }))
+        // Every assigned channel, on both Macs, every second.
+        XCTAssertEqual(Set(console.sent), Set([0, 1, 8, 9].map { DeskRCP.get(FaderAddress(.input, x: $0)) }
+                                                + [0, 1, 2, 3].map { DeskRCP.get(FaderAddress(.stereoIn, x: $0)) }))
         console.sent = []
         advance(4.0)
-        XCTAssertTrue(console.sent.contains(DeskRCP.get(FaderAddress(.input, x: 8))))
+        XCTAssertGreaterThanOrEqual(console.sent.filter { $0 == DeskRCP.get(FaderAddress(.input, x: 8)) }.count, 3)
         XCTAssertTrue(console.sent.contains(DeskRCP.ping))
         XCTAssertEqual(link.status(now: now), .reading)          // polling keeps the levels fresh
     }
@@ -551,7 +655,7 @@ final class DeskLinkTests: XCTestCase {
     }
 
     func testRetryBackoffAndConnectTimeout() {
-        link = DeskLink(settings: settings())
+        link = DeskLink(settings())
         run(link.start(now: now))
         XCTAssertEqual([1, 2, 3, 4, 5, 9].map(DeskLink.retryDelay), [1, 2, 4, 5, 5, 5])
         advance(5.0)                                            // no answer in 5 s
@@ -582,7 +686,7 @@ final class DeskLinkTests: XCTestCase {
     }
 
     func testNoAnswerToGetWithin3sMeansUnreadable() {
-        link = DeskLink(settings: settings(.dm5, rows: [DeskRow(mainChannel: 1, backupChannel: 9)]))
+        link = DeskLink(settings(.dm5, rows: [deskRow(mainChannel: 1, backupChannel: 9)]))
         run(link.start(now: now))
         _ = link.connected(now: now)                         // the console never answers the gets
         advance(2.9)
@@ -593,7 +697,7 @@ final class DeskLinkTests: XCTestCase {
     }
 
     func testRefusedRCPPortOnDMFallsBackToOSCButNotAutomatically() {
-        link = DeskLink(settings: settings(.dm5, rows: [DeskRow(mainChannel: 1, backupChannel: 9)]))
+        link = DeskLink(settings(.dm5, rows: [deskRow(mainChannel: 1, backupChannel: 9)]))
         run(link.start(now: now))
         run(link.connectionFailed(now: now, refused: true))
         XCTAssertEqual(link.status(now: now), .fixedLevels(unconfirmed: true))
@@ -602,7 +706,7 @@ final class DeskLinkTests: XCTestCase {
         advance(1.1)                                         // retrying keeps the state
         XCTAssertEqual(link.status(now: now), .fixedLevels(unconfirmed: true))
         // QL has no OSC: a refused port means the console cannot be moved.
-        link = DeskLink(settings: settings(.ql1, rows: [DeskRow(mainChannel: 1, backupChannel: 9)]))
+        link = DeskLink(settings(.ql1, rows: [deskRow(mainChannel: 1, backupChannel: 9)]))
         run(link.start(now: now))
         run(link.connectionFailed(now: now, refused: true))
         XCTAssertEqual(link.status(now: now), .notReachable)
@@ -686,14 +790,15 @@ final class DeskLinkTests: XCTestCase {
     }
 
     func testOlderPollAnswersDoNotCountAsReadBack() {
-        var s = settings(rows: [DeskRow(mainChannel: 1, backupChannel: 9)])
+        var s = settings(rows: [deskRow(mainChannel: 1, backupChannel: 9)])
         s.fade = 0
         start(s)
         console.answers = false
-        // Ch 1 is kept fresh by hand; the 5 s poll of Ch 9 stays unanswered.
-        for _ in 0..<5 {
+        // Answered by hand; the last poll of Ch 9 stays unanswered (its level is still fresh).
+        for i in 0..<5 {
             advance(1.0)
             run(link.received(line: "OK get MIXER:Current/InCh/Fader/Level 0 0 -600", now: now))
+            if i < 4 { run(link.received(line: "OK get MIXER:Current/InCh/Fader/Level 8 0 -32768", now: now)) }
         }
         XCTAssertEqual(link.status(now: now), .reading)
         run(link.startTakeover(now: now, automatic: false).1)
@@ -708,9 +813,9 @@ final class DeskLinkTests: XCTestCase {
 
     func testOSCTakeoverOnUnreadableDM() {
         console.canRead = false
-        var s = settings(.dm3, rows: [DeskRow(mainChannel: 1, backupChannel: 9, fixedLevel: -300),
-                                      DeskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 1)])
-        s.rows[1] = DeskRow(mainChannel: 2, backupChannel: 10)
+        var s = settings(.dm3, rows: [deskRow(mainChannel: 1, backupChannel: 9, fixedLevel: -300),
+                                      deskRow(kind: .stereoIn, mainChannel: 1, backupChannel: 1)])
+        s.rows[1] = deskRow(mainChannel: 2, backupChannel: 10)
         start(s)
         XCTAssertEqual(link.status(now: now), .fixedLevels(unconfirmed: false))
         let (r, a) = link.startTakeover(now: now, automatic: true)
@@ -727,7 +832,7 @@ final class DeskLinkTests: XCTestCase {
     func testQLWithoutReadingWritesFixedLevelsOverRCPAndReportsRefusals() {
         console.canRead = false
         console.refuseSets = true
-        start(settings(.ql1, rows: [DeskRow(mainChannel: 1, backupChannel: 9)]))
+        start(settings(.ql1, rows: [deskRow(mainChannel: 1, backupChannel: 9)]))
         let (r, a) = link.startTakeover(now: now, automatic: false)
         XCTAssertEqual(r, .ready(.rcp, readLevels: false))
         run(a)
@@ -753,7 +858,7 @@ final class DeskLinkTests: XCTestCase {
     }
 
     func testRefusalsAreKeptForTheWindow() {
-        link = DeskLink(settings: settings())
+        link = DeskLink(settings())
         run(link.start(now: now))
         let (r, _) = link.startTakeover(now: now, automatic: true)
         XCTAssertEqual(r, .notReady(.notConnected))
@@ -764,13 +869,13 @@ final class DeskLinkTests: XCTestCase {
         XCTAssertEqual(link.startRestore(now: now).0, .notReady(.nothingToRestore))
 
         var empty = settings(rows: [])
-        link = DeskLink(settings: empty)
+        link = DeskLink(empty)
         XCTAssertEqual(link.readiness(now: now, automatic: false), .notReady(.noRows))
-        empty.rows = [DeskRow(mainChannel: 1, backupChannel: 1)]
-        link = DeskLink(settings: empty)
+        empty.rows = [deskRow(mainChannel: 1, backupChannel: 1)]
+        link = DeskLink(empty)
         XCTAssertEqual(link.readiness(now: now, automatic: false), .notReady(.invalidRows))
         empty.enabled = false
-        link = DeskLink(settings: empty)
+        link = DeskLink(empty)
         XCTAssertEqual(link.readiness(now: now, automatic: false), .notReady(.off))
         XCTAssertEqual(link.startTakeover(now: now, automatic: true).0, .notReady(.off))
         XCTAssertNil(link.refusal)                             // nothing to show while the feature is off
@@ -798,7 +903,7 @@ final class DeskLinkTests: XCTestCase {
         advance(1)
         XCTAssertNotNil(link.takeover)
         var s = settings()
-        s.rows.append(DeskRow(mainChannel: 3, backupChannel: 11))
+        s.rows.append(deskRow(mainChannel: 3, backupChannel: 11))
         let a = link.configure(s, now: now)
         XCTAssertEqual(a, [])                                  // same console: just read the new channels
         console.sent = []

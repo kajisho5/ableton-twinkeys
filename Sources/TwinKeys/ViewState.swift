@@ -75,12 +75,20 @@ struct ViewState: Equatable {
     var peerRemote: RemoteSummary?
     /// Name of the device waiting for Allow / Don't Allow on this Mac.
     var approvalRequest: String?
-    /// 2.4 console takeover (experimental): the settings, whether the link runs (feature on, an
-    /// address, and this Mac receiving or still holding a takeover to undo), and its state
-    /// (nil while it does not run or the feature is off).
+    /// 2.4 console takeover (experimental): the settings (the same on both Macs), whether the
+    /// link runs (feature on and an address set, on both Macs), and its state (nil while it does
+    /// not run or the feature is off).
     var deskSettings = DeskSettings()
     var deskActive = false
     var desk: DeskSnapshot?
+    /// The table's two Macs: this Mac and the other one (TwinKeys IDs and names; the other Mac's
+    /// name is nil until known).
+    var deskMeID = DeskSettings.thisMacKey
+    var deskOtherID = DeskSettings.otherMacKey
+    var deskMeName = ""
+    var deskOtherName: String?
+    /// The other Mac's own console link as it told us (nil: not linked, or a version without it).
+    var peerDesk: DeskPeerStatus?
 
     var t: Strings { Strings(language) }
 
@@ -186,11 +194,10 @@ struct ViewState: Equatable {
         }
     }
 
-    /// 2.4: the console, only while the feature is on and this Mac uses it (the backup, or the
-    /// Mac that switched the console).
+    /// 2.4: the console, while the feature is on (both Macs connect to it).
     private var deskChip: LinkChip? {
         let d = deskSettings
-        guard d.enabled, !sendKeys || desk?.needsLink == true else { return nil }
+        guard d.enabled else { return nil }
         let m = d.model.shortName
         func chip(_ connected: Bool, _ detail: String, _ tone: LinkChip.Tone) -> LinkChip {
             LinkChip(kind: .desk, title: t.deskChipTitle(m, connected: connected), detail: detail, tone: tone)

@@ -7,8 +7,8 @@ import TwinKeysCore
 /// read and write fader levels, and Yamaha's OSC over UDP 49900 for a DM console whose levels
 /// cannot be read. Only sockets live here; every decision is DeskLink's (TwinKeysCore), on `queue`.
 ///
-/// AppModel runs it only while the feature is on, an address is set, and this Mac is the
-/// receiving (backup) Mac or still has a takeover to undo.
+/// Both Macs run it while the feature is on and an address is set: each reads the levels; only
+/// the Mac that is not the main starts a takeover (AppModel decides that).
 final class DeskClient {
     let queue = DispatchQueue(label: "TwinKeys.desk", qos: .userInitiated)
     /// Accessed on `queue`.
@@ -24,9 +24,10 @@ final class DeskClient {
     /// A line that never ends (not a console): dropped.
     private static let maxLine = 4096
 
-    /// Starts with, changes to, or stops (nil) these settings. Any thread.
-    func configure(_ settings: DeskSettings?) {
-        queue.async { [weak self] in self?.apply(settings) }
+    /// Starts with, changes to, or stops (nil) these settings. `routes`: the table as this Mac
+    /// uses it (the other Mac's channel and this Mac's). Any thread.
+    func configure(_ settings: DeskSettings?, routes: [DeskRoute]) {
+        queue.async { [weak self] in self?.apply(settings, routes: routes) }
     }
 
     /// "Check connection": connect again now.
@@ -71,12 +72,12 @@ final class DeskClient {
     }
 
     func stop() {
-        queue.sync { apply(nil) }
+        queue.sync { apply(nil, routes: []) }
     }
 
     // MARK: On queue
 
-    private func apply(_ settings: DeskSettings?) {
+    private func apply(_ settings: DeskSettings?, routes: [DeskRoute]) {
         guard let s = settings, s.enabled, s.hasValidHost else {
             if link != nil { onLog?("Console: link stopped") }
             update { $0.stop() }
@@ -86,14 +87,14 @@ final class DeskClient {
             return
         }
         if link == nil {
-            var l = DeskLink(settings: s)
+            var l = DeskLink(settings: s, routes: routes)
             let a = l.start(now: DeskClient.now())
             link = l
             perform(a)
             startTimer()
         } else {
             let old = link?.settings
-            update { $0.configure(s, now: DeskClient.now()) }
+            update { $0.configure(s, routes: routes, now: DeskClient.now()) }
             if old?.host != s.host || old?.model != s.model { closeUDP() }
         }
         // DM: the OSC socket is ready before it is needed (UDP: nothing is sent until then).

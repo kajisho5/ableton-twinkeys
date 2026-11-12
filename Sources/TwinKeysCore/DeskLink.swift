@@ -139,9 +139,9 @@ public struct DeskSnapshot: Equatable, Sendable {
     public var status: DeskStatus
     /// For a takeover asked for now, with confirmation.
     public var readiness: DeskReadiness
-    /// Last level read for each assigned channel (a stereo input: its L half).
+    /// Last level read for each assigned channel, on both Macs (a stereo input: its L half).
     public var levels: [DeskChannel: Int]
-    /// Main channels whose level was read less than 2 s ago.
+    /// Assigned channels whose level was read less than 2 s ago.
     public var fresh: Set<DeskChannel>
     public var move: DeskMoveSummary?
     public var refusal: DeskRefusal?
@@ -157,14 +157,16 @@ public struct DeskSnapshot: Equatable, Sendable {
     }
 }
 
-/// The console link on the backup Mac, without sockets: the caller feeds it the connection's
-/// events, each line from the console and the time, and performs the returned actions.
+/// The console link, without sockets: the caller feeds it the connection's events, each line
+/// from the console and the time, and performs the returned actions. Both Macs run one (each
+/// reads); only the Mac that is not the main ever starts a takeover (the app decides that).
+/// `routes` is the table as this Mac uses it: the other Mac's channel and this Mac's.
 ///
 /// - Connect (TCP 49280), send `scpmode keepalive 10000`, read the assigned channels with `get`.
 /// - Levels are kept per parameter with the time they were read (answers to `get` and `set`,
 ///   and NOTIFY when the console or another client moves a fader). A level is fresh for 2 s.
-///   The main channels are read again every second (so they stay fresh even when the console
-///   sends no NOTIFY), every assigned channel every 5 s.
+///   Every assigned channel (both Macs') is read again every second, so the levels stay fresh
+///   even when the console sends no NOTIFY.
 /// - Reading works once an `OK get` arrives. It does not when the first answer is
 ///   `ERROR get UnknownAddress` / `InvalidArgument`, or no `OK get` arrives within 3 s.
 /// - `devstatus runmode` every 5 s; nothing at all from the console for 12 s: the link is down,
@@ -206,8 +208,7 @@ public struct DeskLink: Sendable {
     }
 
     public static let freshFor = 2.0
-    public static let mainPollInterval = 1.0
-    public static let fullPollInterval = 5.0
+    public static let pollInterval = 1.0
     public static let pingInterval = 5.0
     public static let silenceTimeout = 12.0
     public static let readCheckTimeout = 3.0
@@ -221,6 +222,7 @@ public struct DeskLink: Sendable {
     static let unreadableCodes: Set<String> = ["UnknownAddress", "InvalidArgument"]
 
     public private(set) var settings: DeskSettings
+    public private(set) var routes: [DeskRoute]
     public private(set) var connection: Connection = .stopped
     public private(set) var reading: Reading = .unknown
     public private(set) var levels: [FaderAddress: Level] = [:]
@@ -232,11 +234,10 @@ public struct DeskLink: Sendable {
     public private(set) var refusedLastTime = false
     private var everUp = false
     private var lastPing = -Double.infinity
-    private var nextMainPoll = 0.0
-    private var nextFullPoll = 0.0
+    private var nextPoll = 0.0
     private var pending: [Pending] = []
 
-    public init(settings: DeskSettings) { self.settings = settings }
+    public init(settings: DeskSettings, routes: [DeskRoute]) { self.settings = settings; self.routes = routes }
 
     /// Retry delay after `failures` failed tries: 1, 2, 4, 5, 5… seconds.
     public static func retryDelay(failures: Int) -> Double {
@@ -269,19 +270,19 @@ public struct DeskLink: Sendable {
     }
 
     /// New settings. Another console (address or model) starts over and forgets the takeover.
-    public mutating func configure(_ s: DeskSettings, now: Double) -> [Action] {
-        let old = settings
+    public mutating func configure(_ s: DeskSettings, routes r: [DeskRoute], now: Double) -> [Action] {
+        let old = settings, oldRoutes = routes
         settings = s
+        routes = r
         guard s.enabled, s.hasValidHost else { return stop() }
         if old.host != s.host || old.model != s.model || connection == .stopped {
             takeover = nil
             if let m = move, m.isRunning { move = nil }
             return restart(now: now)
         }
-        if old.rows != s.rows {
+        if oldRoutes != r {
             // New channels are read at once.
-            nextMainPoll = now
-            nextFullPoll = now
+            nextPoll = now
         }
         return []
     }
@@ -296,8 +297,7 @@ public struct DeskLink: Sendable {
         lastPing = now
         reading = .unknown
         pending.removeAll()
-        nextMainPoll = now + Self.mainPollInterval
-        nextFullPoll = now + Self.fullPollInterval
+        nextPoll = now + Self.pollInterval
         var a: [Action] = [.log("connected to \(settings.model.shortName) at \(settings.host)"), .send(DeskRCP.keepalive)]
         a += gets(allAddresses, now: now)
         return a
@@ -405,13 +405,9 @@ public struct DeskLink: Sendable {
             }
             pending.removeAll { now - $0.sentAt >= Self.pendingTimeout }
             if reading != .unsupported {
-                if now >= nextFullPoll {
-                    nextFullPoll = now + Self.fullPollInterval
-                    nextMainPoll = now + Self.mainPollInterval
+                if now >= nextPoll {
+                    nextPoll = now + Self.pollInterval
                     a += gets(allAddresses, now: now)
-                } else if now >= nextMainPoll {
-                    nextMainPoll = now + Self.mainPollInterval
-                    a += gets(mainAddresses, now: now)
                 }
             }
         }
@@ -420,8 +416,9 @@ public struct DeskLink: Sendable {
         return a
     }
 
-    /// Switches the console now, if it can be: the main Mac stopped. `automatic`: started by
-    /// the 3 s silence, which never moves a console it cannot confirm is there.
+    /// Switches the console now, if it can be: the other Mac (the main) stopped. Its channels go
+    /// to −∞ and this Mac's rise. `automatic`: started by the 3 s silence, which never moves a
+    /// console it cannot confirm is there.
     public mutating func startTakeover(now: Double, automatic: Bool) -> (DeskReadiness, [Action]) {
         let r = readiness(now: now, automatic: automatic)
         guard case let .ready(path, readLevels) = r else {
@@ -430,23 +427,23 @@ public struct DeskLink: Sendable {
             }
             return (r, [.log("console not moved (\(automatic ? "automatic, " : "")\(r))")])
         }
-        let rows = settings.rows
-        var mainLevels: [DeskChannel: Int]?
+        let rows = routes
+        var otherLevels: [DeskChannel: Int]?
         if readLevels {
             var m: [DeskChannel: Int] = [:]
-            for row in rows { m[row.main] = channelLevel(row.main)?.value }
-            mainLevels = m
+            for row in rows { m[row.other] = channelLevel(row.other)?.value }
+            otherLevels = m
         }
-        var backupLevels: [DeskChannel: Int]?
+        var ownLevels: [DeskChannel: Int]?
         if reading == .ok {
             var b: [DeskChannel: Int] = [:]
-            for row in rows { b[row.backup] = channelLevel(row.backup)?.value }
-            backupLevels = b
+            for row in rows { b[row.own] = channelLevel(row.own)?.value }
+            ownLevels = b
         }
         let record: DeskTakeoverRecord
         do {
-            record = try DeskPlanner.takeover(rows: rows, model: settings.model, mainLevels: mainLevels, backupLevels: backupLevels,
-                                              fade: settings.fade, pullMainToMinusInfinity: settings.pullMainToMinusInfinity)
+            record = try DeskPlanner.takeover(rows: rows, model: settings.model, otherLevels: otherLevels, ownLevels: ownLevels,
+                                              fade: settings.fade, pullOtherToMinusInfinity: settings.pullMainToMinusInfinity)
         } catch {
             refusal = DeskRefusal(reason: .invalidRows, automatic: automatic, restore: false)
             return (.notReady(.invalidRows), [.log("console not moved: \(error)")])
@@ -500,7 +497,7 @@ public struct DeskLink: Sendable {
         case .up:
             switch reading {
             case .unknown: return .checking
-            case .ok: return validMainChannels.allSatisfy { isFresh($0, now: now) } ? .reading : .stale
+            case .ok: return validRoutes.allSatisfy { isFresh($0.other, now: now) && isFresh($0.own, now: now) } ? .reading : .stale
             case .unsupported: return settings.useFixedLevels ? .fixedLevels(unconfirmed: false) : .cannotRead
             }
         case let .connecting(attempt, _) where attempt == 1 && !refusedLastTime:
@@ -516,8 +513,8 @@ public struct DeskLink: Sendable {
     /// Whether a takeover could start now, and how.
     public func readiness(now: Double, automatic: Bool) -> DeskReadiness {
         if !settings.enabled { return .notReady(.off) }
-        if settings.rows.isEmpty { return .notReady(.noRows) }
-        if !settings.problems.isEmpty { return .notReady(.invalidRows) }
+        if routes.isEmpty { return .notReady(.noRows) }
+        if !DeskRoute.problems(routes, model: settings.model).isEmpty { return .notReady(.invalidRows) }
         if move?.isRunning == true { return .notReady(.busy) }
         if takeover != nil { return .notReady(.alreadyMoved) }
         switch status(now: now) {
@@ -546,16 +543,15 @@ public struct DeskLink: Sendable {
     public func snapshot(now: Double) -> DeskSnapshot {
         var lv: [DeskChannel: Int] = [:]
         var fresh: Set<DeskChannel> = []
-        for r in settings.rows {
-            for ch in [r.main, r.backup] {
+        for r in validRoutes {
+            for ch in [r.other, r.own] {
                 if let l = channelLevel(ch) { lv[ch] = l.value }
+                if isFresh(ch, now: now) { fresh.insert(ch) }
             }
-            // Only the main channels' freshness matters (and backup channels are read every 5 s).
-            if isFresh(r.main, now: now) { fresh.insert(r.main) }
         }
         let summary = move.map { m in
             DeskMoveSummary(kind: m.kind, fade: m.fade, running: m.isRunning, path: m.path, readLevels: m.readLevels,
-                            rows: takeover?.rows.count ?? settings.rows.count, check: m.check)
+                            rows: takeover?.rows.count ?? routes.count, check: m.check)
         }
         return DeskSnapshot(model: settings.model, status: status(now: now), readiness: readiness(now: now, automatic: false),
                             levels: lv, fresh: fresh, move: summary, refusal: refusal,
@@ -565,26 +561,21 @@ public struct DeskLink: Sendable {
 
     // MARK: Internals
 
-    /// Rows' channels the model has (out-of-range numbers are never sent).
-    private var validRows: [DeskRow] {
-        settings.rows.filter { r in
+    /// Rows whose two channels the model has (missing or out-of-range numbers are never sent).
+    private var validRoutes: [DeskRoute] {
+        routes.filter { r in
             let limit = settings.model.channelLimit(r.kind)
-            return (1...max(1, limit)).contains(r.mainChannel) && (1...max(1, limit)).contains(r.backupChannel) && limit > 0
+            return limit > 0 && (1...limit).contains(r.otherChannel) && (1...limit).contains(r.ownChannel)
         }
     }
 
-    private var validMainChannels: [DeskChannel] { validRows.map(\.main) }
-
-    private var mainAddresses: [FaderAddress] {
-        let a = validRows.flatMap(\.main.addresses)
-        return a.isEmpty ? [FaderAddress(.input, x: 0)] : a
-    }
-
-    /// Main channels first, input channels before stereo inputs (the first answer decides
-    /// whether levels can be read, and every model has input channels).
+    /// The other Mac's channels first, input channels before stereo inputs (the first answer
+    /// decides whether levels can be read, and every model has input channels). With no rows,
+    /// input channel 1 is asked, to find out whether levels can be read.
     private var allAddresses: [FaderAddress] {
         var seen = Set<FaderAddress>()
-        let all = (mainAddresses + validRows.flatMap(\.backup.addresses)).filter { seen.insert($0).inserted }
+        let all = (validRoutes.flatMap(\.other.addresses) + validRoutes.flatMap(\.own.addresses)).filter { seen.insert($0).inserted }
+        if all.isEmpty { return [FaderAddress(.input, x: 0)] }
         return all.filter { $0.kind == .input } + all.filter { $0.kind == .stereoIn }
     }
 

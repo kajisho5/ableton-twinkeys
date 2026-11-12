@@ -162,8 +162,8 @@ public enum RemoteMessage: Codable, Equatable, Sendable {
     case allNotesOff(id: Int)
     /// Every 2 s (and right after `welcome`). `watch` (connection display): the iPhone's Apple Watch,
     /// also sent at once when it changes. It rides on the ping instead of being a message of its own
-    /// because a Mac cannot decode a message case it does not know (`RemoteSession.receive` throws and
-    /// the Mac closes the connection), while an extra key inside a known case is skipped: older Macs
+    /// because a Mac before 2.4 cannot decode a message case it does not know (it closes the
+    /// connection; 2.4 skips it), while an extra key inside a known case is skipped: older Macs
     /// read this as a plain ping, and a ping from an older iPhone decodes with `watch` nil.
     case ping(Double, watch: RemoteWatchState? = nil)
     /// The iPhone's show lock changed (also sent right after `welcome`). While on, the Mac refuses
@@ -171,13 +171,104 @@ public enum RemoteMessage: Codable, Equatable, Sendable {
     case lock(Bool)
     // Mac → iPhone
     case waitingForApproval(code: String)
-    case welcome(macName: String)
+    /// `features` (TwinKeys 2.4+): the iPhone → Mac message kinds this Mac understands
+    /// (`RemoteFeature`). Nil from TwinKeys 2.2.0 and older, which say nothing (an older iPhone
+    /// skips the extra key).
+    case welcome(macName: String, features: [String]? = nil)
     case denied
     case update(LiveUpdate)
     case status(RemoteStatus)
     /// `backup`: "delivered", "missing", "unconfirmed", "notLinked", "notSent"
     case result(id: Int, ok: Bool, error: String?, backup: String)
     case pong(Double)
+}
+
+/// Message kinds added after TwinKeys 2.1 that a Mac may or may not understand. A Mac on 2.1
+/// cannot decode them and closes the connection, so the iPhone only sends them to a Mac that
+/// understands them (`RemoteMacCompat`).
+public enum RemoteFeature {
+    public static let commandAt = "commandAt"
+    public static let go = "go"
+    public static let lockScope = "lockScope"
+    public static let becomeMain = "becomeMain"
+    /// The Mac skips a message it cannot decode instead of closing the connection (2.4+).
+    public static let skipsUnknown = "skipsUnknown"
+    /// What this version understands (sent in `welcome`).
+    public static let all = [commandAt, go, lockScope, becomeMain, skipsUnknown]
+}
+
+/// What the Mac the iPhone is connected to understands, and how to say things to it.
+///
+/// - A Mac that lists its features in `welcome` (2.4+) gets exactly what it lists.
+/// - A Mac that lists nothing is 2.2.0 (it understands everything 2.2 added) or 2.1 (it closes the
+///   connection on the first new message). The iPhone cannot tell them apart from the welcome, so it
+///   first assumes 2.2.0 and probes: the show lock (`lockScope`, always sent right after the welcome)
+///   is followed by a ping. A 2.2.0 Mac answers the ping; a 2.1 Mac closes before reading it. Closed
+///   while probing: `legacy`, and the iPhone reconnects using only what 2.1 understands.
+public struct RemoteMacCompat: Equatable, Sendable {
+    /// From `welcome`; nil when the Mac listed nothing.
+    public var advertised: Set<String>?
+    /// The Mac closed the connection while being probed: TwinKeys 2.1 or older.
+    public var legacy: Bool
+    public init(advertised: [String]?, legacy: Bool) {
+        self.advertised = advertised.map(Set.init); self.legacy = legacy
+    }
+
+    /// The Mac listed nothing and has not shown yet that it is 2.2.0 or newer.
+    public var needsProbe: Bool { advertised == nil && !legacy }
+
+    public func understands(_ feature: String) -> Bool {
+        if let advertised { return advertised.contains(feature) }
+        return !legacy
+    }
+
+    /// What to send for `m`: the message itself, or the 2.1 form of it (nothing if there is none).
+    /// `sceneCount`: scenes in Live (for GO: select the next scene only if there is one).
+    public func translate(_ m: RemoteMessage, sceneCount: Int) -> [RemoteMessage] {
+        switch m {
+        case let .commandAt(id, cmd, _) where !understands(RemoteFeature.commandAt):
+            return [.command(id: id, cmd)]
+        case let .go(id, scene, _) where !understands(RemoteFeature.go):
+            // Under a 2.1 Mac's show lock (tempo and mixer only) scene launches still run.
+            var out: [RemoteMessage] = [.command(id: id, .fireScene(scene))]
+            if scene + 1 < sceneCount { out.append(.command(id: id, .selectScene(scene + 1))) }
+            return out
+        case let .lockScope(on, _) where !understands(RemoteFeature.lockScope):
+            return [.lock(on)]          // the 2.1 Mac locks tempo and mixer; the iPhone still keeps its own choice
+        case .becomeMain where !understands(RemoteFeature.becomeMain):
+            return []
+        default:
+            return [m]
+        }
+    }
+}
+
+/// Matching a Mac's name as the other Mac knows it (from its hello: cut to 32 UTF-8 bytes, control
+/// characters removed) with the name it shows on Bonjour (the full name, "Name (2)" when another
+/// device on the network already uses it).
+public enum RemoteNames {
+    public static func matches(bonjour: String, linkName: String) -> Bool {
+        let link = linkName.trimmingCharacters(in: .whitespaces)
+        guard !link.isEmpty else { return false }
+        var candidates = [bonjour]
+        // "Name (2)": Bonjour renamed it because the name was taken.
+        if bonjour.hasSuffix(")"), let open = bonjour.range(of: " (", options: .backwards),
+           bonjour[open.upperBound..<bonjour.index(before: bonjour.endIndex)].allSatisfy(\.isNumber) {
+            candidates.append(String(bonjour[..<open.lowerBound]))
+        }
+        func clean(_ x: String) -> String {
+            String(x.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }).trimmingCharacters(in: .whitespaces)
+        }
+        func cut(_ x: String) -> String { String(decoding: Array(truncatedUTF8(x, max: maxNameBytes)), as: UTF8.self) }
+        // The hello carries the name cut to 32 bytes; the receiving Mac then cleans it.
+        return candidates.contains { c in clean(c) == link || clean(cut(c)) == link || clean(cut(clean(c))) == link }
+    }
+
+    /// The Mac among `names` that is `linkName`: an exact match first, then a Bonjour-renamed or cut one.
+    public static func find(_ linkName: String, in names: [String], excluding: String? = nil) -> String? {
+        let pool = names.filter { $0 != excluding }
+        return pool.first { $0 == linkName } ?? pool.first { matches(bonjour: $0, linkName: linkName) }
+    }
 }
 
 public enum RemoteError: Error, Equatable {
@@ -251,10 +342,14 @@ public final class RemoteSession {
     // MARK: Messages
 
     public func seal(_ m: RemoteMessage) throws -> [UInt8] {
+        try seal(json: JSONEncoder().encode(m))
+    }
+
+    /// Seals any JSON (tests use it to send a message kind this version does not know).
+    func seal(json plain: Data) throws -> [UInt8] {
         guard let key = sendKey else { throw RemoteError.notReady }
         sendCounter += 1
         let nonceBytes = Self.nonce(sendCounter)
-        let plain = try JSONEncoder().encode(m)
         let box = try ChaChaPoly.seal(plain, using: key, nonce: ChaChaPoly.Nonce(data: nonceBytes))
         return Self.frame(Array(nonceBytes.prefix(8)) + Array(box.ciphertext) + Array(box.tag))
     }
@@ -269,12 +364,12 @@ public final class RemoteSession {
             guard buffer.count >= 4 + len else { break }
             let payload = Array(buffer[4..<(4 + len)])
             buffer.removeFirst(4 + len)
-            events.append(try handle(payload))
+            if let e = try handle(payload) { events.append(e) }
         }
         return events
     }
 
-    private func handle(_ p: [UInt8]) throws -> Event {
+    private func handle(_ p: [UInt8]) throws -> Event? {
         if let key = receiveKey {
             guard p.count >= 8 + 16 else { throw RemoteError.decryptFailed }
             let counter = p[0..<8].reduce(UInt64(0)) { $0 << 8 | UInt64($1) }
@@ -284,7 +379,10 @@ public final class RemoteSession {
                                                        ciphertext: p[8..<(p.count - 16)], tag: p[(p.count - 16)...]),
                   let plain = try? ChaChaPoly.open(box, using: key) else { throw RemoteError.decryptFailed }
             receiveCounter = counter
-            return .message(try JSONDecoder().decode(RemoteMessage.self, from: plain))
+            // An authentic message of a kind this version does not know (from a newer peer): skipped,
+            // the connection stays. Crypto failures above still close it.
+            guard let m = try? JSONDecoder().decode(RemoteMessage.self, from: plain) else { return nil }
+            return .message(m)
         }
         guard p.count > RemoteProtocol.tagSize else { throw RemoteError.badHello }
         let json = Array(p.dropLast(RemoteProtocol.tagSize)), t = Array(p.suffix(RemoteProtocol.tagSize))

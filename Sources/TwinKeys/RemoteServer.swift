@@ -271,7 +271,8 @@ final class RemoteServer {
     private func welcome(_ c: Client) {
         c.approved = true
         c.lastHeard = ProcessInfo.processInfo.systemUptime
-        send(.welcome(macName: serverName), to: c)
+        // 2.4: what this Mac understands, so a new iPhone never sends what an older Mac cannot read.
+        send(.welcome(macName: serverName, features: RemoteFeature.all), to: c)
         // In pieces (one clip column per message): a big set in one message could pass the
         // receive limit on the iPhone.
         for u in snapshot().initialUpdates() { send(.update(u), to: c) }

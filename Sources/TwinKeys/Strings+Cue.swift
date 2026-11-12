@@ -152,6 +152,10 @@ extension Strings {
           "この Mac のキーボードのキューがオンです。元のメインが戻ったら、受信だけにします。")
     }
     var handOverMain: String { s("Return to Main", "メインに戻す") }
+    var handOverNeedsLink: String {
+        s("Only while linked to the other Mac (it must hear that it is the main again).",
+          "相手の Mac とつながっているときだけ使えます（相手にメインに戻ったことを伝えるため）。")
+    }
 
     // MARK: Connection row (docs/design-links.md)
     var linkSection: String { s("Connections", "つながり") }

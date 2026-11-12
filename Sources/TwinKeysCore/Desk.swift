@@ -209,43 +209,116 @@ public enum FaderTaper {
     }
 }
 
-/// One line of the channel table: the main Mac's channel and the backup Mac's channel that
-/// carry the same sound.
+/// One line of the channel table: the channels that carry the same sound on the two Macs.
+///
+/// Written by Mac, not by role (either Mac can be the main): `channels` is keyed by each Mac's
+/// TwinKeys ID (`AppSettings.instanceID`). Before the other Mac is known the key
+/// `DeskSettings.otherMacKey` stands for it (and `thisMacKey` for this Mac in rows read from the
+/// first 2.4 builds); `DeskSettings.normalize` replaces them.
 public struct DeskRow: Codable, Equatable, Hashable, Identifiable, Sendable {
     public var id: UUID
     public var kind: DeskChannelKind
-    /// 1-based, as on the console.
-    public var mainChannel: Int
-    public var backupChannel: Int
-    /// Level the backup channel is raised to when levels cannot be read (dB × 100). Default 0 dB.
+    /// 1-based, as on the console. A missing Mac: not entered yet.
+    public var channels: [String: Int]
+    /// Level a channel is raised to when levels cannot be read (dB × 100). Default 0 dB.
     public var fixedLevel: Int
     /// The person's own name for the row ("Music L"). May be empty.
     public var name: String
 
-    public init(id: UUID = UUID(), kind: DeskChannelKind = .input, mainChannel: Int, backupChannel: Int,
+    public init(id: UUID = UUID(), kind: DeskChannelKind = .input, channels: [String: Int],
                 fixedLevel: Int = 0, name: String = "") {
-        self.id = id; self.kind = kind; self.mainChannel = mainChannel; self.backupChannel = backupChannel
+        self.id = id; self.kind = kind; self.channels = channels
         self.fixedLevel = fixedLevel; self.name = name
     }
 
-    public var main: DeskChannel { DeskChannel(kind, mainChannel) }
-    public var backup: DeskChannel { DeskChannel(kind, backupChannel) }
+    /// The row as Mac `me` uses it with the other Mac `other`.
+    public func route(me: String, other: String) -> DeskRoute {
+        DeskRoute(kind: kind, other: channels[other] ?? 0, own: channels[me] ?? 0, fixedLevel: fixedLevel, name: name)
+    }
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, name
+        case id, kind, name, channels
+        case fixedLevel = "fixed_level"
+        // The first 2.4 builds wrote the table by role (on the backup Mac).
         case mainChannel = "main_channel"
         case backupChannel = "backup_channel"
-        case fixedLevel = "fixed_level"
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
         kind = (try? c.decodeIfPresent(DeskChannelKind.self, forKey: .kind)) ?? .input
-        mainChannel = try c.decode(Int.self, forKey: .mainChannel)
-        backupChannel = try c.decode(Int.self, forKey: .backupChannel)
+        if let ch = try? c.decode([String: Int].self, forKey: .channels) {
+            channels = ch
+        } else {
+            // Role-based rows were only ever used on the receiving Mac, where "main" was the other
+            // Mac (also after that Mac had become the main by a takeover): main → the other Mac,
+            // backup → this Mac.
+            let m = try c.decode(Int.self, forKey: .mainChannel)
+            let b = try c.decode(Int.self, forKey: .backupChannel)
+            channels = [DeskSettings.otherMacKey: m, DeskSettings.thisMacKey: b]
+        }
         fixedLevel = DeskLevel.clamped((try? c.decodeIfPresent(Int.self, forKey: .fixedLevel)) ?? 0)
         name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? ""
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(channels, forKey: .channels)
+        try c.encode(fixedLevel, forKey: .fixedLevel)
+        try c.encode(name, forKey: .name)
+    }
+}
+
+/// A row as one Mac uses it. When the other Mac stops, its channel goes to −∞ and this Mac's
+/// channel rises to the level the other one had. The same table works both ways: on the other
+/// Mac the two channels swap places.
+public struct DeskRoute: Equatable, Hashable, Sendable {
+    public var kind: DeskChannelKind
+    /// The other Mac's channel (0: not entered).
+    public var otherChannel: Int
+    /// This Mac's channel (0: not entered).
+    public var ownChannel: Int
+    /// Level this Mac's channel is raised to when levels cannot be read (dB × 100).
+    public var fixedLevel: Int
+    public var name: String
+
+    public init(kind: DeskChannelKind = .input, other: Int, own: Int, fixedLevel: Int = 0, name: String = "") {
+        self.kind = kind; self.otherChannel = other; self.ownChannel = own; self.fixedLevel = fixedLevel; self.name = name
+    }
+
+    public var other: DeskChannel { DeskChannel(kind, otherChannel) }
+    public var own: DeskChannel { DeskChannel(kind, ownChannel) }
+
+    /// Problems of a table for `model` (empty: usable). Rows are counted from 1.
+    public static func problems(_ routes: [DeskRoute], model: DeskModel) -> [DeskRowProblem] {
+        var out: [DeskRowProblem] = []
+        var seen: Set<DeskChannel> = []
+        var twice: [DeskChannel] = []
+        for (i, r) in routes.enumerated() {
+            let n = i + 1
+            if r.kind == .stereoIn && !model.hasStereoIn {
+                out.append(.noStereoIn(row: n))
+                continue
+            }
+            if r.otherChannel == 0 || r.ownChannel == 0 {
+                out.append(.channelMissing(row: n))
+                continue
+            }
+            let limit = model.channelLimit(r.kind)
+            for ch in [r.own, r.other] where ch.number < 1 || ch.number > limit {
+                out.append(.channelOutOfRange(row: n, channel: ch, limit: limit))
+            }
+            if r.otherChannel == r.ownChannel { out.append(.sameChannel(row: n)) }
+            if r.fixedLevel <= DeskLevel.minusInfinity { out.append(.fixedLevelMinusInfinity(row: n)) }
+            for ch in Set([r.own, r.other]) {
+                if seen.contains(ch), !twice.contains(ch) { twice.append(ch) }
+                seen.insert(ch)
+            }
+        }
+        return out + twice.sorted().map { .usedTwice($0) }
     }
 }
 
@@ -253,6 +326,8 @@ public struct DeskRow: Codable, Equatable, Hashable, Identifiable, Sendable {
 public enum DeskRowProblem: Equatable, Hashable, Sendable {
     case channelOutOfRange(row: Int, channel: DeskChannel, limit: Int)
     case noStereoIn(row: Int)
+    /// One of the two Macs has no channel in this row yet.
+    case channelMissing(row: Int)
     case sameChannel(row: Int)
     case usedTwice(DeskChannel)
     case fixedLevelMinusInfinity(row: Int)
@@ -266,7 +341,9 @@ public enum DeskTrigger: String, Codable, CaseIterable, Sendable {
     case automatic
 }
 
-/// Settings > Console (Yamaha). Stored in settings.json under "desk".
+/// Settings > Console (Yamaha). Stored in settings.json under "desk". Everything but
+/// `moveDeskWhenConfirming` is the same on both Macs: a change on one is sent to the other
+/// (`DeskShare`), and the newest `revision` wins.
 public struct DeskSettings: Codable, Equatable, Sendable {
     /// The experimental feature is on. Off until the person turns it on.
     public var enabled = false
@@ -278,22 +355,36 @@ public struct DeskSettings: Codable, Equatable, Sendable {
     /// Seconds; one of `fades`.
     public var fade: Double = 0.5
     public var pullMainToMinusInfinity = true
-    /// When levels cannot be read, raise the backup channels to each row's fixed level.
+    /// When levels cannot be read, raise the channels to each row's fixed level.
     public var useFixedLevels = true
-    /// The last answer to "Also switch the console's faders" in the confirmation (also used when
-    /// an iPhone makes this Mac the main).
+    /// Names of the two Macs (key: TwinKeys ID), for the column titles while the other Mac is away.
+    public var macNames: [String: String] = [:]
+    /// When the shared settings last changed (wall clock, ms). 0: never changed (never sent over
+    /// a newer one).
+    public var revision: UInt64 = 0
+    /// This Mac only: the last answer to "Also switch the console's faders" in the confirmation
+    /// (also used when an iPhone makes this Mac the main).
     public var moveDeskWhenConfirming = true
 
     public static let fades: [Double] = [0, 0.5, 1, 2]
     public static let maxRows = 64
+    /// Stands for the other Mac before it is known.
+    public static let otherMacKey = "other-mac"
+    /// Stands for this Mac in rows read from the first 2.4 builds (replaced at once on loading).
+    public static let thisMacKey = "this-mac"
+    /// Longest row name kept (and sent to the other Mac), in UTF-8 bytes.
+    public static let maxNameBytes = 40
+    /// Longest address sent to the other Mac ("255.255.255.255").
+    public static let maxHostBytes = 15
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case enabled, model, host, rows, trigger, fade
+        case enabled, model, host, rows, trigger, fade, revision
         case pullMainToMinusInfinity = "pull_main_to_minus_infinity"
         case useFixedLevels = "use_fixed_levels"
         case moveDeskWhenConfirming = "move_desk_when_confirming"
+        case macNames = "mac_names"
     }
 
     /// Missing or unreadable keys fall back to defaults; one bad row drops only that row.
@@ -310,6 +401,13 @@ public struct DeskSettings: Codable, Equatable, Sendable {
         pullMainToMinusInfinity = (try? c.decodeIfPresent(Bool.self, forKey: .pullMainToMinusInfinity)) ?? d.pullMainToMinusInfinity
         useFixedLevels = (try? c.decodeIfPresent(Bool.self, forKey: .useFixedLevels)) ?? d.useFixedLevels
         moveDeskWhenConfirming = (try? c.decodeIfPresent(Bool.self, forKey: .moveDeskWhenConfirming)) ?? d.moveDeskWhenConfirming
+        macNames = (try? c.decodeIfPresent([String: String].self, forKey: .macNames)) ?? [:]
+        if let rev = try? c.decodeIfPresent(UInt64.self, forKey: .revision) {
+            revision = rev
+        } else {
+            // Saved before revisions existed: anything set by hand beats a Mac that never set it.
+            revision = sameShared(as: d) ? 0 : 1
+        }
     }
 
     /// One of the offered fade times (0, 0.5, 1, 2 s).
@@ -329,41 +427,127 @@ public struct DeskSettings: Codable, Equatable, Sendable {
 
     public var hasValidHost: Bool { Self.isValidHost(host) }
 
-    /// Problems of the channel table for `model` (empty: usable).
-    public static func problems(rows: [DeskRow], model: DeskModel) -> [DeskRowProblem] {
-        var out: [DeskRowProblem] = []
-        var seen: [DeskChannel: Int] = [:]
-        var twice: [DeskChannel] = []
-        for (i, r) in rows.enumerated() {
-            let n = i + 1
-            let limit = model.channelLimit(r.kind)
-            if r.kind == .stereoIn && !model.hasStereoIn {
-                out.append(.noStereoIn(row: n))
-                continue
-            }
-            for ch in [r.main, r.backup] where ch.number < 1 || ch.number > limit {
-                out.append(.channelOutOfRange(row: n, channel: ch, limit: limit))
-            }
-            if r.mainChannel == r.backupChannel { out.append(.sameChannel(row: n)) }
-            if r.fixedLevel <= DeskLevel.minusInfinity { out.append(.fixedLevelMinusInfinity(row: n)) }
-            for ch in Set([r.main, r.backup]) {
-                if seen[ch] != nil, !twice.contains(ch) { twice.append(ch) }
-                seen[ch] = n
-            }
-        }
-        return out + twice.sorted().map { .usedTwice($0) }
+    // MARK: The two Macs
+
+    /// The key the other Mac's channels are stored under: a real TwinKeys ID when one is in the
+    /// table, else `otherMacKey`.
+    public func otherMac(me: String) -> String {
+        var count: [String: Int] = [:]
+        for r in rows { for k in r.channels.keys where k != me && k != Self.thisMacKey && k != Self.otherMacKey { count[k, default: 0] += 1 } }
+        for k in macNames.keys where k != me && k != Self.thisMacKey && k != Self.otherMacKey { count[k, default: 0] += 0 }
+        return count.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.first?.key ?? Self.otherMacKey
     }
 
-    public var problems: [DeskRowProblem] { Self.problems(rows: rows, model: model) }
+    /// The table as Mac `me` uses it with the other Mac `other`.
+    public func routes(me: String, other: String) -> [DeskRoute] {
+        rows.map { $0.route(me: me, other: other) }
+    }
 
-    /// A new row on the first free channels (main, then the next free one for the backup).
-    public func newRow() -> DeskRow? {
+    public func problems(me: String, other: String) -> [DeskRowProblem] {
+        DeskRoute.problems(routes(me: me, other: other), model: model)
+    }
+
+    /// Keeps only two Macs in the table: `me` and the other Mac (`other`; nil: the one already
+    /// in the table). Placeholders become the real IDs. A row keyed by a Mac that is neither (the
+    /// other Mac was replaced, or this Mac got a new ID) moves to the free side, the other Mac
+    /// first: the table follows the Mac this one is linked to. Names are kept or set.
+    public mutating func normalize(me: String, other: String? = nil, myName: String? = nil, otherName: String? = nil) {
+        let target = other ?? otherMac(me: me)
+        for i in rows.indices {
+            let ch = rows[i].channels
+            var out: [String: Int] = [:]
+            if let v = ch[me] ?? ch[Self.thisMacKey] { out[me] = v }
+            if let v = ch[target] { out[target] = v }
+            let foreign = ch.filter { $0.key != me && $0.key != target && $0.key != Self.thisMacKey }
+                .sorted { ($0.key == Self.otherMacKey ? 0 : 1, $0.key) < ($1.key == Self.otherMacKey ? 0 : 1, $1.key) }
+            for (_, v) in foreign {
+                if out[target] == nil { out[target] = v } else if out[me] == nil { out[me] = v }
+            }
+            rows[i].channels = out
+        }
+        var names: [String: String] = [:]
+        if let n = myName ?? macNames[me] ?? macNames[Self.thisMacKey] { names[me] = n }
+        if let n = otherName ?? macNames[target] { names[target] = n }
+        macNames = names
+    }
+
+    public func normalized(me: String, other: String? = nil) -> DeskSettings {
+        var c = self
+        c.normalize(me: me, other: other)
+        return c
+    }
+
+    // MARK: Sharing
+
+    /// The same shared settings (everything the other Mac gets; row IDs, names of the Macs,
+    /// the revision and `moveDeskWhenConfirming` do not count).
+    public func sameShared(as o: DeskSettings) -> Bool {
+        guard enabled == o.enabled, model == o.model, host == o.host, trigger == o.trigger, fade == o.fade,
+              pullMainToMinusInfinity == o.pullMainToMinusInfinity, useFixedLevels == o.useFixedLevels,
+              rows.count == o.rows.count else { return false }
+        return zip(rows, o.rows).allSatisfy { a, b in
+            a.kind == b.kind && a.channels == b.channels && a.fixedLevel == b.fixedLevel && a.name == b.name
+        }
+    }
+
+    /// A change made on this Mac: newer than anything before (wall clock in ms, as role claims).
+    public mutating func markChanged(nowMillis: UInt64) {
+        revision = max(nowMillis, revision + 1)
+    }
+
+    /// FNV-1a over the shared settings as both Macs see them (the two Macs' channels in the
+    /// order of their IDs, names and the address cut as they are sent), so both get the same value.
+    public func shareHash(me: String, peer: String) -> UInt32 {
+        let n = normalized(me: me, other: peer)
+        let (lo, hi) = me < peer ? (me, peer) : (peer, me)
+        var h: UInt32 = 2_166_136_261
+        func add(_ bytes: some Sequence<UInt8>) { for b in bytes { h = (h ^ UInt32(b)) &* 16_777_619 } }
+        add([n.flags, n.model.wireCode, n.fadeTenths])
+        add(truncatedUTF8(n.host, max: Self.maxHostBytes)); add([0x1F])
+        for r in n.rows {
+            let f = UInt16(bitPattern: Int16(clamping: r.fixedLevel))
+            add([r.kind == .input ? 0 : 1, UInt8(clamping: r.channels[lo] ?? 0), UInt8(clamping: r.channels[hi] ?? 0),
+                 UInt8(f >> 8), UInt8(f & 0xFF)])
+            add(truncatedUTF8(r.name, max: Self.maxNameBytes)); add([0x1F])
+        }
+        return h
+    }
+
+    /// bit 0 enabled, bit 1 automatic, bit 2 pull the main channels to −∞, bit 3 raise to set levels.
+    var flags: UInt8 {
+        (enabled ? 1 : 0) | (trigger == .automatic ? 2 : 0) | (pullMainToMinusInfinity ? 4 : 0) | (useFixedLevels ? 8 : 0)
+    }
+
+    var fadeTenths: UInt8 { UInt8(clamping: Int((fade * 10).rounded())) }
+
+    /// A new row on the first free channels (this Mac, then the next free one for the other Mac).
+    public func newRow(me: String, other: String) -> DeskRow? {
         guard rows.count < Self.maxRows else { return nil }
         let kind: DeskChannelKind = .input
-        let used = Set(rows.filter { $0.kind == kind }.flatMap { [$0.mainChannel, $0.backupChannel] })
+        let used = Set(rows.filter { $0.kind == kind }.flatMap { [$0.channels[me], $0.channels[other]].compactMap { $0 } })
         let limit = model.channelLimit(kind)
         let free = (1...max(1, limit)).filter { !used.contains($0) }
         guard free.count >= 2 else { return nil }
-        return DeskRow(kind: kind, mainChannel: free[0], backupChannel: free[1])
+        return DeskRow(kind: kind, channels: [me: free[0], other: free[1]])
+    }
+}
+
+extension DeskModel {
+    /// The model's number in packets between the Macs (never reordered).
+    public var wireCode: UInt8 {
+        switch self {
+        case .ql1: return 0
+        case .ql5: return 1
+        case .dm3: return 2
+        case .dm7: return 3
+        case .dm7Compact: return 4
+        case .dm5: return 5
+        case .dm5Compact: return 6
+        }
+    }
+
+    public init?(wireCode: UInt8) {
+        guard let m = DeskModel.allCases.first(where: { $0.wireCode == wireCode }) else { return nil }
+        self = m
     }
 }

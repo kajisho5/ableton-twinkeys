@@ -194,8 +194,24 @@ struct DeskSettingsSection: View {
                 Text(t.deskReadUnverified(d.model.shortName)).font(.system(size: Theme.caption)).foregroundStyle(Theme.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text(t.deskPortNote).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+            Text(peerAndPort).font(.system(size: Theme.caption))
+                .foregroundStyle(peerNotConnected ? Theme.warning : Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// The other Mac runs its console link but is not connected to the console.
+    private var peerNotConnected: Bool {
+        guard d.enabled, let p = state.peerDesk else { return false }
+        return p != .off && !p.isConnected
+    }
+
+    /// "The other Mac (…) is connected too · TCP 49280 (…)": what the other Mac told about its own
+    /// console link (nothing while it is not linked or runs an older version).
+    private var peerAndPort: String {
+        let name = state.deskOtherName ?? t.linkOtherMac
+        guard d.enabled, let p = state.peerDesk, p != .off else { return t.deskPortNote }
+        return (p.isConnected ? t.deskPeerConnected(name) : t.deskPeerNotConnected(name)) + t.s("  ·  ", " ・ ") + t.deskPortNote
     }
 
     private var statusInfo: StatusInfo {
@@ -203,7 +219,6 @@ struct DeskSettingsSection: View {
         if !d.enabled { return StatusInfo(color: Theme.idleDot, text: t.deskStatusOff) }
         if d.host.isEmpty { return StatusInfo(color: Theme.idleDot, text: t.deskStatusNoAddress) }
         if !d.hasValidHost { return StatusInfo(color: Theme.warning, text: t.deskStatusBadAddress) }
-        if !state.deskActive { return StatusInfo(color: Theme.idleDot, text: t.deskStatusNotBackup) }
         guard let snap = state.desk else { return StatusInfo(color: Theme.idleDot, text: t.deskStatusConnecting(m)) }
         switch snap.status {
         case .connecting: return StatusInfo(color: Theme.idleDot, text: t.deskStatusConnecting(m))
@@ -288,13 +303,17 @@ struct DeskSettingsSection: View {
     }
 }
 
-/// The channel table: type, main channel, name, backup channel, and the main channel's level
-/// now (when levels are read) or the level to raise to (otherwise).
+/// The channel table, written by Mac: this Mac's channel ⇄ the other Mac's channel, and the
+/// level now of the channel of the Mac that is the main (when levels are read) or the level to
+/// raise to (otherwise). The same table is on both Macs (the columns swap places there).
 private struct DeskChannelTable: View {
     let state: ViewState
     let actions: DeskSettingsActions
     private var t: Strings { state.t }
     private var d: DeskSettings { state.deskSettings }
+    private var me: String { state.deskMeID }
+    private var other: String { state.deskOtherID }
+    private var otherName: String { state.deskOtherName ?? t.linkOtherMac }
 
     /// Levels are shown only while they are being read.
     private var reading: Bool {
@@ -310,11 +329,11 @@ private struct DeskChannelTable: View {
             HStack(spacing: 12) {
                 Button(t.deskAddRow, action: addRow)
                     .buttonStyle(.borderless)
-                    .disabled(d.newRow() == nil)
+                    .disabled(d.newRow(me: me, other: other) == nil)
                 Text(t.deskRowHint).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            ForEach(Array(d.problems.enumerated()), id: \.offset) { _, p in
+            ForEach(Array(d.problems(me: me, other: other).enumerated()), id: \.offset) { _, p in
                 Text(t.deskProblem(p, model: d.model.shortName)).font(.system(size: Theme.caption)).foregroundStyle(Theme.warning)
             }
         }
@@ -323,8 +342,9 @@ private struct DeskChannelTable: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text(t.deskColumnKind).frame(width: DeskRowView.kindWidth, alignment: .leading)
-            Text(t.deskColumnMain).frame(maxWidth: .infinity, alignment: .leading)
-            Text(t.deskColumnBackup).frame(width: DeskRowView.backupWidth, alignment: .leading)
+            Text(t.deskColumnMac(state.deskMeName)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            Text("⇄").frame(width: DeskRowView.arrowWidth)
+            Text(t.deskColumnMac(otherName)).lineLimit(1).frame(width: DeskRowView.otherWidth, alignment: .leading)
             Text(reading ? t.deskColumnLevel : t.deskColumnFixed).frame(width: DeskRowView.levelWidth, alignment: .leading)
             Color.clear.frame(width: 24)
         }
@@ -333,9 +353,13 @@ private struct DeskChannelTable: View {
     }
 
     private func rowView(_ i: Int, _ row: DeskRow) -> some View {
-        let level = reading ? state.desk?.levels[row.main] : nil
-        return DeskRowView(index: i, row: row, model: d.model, level: level,
-                           fresh: state.desk?.fresh.contains(row.main) == true, t: t,
+        // The sounding channel is the main Mac's: this Mac's while it is the main.
+        let mac = state.sendKeys ? me : other
+        let ch = DeskChannel(row.kind, row.channels[mac] ?? 0)
+        let level = reading ? state.desk?.levels[ch] : nil
+        return DeskRowView(index: i, row: row, model: d.model, me: me, other: other,
+                           meName: state.deskMeName, otherName: otherName, level: level,
+                           fresh: state.desk?.fresh.contains(ch) == true, t: t,
                            onChange: { r in replace(i, r) }, onRemove: { remove(i) })
     }
 
@@ -355,7 +379,7 @@ private struct DeskChannelTable: View {
 
     private func addRow() {
         var n = d
-        guard let r = n.newRow() else { return }
+        guard let r = n.newRow(me: me, other: other) else { return }
         n.rows.append(r)
         actions.update(n)
     }
@@ -363,12 +387,18 @@ private struct DeskChannelTable: View {
 
 private struct DeskRowView: View {
     static let kindWidth: CGFloat = 84
-    static let backupWidth: CGFloat = 150
+    static let arrowWidth: CGFloat = 16
+    static let otherWidth: CGFloat = 140
     static let levelWidth: CGFloat = 96
     let index: Int
     let row: DeskRow
     let model: DeskModel
-    /// The main channel's level as read, or nil: show the fixed level to raise to.
+    /// The two Macs' keys in `row.channels`.
+    let me: String
+    let other: String
+    let meName: String
+    let otherName: String
+    /// The main Mac's channel's level as read, or nil: show the fixed level to raise to.
     let level: Int?
     let fresh: Bool
     let t: Strings
@@ -381,18 +411,18 @@ private struct DeskRowView: View {
         HStack(spacing: 8) {
             kindCell.frame(width: Self.kindWidth, alignment: .leading)
             HStack(spacing: 6) {
-                channelField(row.mainChannel, label: t.deskMainChannel(index + 1), set: setMain)
+                channelField(row.channels[me], label: t.deskMacChannel(meName, row: index + 1), set: setMine)
                 DeskTextField(text: row.name, placeholder: t.deskNamePlaceholder, onCommit: setName)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            Text("⇄").foregroundStyle(Theme.textSecondary).frame(width: Self.arrowWidth).accessibilityHidden(true)
             HStack(spacing: 6) {
-                Text("→").foregroundStyle(Theme.textSecondary).accessibilityHidden(true)
-                channelField(row.backupChannel, label: t.deskBackupChannel(index + 1), set: setBackup)
+                channelField(row.channels[other], label: t.deskMacChannel(otherName, row: index + 1), set: setOthers)
                 if !row.name.isEmpty {
                     Text(row.name).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 }
             }
-            .frame(width: Self.backupWidth, alignment: .leading)
+            .frame(width: Self.otherWidth, alignment: .leading)
             levelCell.frame(width: Self.levelWidth, alignment: .leading)
             Button(action: onRemove) { Image(systemName: "minus.circle") }
                 .buttonStyle(.borderless)
@@ -417,8 +447,8 @@ private struct DeskRowView: View {
         }
     }
 
-    private func setMain(_ n: Int) { var r = row; r.mainChannel = n; onChange(r) }
-    private func setBackup(_ n: Int) { var r = row; r.backupChannel = n; onChange(r) }
+    private func setMine(_ n: Int) { var r = row; r.channels[me] = n; onChange(r) }
+    private func setOthers(_ n: Int) { var r = row; r.channels[other] = n; onChange(r) }
     private func setName(_ v: String) { var r = row; r.name = String(v.prefix(40)); onChange(r) }
 
     private func setFixedLevel(_ v: String) {
@@ -433,14 +463,15 @@ private struct DeskRowView: View {
         var r = row
         r.kind = k
         let top = max(1, model.channelLimit(k))
-        r.mainChannel = min(top, max(1, r.mainChannel))
-        r.backupChannel = min(top, max(1, r.backupChannel))
+        for key in [me, other] {
+            if let n = r.channels[key] { r.channels[key] = min(top, max(1, n)) }
+        }
         onChange(r)
     }
 
-    private func channelField(_ n: Int, label: String, set: @escaping (Int) -> Void) -> some View {
+    private func channelField(_ n: Int?, label: String, set: @escaping (Int) -> Void) -> some View {
         let top = limit
-        return DeskTextField(text: "\(n)", placeholder: "1") { (v: String) in
+        return DeskTextField(text: n.map { "\($0)" } ?? "", placeholder: "–") { (v: String) in
             guard let x = Int(v.trimmingCharacters(in: .whitespaces)) else { return }
             set(min(top, max(1, x)))
         }
@@ -457,8 +488,8 @@ private struct DeskRowView: View {
         } else {
             HStack(spacing: 4) {
                 DeskTextField(text: DeskLevel.number(row.fixedLevel), placeholder: "0.0", onCommit: setFixedLevel)
-                .frame(width: 58)
-                .accessibilityLabel(t.deskFixedLevelFor(index + 1))
+                    .frame(width: 58)
+                    .accessibilityLabel(t.deskFixedLevelFor(index + 1))
                 Text("dB").font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
             }
         }
