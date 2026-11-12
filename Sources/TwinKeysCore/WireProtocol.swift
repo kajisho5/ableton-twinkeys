@@ -54,6 +54,19 @@ public enum PacketBody: Equatable, Sendable {
     case setSummary(tracks: UInt16, scenes: UInt16, hash: UInt32)
     /// Since 2.1: one track or scene name of the sender's set (sent a few at a time).
     case setItem(kind: UInt8, index: UInt16, name: String)
+    /// Since 2.2: what the backup's Live did with Live command `id` (0 ran, 1 Live refused it,
+    /// 2 Live did not answer). Sent after the liveAck, once the backup's Live has answered.
+    case liveResult(id: UInt32, code: UInt8)
+    /// Since 2.3: "I am the main Mac since this time" (wall clock, ms). Sent with each heartbeat
+    /// while it holds. The Mac with the older claim (or none) stops sending keys.
+    case roleClaim(millis: UInt64)
+    /// Since 2.3: "be the main Mac again" (sent by a Mac that hands the role back).
+    case roleHandover
+    /// Connection display (docs/design-links.md): the sender's TwinKeys Remote side in short, the
+    /// approved iPhones connected to it and their Apple Watch (`WatchLevel.rawValue`). Sent with
+    /// each heartbeat and when it changes, so the backup Mac can show the iPhone line. Type 0x21
+    /// (0x20 is allNotesOff); older versions drop the unknown type.
+    case remoteSummary(phones: UInt8, watch: UInt8)
 
     var typeCode: UInt8 {
         switch self {
@@ -76,6 +89,10 @@ public enum PacketBody: Equatable, Sendable {
         case .liveStatus: return 0x1A
         case .setSummary: return 0x1B
         case .setItem: return 0x1C
+        case .liveResult: return 0x1D
+        case .roleClaim: return 0x1E
+        case .roleHandover: return 0x1F
+        case .remoteSummary: return 0x21
         }
     }
 }
@@ -146,6 +163,14 @@ extension Packet {
         case let .setItem(kind, index, name):
             let n = Array(truncatedUTF8(name, max: SetSummary.maxNameBytes))
             b += [kind, UInt8(index >> 8), UInt8(index & 0xFF), UInt8(n.count)] + n
+        case let .liveResult(id, code):
+            b.appendBE(id); b.append(code)
+        case let .roleClaim(ms):
+            b.appendBE(ms)
+        case .roleHandover:
+            break
+        case let .remoteSummary(phones, watch):
+            b += [phones, watch]
         }
         return b
     }
@@ -221,6 +246,16 @@ extension Packet {
             let len = Int(p[3])
             guard len <= SetSummary.maxNameBytes, p.count >= 4 + len else { throw DecodeError.badPayload }
             body = .setItem(kind: p[0], index: UInt16(p[1]) << 8 | UInt16(p[2]), name: String(decoding: p[4..<(4 + len)], as: UTF8.self))
+        case 0x1D:
+            guard p.count >= 5 else { throw DecodeError.badPayload }
+            body = .liveResult(id: p.readBE32(at: 0), code: p[4])
+        case 0x1E:
+            guard p.count >= 8 else { throw DecodeError.badPayload }
+            body = .roleClaim(millis: (UInt64(p.readBE32(at: 0)) << 32) | UInt64(p.readBE32(at: 4)))
+        case 0x1F: body = .roleHandover
+        case 0x21:
+            guard p.count >= 2 else { throw DecodeError.badPayload }
+            body = .remoteSummary(phones: p[0], watch: p[1])
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)

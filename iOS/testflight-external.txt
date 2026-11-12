@@ -1,0 +1,2 @@
+External TestFlight requests (one line per request; a change here runs .github/workflows/testflight-external.yml).
+2026-11-12 1.2.0 build 6 to the external group "テスター" with a public link

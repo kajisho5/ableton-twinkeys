@@ -33,14 +33,23 @@ final class RemoteServer {
     /// alert (main thread).
     var cancelApproval: (_ token: Int) -> Void = { _ in }
     /// Runs a command from the iPhone; `done(ok, error, backupDelivery)`.
-    var runCommand: (LiveCommand, @escaping (Bool, String?, String) -> Void) -> Void = { _, d in d(false, "not ready", "notSent") }
+    /// `late(ok)`: Live answered after the 1 s limit (the iPhone was told "no answer").
+    var runCommand: (LiveCommand, @escaping (Bool, String?, String) -> Void, @escaping (Bool) -> Void) -> Void = { _, d, _ in d(false, "not ready", "notSent") }
+    /// Live's track/scene layout as this Mac knows it now (`LiveSong.structure`).
+    var currentStructure: () -> Int? = { nil }
+    /// Number of scenes in Live as this Mac knows it.
+    var currentSceneCount: () -> Int? = { nil }
     var pressCue: (UInt16) -> Bool = { _ in false }
+    /// An approved iPhone asks this Mac to become the main (2.3).
+    var becomeMain: () -> Void = {}
     var allNotesOff: () -> Void = {}
     var snapshot: () -> LiveState = { LiveState() }
     var status: () -> RemoteStatus? = { nil }
     var onLog: ((String) -> Void)?
     /// Number of connected, approved devices changed (main thread).
     var onClientsChanged: ((Int) -> Void)?
+    /// Connection display: the Apple Watch as the connected iPhones report it, combined (main thread).
+    var onWatchChanged: ((WatchLevel) -> Void)?
     /// A device was allowed on this Mac: remember it (called on `queue`).
     var onApproved: (RemoteClientHello) -> Void = { _ in }
 
@@ -53,11 +62,16 @@ final class RemoteServer {
         var approved = false
         /// The approval question open for this connection.
         var approvalToken: Int?
-        /// The iPhone's show lock (`RemoteMessage.lock`).
+        /// The iPhone's show lock (`RemoteMessage.lock` / `.lockScope`) and what it stops.
         var locked = false
+        var lockScope: LockScope = .standard
         var lastHeard = ProcessInfo.processInfo.systemUptime
         /// Bytes handed to the connection and not yet sent.
         var inFlight = 0
+        /// The layout (`LiveSong.structure`) of the last state sent to this iPhone.
+        var seenStructure: Int?
+        /// Its Apple Watch, as it last reported (nil: not told; iPhones before the connection display).
+        var watch: RemoteWatchState?
         init(conn: NWConnection, session: RemoteSession) { self.conn = conn; self.session = session }
     }
 
@@ -269,17 +283,21 @@ final class RemoteServer {
     private func handleMessage(_ m: RemoteMessage, _ c: Client) {
         switch m {
         case let .command(id, cmd):
-            guard cmd.isValid else { send(.result(id: id, ok: false, error: "invalid", backup: "notSent"), to: c); return }
-            // The show lock is enforced here too, not only on the iPhone.
-            guard !c.locked || cmd.allowedWhileLocked else { send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c); return }
-            // Operation log (fader and tempo moves are too many to log one by one).
-            let who = c.hello?.deviceName ?? "?"
-            if !cmd.isContinuous { onLog?("Remote: \(who): \(cmd)") }
-            runCommand(cmd) { [weak self] ok, err, backup in
-                if !ok, !cmd.isContinuous { self?.onLog?("Remote: \(who): \(cmd) not run (\(err ?? "error"))") }
-                self?.queue.async { self?.send(.result(id: id, ok: ok, error: err, backup: backup), to: c) }
+            runFromPhone(id, cmd, seen: c.seenStructure, c)
+        case let .commandAt(id, cmd, structure):
+            runFromPhone(id, cmd, seen: structure ?? c.seenStructure, c)
+        case let .go(id, scene, structure):
+            // GO is never stopped by the show lock: launch the scene, then select the next one.
+            runFromPhone(id, .fireScene(scene), seen: structure ?? c.seenStructure, c, isGo: true)
+            if scene + 1 < (currentSceneCount() ?? Int.max) {
+                runFromPhone(-1, .selectScene(scene + 1), seen: structure ?? c.seenStructure, c, isGo: true)
             }
+        case let .becomeMain(id):
+            onLog?("Remote: \(c.hello?.deviceName ?? "?"): make this Mac the main")
+            becomeMain()
+            send(.result(id: id, ok: true, error: nil, backup: "notSent"), to: c)
         case let .cue(id, keycode):
+            if c.locked, c.lockScope.contains(.cues) { send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c); return }
             let ok = pressCue(keycode)
             onLog?("Remote: \(c.hello?.deviceName ?? "?"): cue key \(keycode)\(ok ? "" : " (not a cue key)")")
             send(.result(id: id, ok: ok, error: ok ? nil : "not a cue key", backup: "see status"), to: c)
@@ -287,18 +305,65 @@ final class RemoteServer {
             onLog?("Remote: \(c.hello?.deviceName ?? "?"): All Notes Off")
             allNotesOff()
             send(.result(id: id, ok: true, error: nil, backup: "sent"), to: c)
-        case let .ping(t):
+        case let .ping(t, watch):
             send(.pong(t), to: c)
+            // Connection display: the iPhone's Apple Watch comes with its pings.
+            if let watch, watch != c.watch {
+                c.watch = watch
+                notifyCount()
+            }
         case let .lock(on):
             if c.locked != on { onLog?("Remote: \(c.hello?.deviceName ?? "?"): show lock \(on ? "on" : "off")") }
             c.locked = on
+            c.lockScope = .standard
+        case let .lockScope(on, scope):
+            if c.locked != on { onLog?("Remote: \(c.hello?.deviceName ?? "?"): show lock \(on ? "on" : "off")") }
+            c.locked = on
+            c.lockScope = LockScope(rawValue: scope)
         default:
             break
         }
     }
 
+    /// A Live command from an iPhone. `seen`: the Live layout the iPhone was showing.
+    /// `isGo`: part of GO (never stopped by the show lock). `id` -1: no answer to the iPhone.
+    private func runFromPhone(_ id: Int, _ cmd: LiveCommand, seen: Int?, _ c: Client, isGo: Bool = false) {
+        guard cmd.isValid else { if id >= 0 { send(.result(id: id, ok: false, error: "invalid", backup: "notSent"), to: c) }; return }
+        // The show lock is enforced here too, not only on the iPhone.
+        guard isGo || !c.locked || !c.lockScope.blocks(cmd) else {
+            if id >= 0 { send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c) }
+            return
+        }
+        // Operation log (fader and tempo moves are too many to log one by one).
+        let who = c.hello?.deviceName ?? "?"
+        if !cmd.isContinuous { onLog?("Remote: \(who): \(cmd)") }
+        // The iPhone was showing an older layout than Live has now: refuse before anything is
+        // sent to either Live (the backup would otherwise run it while this Mac refuses it).
+        if cmd.targetsLayout, let seen, let now = currentStructure(), seen != now {
+            onLog?("Remote: \(who): \(cmd) not run (Live's layout changed)")
+            if id >= 0 { send(.result(id: id, ok: false, error: "structure_changed", backup: "notSent"), to: c) }
+            return
+        }
+        runCommand(cmd, { [weak self] ok, err, backup in
+            if !ok, !cmd.isContinuous { self?.onLog?("Remote: \(who): \(cmd) not run (\(err ?? "error"))") }
+            if id >= 0 { self?.queue.async { self?.send(.result(id: id, ok: ok, error: err, backup: backup), to: c) } }
+        }, { [weak self] ok in
+            guard ok, id >= 0 else { return }
+            // Live ran it after all: the iPhone must not think it failed (no second tap).
+            self?.onLog?("Remote: \(who): \(cmd) ran late")
+            self?.queue.async { self?.send(.result(id: id, ok: true, error: "late", backup: "unknown"), to: c) }
+        })
+    }
+
     private func send(_ m: RemoteMessage, to c: Client) {
         guard let bytes = try? c.session.seal(m) else { return }
+        if case let .update(u) = m {
+            switch u {
+            case let .song(x): c.seenStructure = x.structure
+            case let .full(s): c.seenStructure = s.song.structure
+            default: break
+            }
+        }
         let n = bytes.count
         c.inFlight += n
         // Completion runs on `queue` (the connection's queue).
@@ -341,8 +406,13 @@ final class RemoteServer {
     }
 
     private func notifyCount() {
-        let n = clients.values.filter(\.approved).count
-        DispatchQueue.main.async { [weak self] in self?.onClientsChanged?(n) }
+        let approved = clients.values.filter(\.approved)
+        let n = approved.count
+        let watch = WatchLevel.combined(approved.map(\.watch))
+        DispatchQueue.main.async { [weak self] in
+            self?.onClientsChanged?(n)
+            self?.onWatchChanged?(watch)
+        }
     }
 }
 #endif

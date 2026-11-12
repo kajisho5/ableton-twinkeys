@@ -3,6 +3,11 @@
 Nothing in this module imports Live, so it can be used by the unit tests.
 """
 
+# Version of this script, reported in the "song" message as "bridge_version". TwinKeys compares
+# it with the copy inside the app and replaces an older installed copy (TwinKeys 2.2+).
+# Keep the line exactly in this form: TwinKeys reads it from the installed file.
+BRIDGE_VERSION = 3
+
 # Security rule: the bridge only ever binds to, and sends to, the IPv4
 # loopback address. Never change this to "0.0.0.0" or a LAN address.
 LOOPBACK_HOST = "127.0.0.1"

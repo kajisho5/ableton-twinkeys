@@ -519,26 +519,142 @@ struct CuesView: View {
 
 struct SettingsPane: View {
     @EnvironmentObject var model: RemoteModel
+    /// Set by the Apple Watch mark in the top bar: scroll to "Connection" (once).
+    var showConnection: Binding<Bool> = .constant(false)
 
     var body: some View {
+        ScrollViewReader { proxy in
+            form
+                .onAppear { scrollToConnection(proxy) }
+                .onChange(of: showConnection.wrappedValue) { _, _ in scrollToConnection(proxy) }
+        }
+    }
+
+    private func scrollToConnection(_ proxy: ScrollViewProxy) {
+        guard showConnection.wrappedValue else { return }
+        showConnection.wrappedValue = false
+        // On the next turn: the form has its rows by then.
+        DispatchQueue.main.async { withAnimation { proxy.scrollTo(Self.connectionID, anchor: .top) } }
+    }
+
+    private static let connectionID = "connection"
+
+    private var form: some View {
         Form {
+            if model.trialMode {
+                Section {
+                    Button(L.s("End the sample and connect to a Mac", "サンプルを終わって Mac につなぐ")) { model.endTrial() }
+                } footer: {
+                    Text(L.s("You are looking at made-up data. Nothing is sent to a Mac.", "架空のデータを表示しています。Mac には何も送っていません。"))
+                }
+            }
             Section(L.s("Show safety", "本番の安全")) {
                 // Turning the lock off only with the 1 s hold on the lock button.
                 Toggle(L.s("Show lock", "本番ロック"), isOn: $model.locked).disabled(model.locked)
                 Toggle(L.s("Faders stop at 0 dB", "フェーダーの上限を 0dB にする"), isOn: $model.capAtZeroDB)
                 Toggle(L.s("Follow the selection in Live", "Live の選択に追従"), isOn: $model.followSelection)
             }
-            Section(L.s("Connection", "接続")) {
-                LabeledContent(L.s("Mac", "Mac"), value: model.status?.mainName ?? "—")
-                LabeledContent(L.s("Pairing code", "合言葉"), value: model.pairingCode)
-                Button(L.s("Connect to another Mac (for example the backup)", "別の Mac につなぐ（バックアップなど）")) { model.chooseAnotherMac() }
-                    .disabled(model.locked)
-            }
             Section {
+                lockToggle(.tempo, L.s("Tempo", "テンポ"))
+                lockToggle(.mixer, L.s("Mixer (volume, pan, sends, M/S)", "ミキサー（音量・パン・センド・M/S）"))
+                lockToggle(.launches, L.s("Clip and scene launches", "クリップ・シーンの再生"),
+                           note: L.s("When on, only GO and the cues are left", "オンにすると GO とキューだけになります"))
+                lockToggle(.stops, L.s("Stop and Stop all clips", "停止・全クリップ停止"))
+                lockToggle(.cues, L.s("Cue buttons", "キューのボタン"))
+            } header: {
+                Text(L.s("What the show lock stops", "本番ロックで止めるもの"))
+            } footer: {
+                Text(L.s("All Notes Off and unlocking (1 s hold) are never stopped. Change these while the lock is off.",
+                         "全ノートオフと「ロックの解除（1 秒長押し）」は止めません。ロック中は変えられません。"))
+            }
+            connectionSection
+            Section(L.s("About", "このアプリについて")) {
+                Link(L.s("Privacy policy", "プライバシーポリシー"), destination: Self.site(L.ja ? "ja/privacy/" : "privacy/"))
+                Link(L.s("Help and support", "使い方・サポート"), destination: Self.site(L.ja ? "ja/support/" : "support/"))
                 Text(L.s("TwinKeys Remote by Shogo Kajiyama / SEVENTHWELL. Unofficial tool, not affiliated with Ableton.",
                          "TwinKeys Remote（制作 Shogo Kajiyama / SEVENTHWELL）。非公式のツールで、Ableton 社とは関係ありません。"))
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+    }
+
+    // MARK: Connection (docs/design-links.md)
+
+    private var connectionSection: some View {
+        Section(L.s("Connection", "接続")) {
+            linkRow("desktopcomputer", L.s("Mac (main)", "Mac（メイン）"), model.status?.mainName ?? "—", mainState)
+                .id(Self.connectionID)
+            linkRow("desktopcomputer", L.s("Backup", "バックアップ"), model.status?.backupName ?? model.backupMacName ?? "—", backupState)
+            linkRow("applewatch", "Apple Watch", L.s("TwinKeys (Watch)", "TwinKeys（Watch）"), watchState)
+            linkRow("iphone", L.s("Pairing code", "合言葉"), model.pairingCode, nil)
+            Button(L.s("Connect to another Mac (for example the backup)", "別の Mac につなぐ（バックアップなど）")) { model.chooseAnotherMac() }
+                .disabled(model.locked)
+        }
+    }
+
+    private typealias LinkState = (text: String, color: Color)
+
+    private var connectedText: String { "✓ " + L.s("Connected", "つながっています") }
+
+    private var mainState: LinkState {
+        if model.isConnected { return (text: connectedText, color: Color.tkOK) }
+        return (text: L.s("Not connected", "つながっていません"), color: Color.tkDanger)
+    }
+
+    /// As the top bar: the backup's link and its own Live.
+    private var backupState: LinkState? {
+        guard model.isConnected, let st = model.status else { return nil }
+        guard st.backupLinked else { return (text: L.s("Backup not linked", "バックアップ未接続"), color: Color.tkWarn) }
+        guard st.backupLiveConnected else { return (text: L.s("Live ✗ no answer", "Live ✗ 応答なし"), color: Color.tkWarn) }
+        let ms = st.latencyMs.map { " · \(Int($0.rounded())) ms" } ?? ""
+        return (text: "✓ Live ✓" + ms, color: Color.tkOK)
+    }
+
+    private var watchState: LinkState {
+        guard let w = model.watch, w.paired else { return (text: L.s("Not paired", "ペアリングされていません"), color: Color.secondary) }
+        guard w.appInstalled else {
+            return (text: L.s("Not installed (install it from the Watch app)", "入っていません（Watch の App で入れられます）"), color: Color.secondary)
+        }
+        guard w.reachable else {
+            return (text: L.s("Not reachable (open TwinKeys on the watch)", "届きません（Watch で TwinKeys を開いてください）"), color: Color.tkWarn)
+        }
+        return (text: connectedText, color: Color.tkOK)
+    }
+
+    private func linkRow(_ symbol: String, _ title: String, _ detail: String, _ state: LinkState?) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .frame(width: 30)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.bold())
+                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if let state {
+                Text(state.text)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(state.color)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private static func site(_ path: String) -> URL {
+        URL(string: "https://kajisho5.github.io/ableton-twinkeys/" + path)!
+    }
+
+    private func lockToggle(_ part: LockScope, _ title: String, note: String? = nil) -> some View {
+        Toggle(isOn: Binding(get: { model.lockScope.contains(part) },
+                             set: { on in if on { model.lockScope.insert(part) } else { model.lockScope.remove(part) } })) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let note { Text(note).font(.caption).foregroundStyle(.secondary) }
+            }
+        }
+        .disabled(model.locked)
     }
 }

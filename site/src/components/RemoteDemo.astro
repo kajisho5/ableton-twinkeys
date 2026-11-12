@@ -1,0 +1,1723 @@
+---
+// "Try it": a working sample of TwinKeys Remote (GO and Session) and the Apple Watch app, with the two
+// Macs and the connection map. Fictional data; nothing is sent anywhere. Design: docs/design-site-demo.md
+import { url, type Lang } from '../lib/i18n';
+import { demoText } from '../lib/remote-demo-text';
+import { demoData, initial, formatLeft, secondsLeft, progress, position, label } from '../lib/remote-demo';
+import { mapSvg, mapSummary } from '../lib/remote-demo-map';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const d = demoText[lang];
+const data = demoData(d.scenes);
+// The page is built ahead of time: draw the first state at a fixed moment; the script takes over.
+const now = 0;
+const st = initial(data, now);
+const left = secondsLeft(st, now);
+const fill = (s: string, x: string) => s.replace('{x}', x).replace('{n}', x).replace('{name}', x);
+const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
+---
+<section class="section section-alt demo" aria-labelledby="demo">
+  <div class="wrap">
+    <h2 class="section-title demo-title" id="demo">{d.title}</h2>
+    <p class="demo-lead">{d.lead}</p>
+
+    <div class="demo-root" data-demo>
+      <script type="application/json" data-demo-text set:html={JSON.stringify(d)} />
+      <div class="demo-grid">
+        <div class="phone">
+          <div class="screen">
+            <div class="app" data-el="app" data-pane="go">
+              <header class="tb">
+                <div class="tb-status">
+                  <span class="dot ok" data-el="dot"></span>
+                  <span class="tb-text">
+                    <b data-el="macName">{d.mainMac}</b>
+                    <small data-el="statusLine">{d.statusOk}</small>
+                  </span>
+                </div>
+                <div class="tb-transport">
+                  <button class="tbtn play" data-act="play" aria-label={d.play}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z" /></svg>
+                  </button>
+                  <button class="tbtn stop" data-hold="stop" aria-label={d.stop}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
+                    <span class="holdfill" aria-hidden="true"></span>
+                  </button>
+                  <span class="tempo">124.00<small>BPM</small></span>
+                  <span class="pos" data-el="pos">{position(st, now)}</span>
+                </div>
+                <div class="tb-right">
+                  <button class="anf" data-act="notesOff">{d.allNotesOff}</button>
+                  <button class="lockbtn" data-el="lock" aria-label={d.lock} aria-pressed="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path class="shackle" d="M8 11V8a4 4 0 0 1 8 0" fill="none" stroke-width="2.2" />
+                      <rect x="5.5" y="11" width="13" height="9" rx="2" />
+                    </svg>
+                    <span class="holdfill" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </header>
+
+              <div class="body">
+                <div class="content">
+                  <div class="banner lost" data-el="lost" hidden>
+                    <span data-el="lostText">{fill(d.lostBanner, '3')}</span>
+                    <button data-act="askSwitch">{d.switchButton}</button>
+                  </div>
+                  <div class="banner switched" data-el="switchedBanner" hidden>{fill(d.switchedBanner, d.backupMac)}</div>
+                  <div class="notice" data-el="notice" hidden></div>
+
+                  <div class="pane pane-go">
+                    <div class="go-left">
+                      <div class="card now" data-el="now">
+                        <span class="cap ok">{d.nowPlaying}</span>
+                        <div class="row big">
+                          <span class="idx" data-el="nowIdx">{st.playing !== null ? st.playing + 1 : ''}</span>
+                          <span class="nm" data-el="nowName">{st.playing !== null ? data.scenes[st.playing] : d.nothingPlaying}</span>
+                        </div>
+                        <div class="row left" data-el="nowLeftRow">
+                          <span class="cap2">{d.left}</span>
+                          <span class="leftv" data-el="nowLeft">{left !== null ? formatLeft(left) : ''}</span>
+                          <span class="bar"><span data-el="nowBar" style={`width:${Math.round(progress(st, now) * 100)}%`}></span></span>
+                        </div>
+                      </div>
+                      <div class="card next">
+                        <span class="cap acc">{d.next}</span>
+                        <div class="row big2">
+                          <span class="idx" data-el="nextIdx">{st.next + 1}</span>
+                          <span class="nm" data-el="nextName">{data.scenes[st.next]}</span>
+                        </div>
+                      </div>
+                      <div class="spacer"></div>
+                      <div class="choose">
+                        <button data-act="back">{d.back}</button>
+                        <button data-act="fwd">{d.fwd}</button>
+                        <span>{d.chooseOnly}</span>
+                      </div>
+                    </div>
+                    <button class="gobtn" data-act="go">
+                      <span class="go-big">GO</span>
+                      <span class="go-sub">{d.goSub}</span>
+                      <span class="go-next" data-el="goNext">{label(data, st.next)}</span>
+                      <span class="go-lock">{d.goLock}</span>
+                    </button>
+                  </div>
+
+                  <div class="pane pane-session">
+                    <div class="grid" role="group" aria-label={d.panes.session} style={`--cols:${data.tracks.length}`}>
+                      <div class="gh" aria-hidden="true">
+                        <span class="gn"></span>
+                        {data.tracks.map((tr, t) => <span class="th" style={`--c:${data.colors[t]}`}>{tr}</span>)}
+                        <span class="th scene-h">{d.sceneHeader}</span>
+                      </div>
+                      {data.scenes.map((sc, s) => (
+                        <div class="gr">
+                          <span class="gn" title={sc}>{s + 1}</span>
+                          {data.tracks.map((tr, t) => {
+                            const c = data.clips[t][s];
+                            return (
+                              <button
+                                class:list={['slot', c.has ? 'has' : 'empty']}
+                                style={`--c:${data.colors[t]}`}
+                                data-act="slot"
+                                data-t={t}
+                                data-s={s}
+                                aria-label={c.has ? `${tr} · ${c.name} (${s + 1} ${sc})` : fill(d.stopTrack, tr)}
+                              >
+                                {c.has ? <span class="cn">{c.name}</span> : <span class="sq" aria-hidden="true"></span>}
+                                {c.has && <span class="cl" data-left></span>}
+                              </button>
+                            );
+                          })}
+                          <button class="scbtn" data-act="scene" data-s={s} aria-label={fill(d.launchScene, String(s + 1))}>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" /></svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <nav class="rail" aria-label="TwinKeys Remote">
+                  {paneKeys.map((k) => {
+                    const live = k === 'session' || k === 'go';
+                    return (
+                      <button
+                        class:list={['ri', `ri-${k}`, { on: k === 'go' }]}
+                        data-act={live ? 'pane' : 'paneOff'}
+                        data-pane={k}
+                        aria-disabled={live ? undefined : 'true'}
+                        title={live ? undefined : d.paneOff}
+                        aria-current={k === 'go' ? 'page' : undefined}
+                      >
+                        <span class="rico" aria-hidden="true"></span>
+                        <span class="rl">{d.panes[k]}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              <div class="sheet" data-el="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="demo-sheet-t">
+                <div class="sheet-box">
+                  <b id="demo-sheet-t">{d.confirmTitle}</b>
+                  <p>{fill(d.confirmBody, d.backupMac)}</p>
+                  <p class="pt">{fill(d.confirmPhone, d.backupMac)}</p>
+                  <p class="pt">{fill(d.confirmKeys, d.backupMac)}</p>
+                  <div class="sheet-btns">
+                    <button class="cancel" data-act="cancel">{d.cancel}</button>
+                    <button class="holdbtn" data-hold="switch">
+                      <span class="holdfill" aria-hidden="true"></span>
+                      <span class="hb-t">{d.hold}</span>
+                      <small>{d.holdSecond}</small>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="side">
+          <div class="watch-row">
+            <div class="watch-wrap">
+              <div class="watch" aria-label={d.watchTitle} role="group">
+                <span class="crown" aria-hidden="true"></span><span class="sidebtn" aria-hidden="true"></span>
+                <div class="wscreen" data-el="wscreen" data-page="0">
+                  <div class="wpage wp0">
+                    <span class="wnext" data-el="wnext">{fill(d.watchNext, label(data, st.next))}</span>
+                    <button class="wgo" data-act="go" aria-label={`GO: ${label(data, st.next)}`}>GO</button>
+                    <span class="whint" data-el="whint">{d.crownHint}</span>
+                  </div>
+                  <div class="wpage wp1">
+                    <span class="wcap" data-el="wcap1">{d.chooseScene}</span>
+                    <div class="wlist">
+                      {data.scenes.map((sc, s) => (
+                        <button class="wsc" data-act="wselect" data-s={s}>
+                          <span class="wn">{s + 1}</span><span class="wt">{sc}</span><span class="wm" aria-hidden="true"></span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div class="wpage wp2">
+                    <span class="wlinks" data-el="wlinks">{d.watchLinks}</span>
+                    <button class="wanf" data-act="notesOff">{d.allNotesOff}</button>
+                    <span class="wlast" data-el="wlast">{d.lastCueNone}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="dots" role="group" aria-label={d.watchTitle}>
+                {d.watchPages.map((p, i) => (
+                  <button class:list={['wdot', { on: i === 0 }]} data-act="wpage" data-p={i} aria-label={p} aria-pressed={i === 0 ? 'true' : 'false'}></button>
+                ))}
+              </div>
+            </div>
+            <div class="watch-copy">
+              <b>{d.watchTitle}</b>
+              <p>{d.watchDesc}</p>
+              <p>{d.watchHint}</p>
+              <div class="crown-btns">
+                <button data-act="back">{d.crownBack}</button>
+                <button data-act="fwd">{d.crownNext}</button>
+              </div>
+              <small>{d.crownNote}</small>
+            </div>
+          </div>
+
+          <div class="macs">
+            {(['main', 'backup'] as const).map((k) => (
+              <div class="mac ok" data-el={`mac-${k}`}>
+                <div class="mac-h">
+                  <svg viewBox="0 0 28 22" aria-hidden="true"><rect x="2" y="2" width="24" height="15" rx="2.5" /><rect x="10" y="18" width="8" height="2.5" /></svg>
+                  <b>{k === 'main' ? d.mainMac : d.backupMac}</b>
+                </div>
+                <div class="mac-s">
+                  <span class="mac-live" data-part="live">● {d.liveOk}</span>
+                  <span class="mac-badge" data-part="badge" hidden={k !== 'main'}>{d.mainBadge}</span>
+                </div>
+                <div class="mac-line" data-part="line">▶ {st.playing !== null ? label(data, st.playing) : ''}</div>
+                <div class="mac-recv" data-part="recv" aria-hidden="true"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div class="map" data-el="map">
+        <b class="map-title">{d.mapTitle}</b>
+        <div class="map-pics" data-el="mapPics" role="img" aria-label={mapSummary('ok', d)}>
+          <Fragment set:html={mapSvg('ok', d, false) + mapSvg('ok', d, true)} />
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="ctl stopmain" data-act="stopMain">{d.stopMain}</button>
+        <button class="ctl" data-act="reset">{d.reset}</button>
+        <p>{d.controlsNote1}<br />{d.controlsNote2}</p>
+      </div>
+      <p class="foot">{d.foot1}<br />{d.foot2}</p>
+      <p class="sr-only" aria-live="polite" data-el="live"></p>
+    </div>
+
+    <noscript>
+      <img class="demo-fallback" src={url('images/remote-session.png')} width="1311" height="603" alt={d.fallbackAlt} loading="lazy" />
+    </noscript>
+  </div>
+</section>
+
+<script>
+  import {
+    demoData, initial, go, select, fireScene, tapSlot, play, stop, allNotesOff, hint, setLock, setPane,
+    setWatchPage, stopMain, askSwitch, cancelSwitch, switchToBackup, secondsLeft, progress, formatLeft,
+    position, showsLostBanner, lostSeconds, linkState, visibleNotice, recentEvent, label, reachable,
+    type DemoState, type Pane, type WatchPage,
+  } from '../lib/remote-demo';
+  import { mapSvg, mapSummary } from '../lib/remote-demo-map';
+  import type { DemoText } from '../lib/remote-demo-text';
+
+  const HOLD_MS = 1000;
+
+  function start(root: HTMLElement) {
+    const t: DemoText = JSON.parse(root.querySelector('[data-demo-text]')!.textContent || '{}');
+    const data = demoData(t.scenes);
+    let s: DemoState = initial(data, Date.now());
+    let lastMap = '';
+    let lastLive = '';
+    const el = <T extends HTMLElement = HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+    const all = (sel: string) => Array.from(root.querySelectorAll<HTMLElement>(sel));
+    const fill = (str: string, x: string) => str.replace('{x}', x).replace('{n}', x).replace('{name}', x);
+    const announce = (msg: string) => {
+      if (msg === lastLive) return;
+      lastLive = msg;
+      el('live').textContent = msg;
+    };
+
+    function set(n: DemoState, msg?: string) {
+      s = n;
+      render();
+      if (msg) announce(msg);
+    }
+
+    function render() {
+      const now = Date.now();
+      const app = el('app');
+      app.dataset.pane = s.pane;
+      // top bar
+      const ls = linkState(s);
+      el('macName').textContent = s.switched ? t.backupMac : t.mainMac;
+      el('statusLine').textContent = ls === 'ok' ? t.statusOk : ls === 'dead' ? t.statusLost : t.statusSwitched;
+      el('statusLine').className = ls === 'dead' ? 'bad' : ls === 'switched' ? 'warn' : '';
+      el('dot').className = `dot ${ls === 'dead' ? 'bad' : ls === 'switched' ? 'warn' : 'ok'}`;
+      el('pos').textContent = position(s, now);
+      root.querySelector('[data-act="play"]')!.classList.toggle('on', s.running);
+      const lock = el('lock');
+      lock.classList.toggle('on', s.locked);
+      lock.setAttribute('aria-pressed', String(s.locked));
+      lock.setAttribute('aria-label', s.locked ? t.unlock : t.lock);
+      // banners and notices
+      const lost = el('lost');
+      lost.hidden = !showsLostBanner(s, now);
+      el('lostText').textContent = fill(t.lostBanner, String(lostSeconds(s, now)));
+      el('switchedBanner').hidden = !(s.switched && now - (s.notice?.at ?? 0) < 6000 && s.notice?.kind === 'switched');
+      const nk = visibleNotice(s, now);
+      const notice = el('notice');
+      notice.hidden = !nk || nk === 'switched';
+      notice.textContent = nk ? t.notice[nk] : '';
+      notice.className = `notice ${nk === 'unreachable' ? 'bad' : ''}`;
+      el('sheet').hidden = !s.confirming;
+      // GO pane
+      const left = secondsLeft(s, now);
+      el('nowIdx').textContent = s.playing !== null ? String(s.playing + 1) : '';
+      el('nowName').textContent = s.playing !== null ? data.scenes[s.playing] : t.nothingPlaying;
+      el('now').classList.toggle('idle', s.playing === null);
+      el('nowLeftRow').hidden = left === null;
+      el('nowLeft').textContent = left !== null ? formatLeft(left) : '';
+      el('nowBar').style.width = `${Math.round(progress(s, now) * 100)}%`;
+      const hasNext = s.next >= 0 && s.next < data.scenes.length;
+      el('nextIdx').textContent = hasNext ? String(s.next + 1) : '';
+      el('nextName').textContent = hasNext ? data.scenes[s.next] : t.endOfList;
+      el('goNext').textContent = hasNext ? label(data, s.next) : t.endOfList;
+      all('[data-act="go"]').forEach((b) => {
+        b.classList.toggle('end', !hasNext);
+        b.setAttribute('aria-disabled', String(!hasNext));
+      });
+      all('[data-act="back"]').forEach((b) => b.toggleAttribute('disabled', s.next <= 0));
+      all('[data-act="fwd"]').forEach((b) => b.toggleAttribute('disabled', s.next >= data.scenes.length - 1));
+      // session
+      all('[data-act="slot"]').forEach((b) => {
+        const tr = Number(b.dataset.t), sc = Number(b.dataset.s);
+        const on = s.trackSlot[tr] === sc;
+        b.classList.toggle('playing', on);
+        const lt = b.querySelector('[data-left]');
+        if (lt) lt.textContent = on && left !== null ? formatLeft(left) : '';
+      });
+      all('[data-act="scene"]').forEach((b) => b.classList.toggle('on', Number(b.dataset.s) === s.playing));
+      all('.gr').forEach((r, i) => r.classList.toggle('sel', i === s.next));
+      all('[data-act="pane"]').forEach((b) => {
+        const on = b.dataset.pane === s.pane;
+        b.classList.toggle('on', on);
+        if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      });
+      // watch
+      el('wscreen').dataset.page = String(s.watchPage);
+      all('[data-act="wpage"]').forEach((b) => {
+        const on = Number(b.dataset.p) === s.watchPage;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+      el('wnext').textContent = hasNext ? fill(t.watchNext, label(data, s.next)) : t.endOfList;
+      const wgo = root.querySelector('.wgo')!;
+      wgo.setAttribute('aria-label', hasNext ? `GO: ${label(data, s.next)}` : `GO: ${t.endOfList}`);
+      el('whint').textContent = nk && nk !== 'switched' ? t.notice[nk] : t.crownHint;
+      el('whint').className = `whint ${nk === 'unreachable' ? 'bad' : ''}`;
+      all('[data-act="wselect"]').forEach((b) => {
+        const sc = Number(b.dataset.s);
+        b.classList.toggle('playing', sc === s.playing);
+        b.classList.toggle('next', sc === s.next);
+      });
+      el('wlinks').textContent = reachable(s) ? (s.switched ? `${t.backupMac} ✓` : t.watchLinks) : t.watchLinksLost;
+      const ev = s.lastEvent;
+      el('wlast').textContent = ev ? fill(t.lastCue, t.events[ev.kind]) : t.lastCueNone;
+      // Macs
+      const recent = recentEvent(s, now);
+      for (const k of ['main', 'backup'] as const) {
+        const card = el(`mac-${k}`);
+        const dead = k === 'main' && s.main === 'dead';
+        card.className = `mac ${dead ? 'dead' : 'ok'}`;
+        card.querySelector('[data-part="live"]')!.textContent = dead ? `● ${t.noAnswer}` : `● ${t.liveOk}`;
+        const isMain = (k === 'main' && !s.switched) || (k === 'backup' && s.switched);
+        (card.querySelector('[data-part="badge"]') as HTMLElement).hidden = !isMain || dead;
+        card.querySelector('[data-part="line"]')!.textContent = dead
+          ? t.stoppedNote
+          : s.playing !== null ? `▶ ${label(data, s.playing)}` : t.stoppedLine;
+        const recv = card.querySelector('[data-part="recv"]') as HTMLElement;
+        const got = !!recent && !dead && reachable(s);
+        recv.textContent = got ? fill(t.received, t.events[recent!.kind]) : '';
+        recv.classList.toggle('on', got);
+      }
+      // connection map
+      if (ls !== lastMap) {
+        lastMap = ls;
+        const pics = el('mapPics');
+        pics.innerHTML = mapSvg(ls, t, false) + mapSvg(ls, t, true);
+        pics.setAttribute('aria-label', mapSummary(ls, t));
+      }
+      (root.querySelector('[data-act="stopMain"]') as HTMLButtonElement).disabled = s.main === 'dead';
+    }
+
+    // taps
+    root.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
+      if (!b || !root.contains(b) || b.hasAttribute('disabled')) return;
+      const now = Date.now();
+      const act = b.dataset.act;
+      switch (act) {
+        case 'go': {
+          const n = go(data, s, now);
+          set(n, n.lastEvent?.kind === 'go' && n !== s ? fill(t.live.go, label(data, n.playing ?? 0)) : undefined);
+          break;
+        }
+        case 'back': set(select(data, s, s.next - 1, now), fill(t.live.select, label(data, Math.max(0, s.next - 1)))); break;
+        case 'fwd': set(select(data, s, s.next + 1, now), fill(t.live.select, label(data, Math.min(data.scenes.length - 1, s.next + 1)))); break;
+        case 'wselect': set(select(data, s, Number(b.dataset.s), now), fill(t.live.select, label(data, Number(b.dataset.s)))); break;
+        case 'scene': set(fireScene(data, s, Number(b.dataset.s), now)); break;
+        case 'slot': set(tapSlot(data, s, Number(b.dataset.t), Number(b.dataset.s), now)); break;
+        case 'play': set(play(s, now)); break;
+        case 'notesOff': set(allNotesOff(s, now), t.live.notesOff); break;
+        case 'pane': set(setPane(s, b.dataset.pane as Pane)); break;
+        case 'paneOff': break;
+        case 'wpage': set(setWatchPage(s, Number(b.dataset.p) as WatchPage)); break;
+        case 'stopMain': set(stopMain(s, now), t.live.mainStopped); break;
+        case 'askSwitch': set(askSwitch(s)); root.querySelector<HTMLElement>('[data-hold="switch"]')?.focus(); break;
+        case 'cancel': set(cancelSwitch(s)); break;
+        case 'reset': set(initial(data, now), t.live.reset); lastMap = ''; render(); break;
+      }
+    });
+
+    // long presses: Stop, unlocking the show lock and "Hold to switch" (pointer or Space/Enter held 1 s)
+    function holdable(b: HTMLElement, done: () => void, tooShort?: () => void) {
+      let timer = 0;
+      let fired = false;
+      // The click that follows a press is already handled here (data-pressed-at), so a click
+      // listener can tell a press from an activation without a pointer (for example VoiceOver).
+      const begin = () => {
+        fired = false;
+        b.classList.add('holding');
+        timer = window.setTimeout(() => {
+          fired = true;
+          b.classList.remove('holding');
+          b.dataset.pressedAt = String(Date.now());
+          done();
+        }, HOLD_MS);
+      };
+      const end = () => {
+        if (!b.classList.contains('holding')) return;
+        window.clearTimeout(timer);
+        b.classList.remove('holding');
+        b.dataset.pressedAt = String(Date.now());
+        if (!fired && tooShort) tooShort();
+      };
+      b.addEventListener('pointerdown', (e) => { if (e.button === 0) begin(); });
+      b.addEventListener('pointerup', end);
+      b.addEventListener('pointerleave', end);
+      b.addEventListener('pointercancel', end);
+      b.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); begin(); } });
+      b.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); end(); } });
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+    holdable(root.querySelector('[data-hold="stop"]')!, () => set(stop(data, s, Date.now())), () => set(hint(s, 'stopHold', Date.now())));
+    holdable(root.querySelector('[data-hold="switch"]')!, () => set(switchToBackup(s, Date.now()), t.live.switched));
+    // Show lock: a tap turns it on; turning it off needs the 1 s hold (as in the app).
+    const lock = el('lock');
+    lock.addEventListener('click', () => {
+      if (Date.now() - Number(lock.dataset.pressedAt || 0) < 600) return;
+      if (!s.locked) set(setLock(s, true), t.lock);
+    });
+    holdable(
+      lock,
+      () => { if (s.locked) set(setLock(s, false)); },
+      () => { if (!s.locked) set(setLock(s, true), t.lock); else set(hint(s, 'unlockHold', Date.now())); },
+    );
+    root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && s.confirming) set(cancelSwitch(s)); });
+
+    render();
+    // time left, position, the 3 s banner and short messages
+    window.setInterval(render, 250);
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-demo]').forEach(start);
+</script>
+
+<style>
+  .demo-title,
+  .demo-lead {
+    text-align: left;
+  }
+  .demo-title {
+    margin-bottom: 8px;
+  }
+  .demo-lead {
+    margin: 0 0 28px;
+    color: var(--sec);
+    font-size: 15px;
+  }
+  .demo-fallback {
+    width: 100%;
+    max-width: 760px;
+    height: auto;
+    border-radius: 14px;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .demo-root {
+    --ok: #4fd06a;
+    --ok-text: #1b7a31;
+    --acc: #5aa9ff;
+    --danger: #c0241a;
+    --warn: #f2b13a;
+    --cell: #2c2c2e;
+    --appcard: #1c1c1e;
+    --appsub: #aeaeb2;
+    --go-text: #0a2410;
+  }
+  @media (prefers-color-scheme: dark) {
+    .demo-root {
+      --ok-text: #4fd06a;
+    }
+  }
+  :where(.demo-root) button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .demo-root button:focus-visible {
+    outline: 3px solid var(--acc);
+    outline-offset: 2px;
+  }
+  .demo-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 348px;
+    gap: 32px;
+    align-items: start;
+  }
+
+  /* ---------- the phone (app points: 1 pt = --p) ---------- */
+  .phone {
+    background: #0b0b0d;
+    border: 1.5px solid #3a3a3c;
+    border-radius: 46px;
+    padding: 12px;
+    box-shadow: var(--shadow);
+  }
+  .screen {
+    container-type: inline-size;
+    aspect-ratio: 874 / 402;
+    border-radius: 34px;
+    overflow: hidden;
+    background: #000;
+  }
+  .app {
+    --p: calc(100cqw / 874);
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    color: #f2f2f7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', 'Noto Sans CJK JP', sans-serif;
+    font-size: calc(var(--p) * 13);
+    line-height: 1.25;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .app button {
+    border: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tb {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--p) * 10);
+    height: calc(var(--p) * 56);
+    padding: 0 calc(var(--p) * 14) 0 calc(var(--p) * 22);
+    background: #121214;
+    border-bottom: 1px solid #38383a;
+  }
+  .tb-status {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--p) * 9);
+    min-width: 0;
+    width: calc(var(--p) * 190);
+  }
+  .tb-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .tb-text b {
+    font-size: calc(var(--p) * 14);
+    white-space: nowrap;
+  }
+  .tb-text small {
+    font-size: calc(var(--p) * 10.5);
+    color: var(--appsub);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tb-text small.bad {
+    color: #ff6b5e;
+  }
+  .tb-text small.warn {
+    color: var(--warn);
+  }
+  .dot {
+    flex: none;
+    width: calc(var(--p) * 10);
+    height: calc(var(--p) * 10);
+    border-radius: 50%;
+    background: var(--ok);
+  }
+  .dot.bad {
+    background: var(--danger);
+  }
+  .dot.warn {
+    background: var(--warn);
+  }
+  .tb-transport {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--p) * 8);
+    flex: 1;
+  }
+  .tbtn {
+    position: relative;
+    overflow: hidden;
+    width: calc(var(--p) * 54);
+    height: calc(var(--p) * 38);
+    border-radius: calc(var(--p) * 9);
+    background: var(--cell);
+    display: grid;
+    place-items: center;
+  }
+  .tbtn svg {
+    width: calc(var(--p) * 20);
+    height: calc(var(--p) * 20);
+    fill: #fff;
+  }
+  .tbtn.play.on {
+    background: var(--ok);
+  }
+  .tempo {
+    margin-left: calc(var(--p) * 10);
+    font-size: calc(var(--p) * 18);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .tempo small {
+    margin-left: calc(var(--p) * 4);
+    font-size: calc(var(--p) * 10);
+    color: var(--appsub);
+    font-weight: 400;
+  }
+  .pos {
+    margin-left: calc(var(--p) * 12);
+    font-size: calc(var(--p) * 15);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .tb-right {
+    display: flex;
+    gap: calc(var(--p) * 8);
+  }
+  .anf {
+    height: calc(var(--p) * 38);
+    padding: 0 calc(var(--p) * 12);
+    border-radius: calc(var(--p) * 9);
+    background: var(--danger);
+    color: #fff !important;
+    font-size: calc(var(--p) * 12.5) !important;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .lockbtn {
+    position: relative;
+    overflow: hidden;
+    width: calc(var(--p) * 40);
+    height: calc(var(--p) * 38);
+    border-radius: calc(var(--p) * 9);
+    background: var(--cell);
+    display: grid;
+    place-items: center;
+  }
+  .lockbtn svg {
+    width: calc(var(--p) * 22);
+    height: calc(var(--p) * 22);
+    fill: var(--appsub);
+    stroke: var(--appsub);
+  }
+  .lockbtn.on {
+    background: var(--warn);
+  }
+  .lockbtn.on svg {
+    fill: #241500;
+    stroke: #241500;
+  }
+  .holdfill {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 0;
+    background: rgb(255 255 255 / 0.28);
+    pointer-events: none;
+  }
+  .holding .holdfill {
+    height: 100%;
+    transition: height 1s linear;
+  }
+
+  .body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  .content {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .banner {
+    flex: none;
+    margin: calc(var(--p) * 8) calc(var(--p) * 12) 0;
+  }
+  .notice {
+    position: absolute;
+    z-index: 3;
+    left: calc(var(--p) * 12);
+    right: calc(var(--p) * 12);
+  }
+  .banner,
+  .notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--p) * 10);
+    min-height: calc(var(--p) * 42);
+    padding: calc(var(--p) * 6) calc(var(--p) * 8) calc(var(--p) * 6) calc(var(--p) * 14);
+    border-radius: calc(var(--p) * 10);
+    font-size: calc(var(--p) * 13);
+    font-weight: 700;
+  }
+  .banner[hidden],
+  .notice[hidden],
+  .sheet[hidden] {
+    display: none;
+  }
+  .banner.lost {
+    background: #3a1210;
+    border: 1.5px solid var(--danger);
+    color: #ffb4ae;
+  }
+  .banner.lost button {
+    flex: none;
+    padding: calc(var(--p) * 7) calc(var(--p) * 12);
+    border-radius: calc(var(--p) * 8);
+    background: var(--danger);
+    color: #fff;
+    font-size: calc(var(--p) * 12);
+    font-weight: 800;
+  }
+  .banner.switched {
+    background: #10301a;
+    border: 1.5px solid var(--ok);
+    color: #c9f5d3;
+  }
+  .notice {
+    top: auto;
+    bottom: calc(var(--p) * 8);
+    justify-content: center;
+    background: rgb(44 44 46 / 0.96);
+    border: 1px solid #48484a;
+  }
+  .notice.bad {
+    border-color: var(--danger);
+    color: #ffb4ae;
+  }
+
+  .pane {
+    display: none;
+    flex: 1;
+    min-height: 0;
+  }
+  .app[data-pane='go'] .pane-go,
+  .app[data-pane='session'] .pane-session {
+    display: flex;
+  }
+  .pane-go {
+    gap: calc(var(--p) * 12);
+    padding: calc(var(--p) * 10) calc(var(--p) * 12);
+  }
+  .go-left {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--p) * 10);
+  }
+  .card {
+    padding: calc(var(--p) * 12) calc(var(--p) * 14);
+    border-radius: calc(var(--p) * 14);
+    background: var(--appcard);
+    border: 1px solid #48484a;
+  }
+  .card.now {
+    border: 1.5px solid var(--ok);
+  }
+  .card.now.idle {
+    border-color: #48484a;
+  }
+  .cap,
+  .cap2 {
+    font-size: calc(var(--p) * 11);
+    font-weight: 700;
+  }
+  .cap.ok {
+    color: var(--ok);
+  }
+  .cap.acc {
+    color: var(--acc);
+  }
+  .cap2 {
+    color: var(--appsub);
+    font-weight: 400;
+  }
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: calc(var(--p) * 10);
+    min-width: 0;
+  }
+  .row[hidden] {
+    display: none;
+  }
+  .row.big {
+    margin-top: calc(var(--p) * 4);
+  }
+  .row .idx {
+    color: #8e8e93;
+    font-size: calc(var(--p) * 26);
+    font-weight: 800;
+  }
+  .row .nm {
+    font-size: calc(var(--p) * 23);
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row.big2 .idx {
+    font-size: calc(var(--p) * 22);
+  }
+  .row.big2 .nm {
+    font-size: calc(var(--p) * 20);
+  }
+  .row.left {
+    align-items: center;
+    margin-top: calc(var(--p) * 6);
+  }
+  .leftv {
+    color: var(--ok);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: calc(var(--p) * 14);
+  }
+  .bar {
+    flex: 1;
+    height: calc(var(--p) * 6);
+    border-radius: 99px;
+    background: var(--cell);
+    overflow: hidden;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    background: var(--ok);
+  }
+  .spacer {
+    flex: 1;
+  }
+  .choose {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--p) * 8);
+  }
+  .choose button {
+    width: calc(var(--p) * 116);
+    height: calc(var(--p) * 48);
+    border-radius: calc(var(--p) * 12);
+    background: var(--cell);
+    font-size: calc(var(--p) * 15) !important;
+    font-weight: 700;
+  }
+  .choose button:disabled,
+  .crown-btns button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .choose span {
+    color: var(--appsub);
+    font-size: calc(var(--p) * 11);
+  }
+  .gobtn {
+    flex: none;
+    width: calc(var(--p) * 300);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: calc(var(--p) * 36) calc(var(--p) * 12) calc(var(--p) * 14);
+    border-radius: calc(var(--p) * 20);
+    background: var(--ok);
+    color: var(--go-text) !important;
+    text-align: center;
+  }
+  .gobtn.end {
+    background: #636366;
+  }
+  .go-big {
+    font-size: calc(var(--p) * 64);
+    font-weight: 900;
+    line-height: 1.1;
+  }
+  .go-sub {
+    font-size: calc(var(--p) * 13);
+    font-weight: 700;
+  }
+  .go-next {
+    margin-top: calc(var(--p) * 8);
+    font-size: calc(var(--p) * 15);
+    font-weight: 700;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .go-lock {
+    margin-top: auto;
+    font-size: calc(var(--p) * 10.5);
+    font-weight: 700;
+  }
+  .gobtn:active,
+  .wgo:active {
+    filter: brightness(0.92);
+  }
+
+  .pane-session {
+    overflow: auto;
+    padding: calc(var(--p) * 8) calc(var(--p) * 10);
+  }
+  .grid {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--p) * 5);
+  }
+  .gh,
+  .gr {
+    display: grid;
+    grid-template-columns: calc(var(--p) * 22) repeat(var(--cols), minmax(0, 1fr)) calc(var(--p) * 44);
+    gap: calc(var(--p) * 5);
+    align-items: stretch;
+  }
+  .th {
+    padding: calc(var(--p) * 3) calc(var(--p) * 6);
+    border-radius: calc(var(--p) * 5);
+    background: var(--c);
+    color: #fff;
+    font-size: calc(var(--p) * 11);
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .th.scene-h {
+    background: none;
+    color: var(--appsub);
+    text-align: center;
+  }
+  .gn {
+    align-self: center;
+    color: var(--appsub);
+    font-size: calc(var(--p) * 11);
+    text-align: center;
+  }
+  .gr.sel .gn {
+    color: var(--acc);
+    font-weight: 800;
+  }
+  .slot {
+    position: relative;
+    height: calc(var(--p) * 38);
+    border-radius: calc(var(--p) * 7);
+    background: var(--appcard);
+    text-align: left;
+    padding: calc(var(--p) * 4) calc(var(--p) * 7);
+    overflow: hidden;
+  }
+  .slot.has {
+    background: #232326;
+    border-bottom: calc(var(--p) * 3) solid var(--c) !important;
+  }
+  .slot.playing {
+    outline: calc(var(--p) * 1.5) solid var(--ok);
+  }
+  .cn {
+    display: block;
+    font-size: calc(var(--p) * 11);
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .cl {
+    position: absolute;
+    right: calc(var(--p) * 6);
+    top: calc(var(--p) * 4);
+    font-size: calc(var(--p) * 10);
+    color: var(--ok);
+    font-variant-numeric: tabular-nums;
+  }
+  .sq {
+    display: block;
+    margin: auto;
+    width: calc(var(--p) * 8);
+    height: calc(var(--p) * 8);
+    background: #636366;
+    border-radius: 1px;
+  }
+  .scbtn {
+    border-radius: calc(var(--p) * 7);
+    background: var(--cell);
+    display: grid;
+    place-items: center;
+  }
+  .scbtn svg {
+    width: calc(var(--p) * 16);
+    height: calc(var(--p) * 16);
+    fill: #fff;
+  }
+  .scbtn.on {
+    background: var(--ok);
+  }
+
+  .rail {
+    flex: none;
+    width: calc(var(--p) * 64);
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--p) * 4);
+    padding: calc(var(--p) * 6);
+    background: #121214;
+    border-left: 1px solid #38383a;
+  }
+  .ri {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--p) * 4);
+    border-radius: calc(var(--p) * 10);
+    background: none;
+    color: var(--appsub) !important;
+  }
+  .ri[aria-disabled='true'] {
+    color: #5a5a5e !important;
+    cursor: not-allowed;
+  }
+  .ri.on {
+    background: var(--cell);
+    color: var(--acc) !important;
+  }
+  .rl {
+    font-size: calc(var(--p) * 8.5);
+    white-space: nowrap;
+    letter-spacing: -0.02em;
+  }
+  .rico {
+    width: calc(var(--p) * 22);
+    height: calc(var(--p) * 22);
+    background: currentColor;
+    -webkit-mask: var(--ico) center / contain no-repeat;
+    mask: var(--ico) center / contain no-repeat;
+  }
+  .ri-session .rico {
+    --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cg%3E%3Crect x='1' y='1' width='5' height='5' rx='1'/%3E%3Crect x='8.5' y='1' width='5' height='5' rx='1'/%3E%3Crect x='16' y='1' width='5' height='5' rx='1'/%3E%3Crect x='1' y='8.5' width='5' height='5' rx='1'/%3E%3Crect x='8.5' y='8.5' width='5' height='5' rx='1'/%3E%3Crect x='16' y='8.5' width='5' height='5' rx='1'/%3E%3Crect x='1' y='16' width='5' height='5' rx='1'/%3E%3Crect x='8.5' y='16' width='5' height='5' rx='1'/%3E%3Crect x='16' y='16' width='5' height='5' rx='1'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  .ri-mixer .rico {
+    --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='3' y='1' width='2.4' height='20' rx='1'/%3E%3Crect x='9.8' y='1' width='2.4' height='20' rx='1'/%3E%3Crect x='16.6' y='1' width='2.4' height='20' rx='1'/%3E%3Crect x='1' y='12' width='6.4' height='3.4' rx='1'/%3E%3Crect x='7.8' y='5' width='6.4' height='3.4' rx='1'/%3E%3Crect x='14.6' y='14' width='6.4' height='3.4' rx='1'/%3E%3C/svg%3E");
+  }
+  .ri-cues .rico {
+    --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath d='M13 1 4 13h6l-2 8 9-12h-6z'/%3E%3C/svg%3E");
+  }
+  .ri-go .rico {
+    --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath fill-rule='evenodd' d='M11 1a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM8.5 6.5l7 4.5-7 4.5z'/%3E%3C/svg%3E");
+  }
+  .ri-settings .rico {
+    --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath fill-rule='evenodd' d='M9.4 1h3.2l.5 2.6 1.7.8 2.2-1.5 2.3 2.3-1.5 2.2.8 1.7 2.6.5v3.2l-2.6.5-.8 1.7 1.5 2.2-2.3 2.3-2.2-1.5-1.7.8-.5 2.6H9.4l-.5-2.6-1.7-.8-2.2 1.5-2.3-2.3 1.5-2.2-.8-1.7L.8 12.6V9.4l2.6-.5.8-1.7-1.5-2.2L5 2.7l2.2 1.5 1.7-.8zM11 7.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z'/%3E%3C/svg%3E");
+  }
+
+  .sheet {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    background: rgb(0 0 0 / 0.6);
+  }
+  .sheet-box {
+    width: calc(var(--p) * 420);
+    max-width: 92%;
+    padding: calc(var(--p) * 18) calc(var(--p) * 20);
+    border-radius: calc(var(--p) * 16);
+    background: #2c2c2e;
+    border: 1px solid #48484a;
+  }
+  .sheet-box b {
+    display: block;
+    font-size: calc(var(--p) * 17);
+    margin-bottom: calc(var(--p) * 6);
+  }
+  .sheet-box p {
+    margin: calc(var(--p) * 4) 0 0;
+    font-size: calc(var(--p) * 13);
+  }
+  .sheet-box .pt {
+    color: var(--appsub);
+  }
+  .sheet-btns {
+    display: flex;
+    gap: calc(var(--p) * 10);
+    margin-top: calc(var(--p) * 16);
+  }
+  .sheet-btns button {
+    flex: 1;
+    height: calc(var(--p) * 48);
+    border-radius: calc(var(--p) * 12);
+    font-size: calc(var(--p) * 14) !important;
+    font-weight: 800;
+  }
+  .cancel {
+    background: #3a3a3c;
+  }
+  .holdbtn {
+    position: relative;
+    overflow: hidden;
+    background: var(--danger);
+    color: #fff !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--p) * 8);
+  }
+  .holdbtn small {
+    font-size: calc(var(--p) * 11);
+    opacity: 0.8;
+  }
+  .hb-t {
+    position: relative;
+  }
+
+  /* ---------- side column: watch and the two Macs ---------- */
+  .watch-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .watch-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .watch {
+    position: relative;
+    width: 170px;
+    height: 206px;
+    padding: 12px;
+    border-radius: 44px;
+    background: #0b0b0d;
+    border: 1.5px solid #3a3a3c;
+    box-shadow: var(--shadow);
+  }
+  .crown,
+  .sidebtn {
+    position: absolute;
+    right: -9px;
+    width: 9px;
+    border-radius: 0 4px 4px 0;
+    background: #3a3a3c;
+  }
+  .crown {
+    top: 56px;
+    height: 34px;
+  }
+  .sidebtn {
+    top: 104px;
+    height: 30px;
+    background: #2c2c2e;
+  }
+  .wscreen {
+    width: 100%;
+    height: 100%;
+    border-radius: 34px;
+    background: #000;
+    overflow: hidden;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', 'Noto Sans CJK JP', sans-serif;
+  }
+  .wpage {
+    display: none;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 10px 10px;
+    gap: 6px;
+  }
+  .wscreen[data-page='0'] .wp0,
+  .wscreen[data-page='1'] .wp1,
+  .wscreen[data-page='2'] .wp2 {
+    display: flex;
+  }
+  .wnext,
+  .wcap,
+  .wlinks {
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .wgo {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    border-radius: 26px;
+    background: var(--ok);
+    color: var(--go-text) !important;
+    font-size: 38px !important;
+    font-weight: 900 !important;
+  }
+  .wgo.end {
+    background: #636366;
+  }
+  .whint,
+  .wlast {
+    font-size: 9.5px;
+    color: var(--appsub);
+    text-align: center;
+    line-height: 1.3;
+  }
+  .whint.bad {
+    color: #ff8a80;
+  }
+  .wlist {
+    width: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .wsc {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 10px;
+    background: #222224;
+    text-align: left;
+    font-size: 11px !important;
+  }
+  .wsc .wn {
+    color: #8e8e93;
+    font-weight: 800;
+  }
+  .wsc .wt {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 700;
+  }
+  .wsc.playing {
+    background: #12351d;
+  }
+  .wsc.playing .wm::after {
+    content: '▶';
+    color: var(--ok);
+  }
+  .wsc.next {
+    outline: 1.5px solid var(--acc);
+  }
+  .wanf {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    border-radius: 22px;
+    background: var(--danger);
+    color: #fff !important;
+    font-size: 20px !important;
+    font-weight: 900;
+    line-height: 1.15;
+  }
+  .dots {
+    display: flex;
+    gap: 6px;
+  }
+  .wdot {
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    position: relative;
+  }
+  .wdot::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    background: #8e8e93;
+  }
+  .wdot.on::after {
+    background: var(--acc);
+  }
+  .watch-copy {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    padding-top: 18px;
+    color: var(--sec);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .watch-copy b {
+    color: var(--text);
+    font-size: 14px;
+  }
+  .watch-copy p {
+    margin: 4px 0 0;
+  }
+  .crown-btns {
+    display: flex;
+    gap: 8px;
+    margin: 14px 0 6px;
+  }
+  .crown-btns button {
+    min-width: 66px;
+    min-height: 40px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--text) !important;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  /* main above backup, as in the connection map */
+  .macs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .mac {
+    min-width: 0;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--card);
+  }
+  .mac.dead {
+    border: 2px solid var(--danger);
+  }
+  .mac-h {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .mac-h svg {
+    flex: none;
+    width: 24px;
+    height: 20px;
+    fill: none;
+    stroke: var(--sec);
+    stroke-width: 2;
+  }
+  .mac-h svg rect + rect {
+    fill: var(--sec);
+    stroke: none;
+  }
+  .mac-h b {
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mac-s {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+  }
+  .mac-live {
+    color: var(--ok-text);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .mac.dead .mac-live {
+    color: var(--danger);
+  }
+  .mac-badge {
+    padding: 1px 10px;
+    border-radius: 99px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .mac-badge[hidden] {
+    display: none;
+  }
+  .mac-line {
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mac.dead .mac-line {
+    color: var(--sec);
+    font-weight: 400;
+    white-space: normal;
+  }
+  .mac-recv {
+    margin-top: 6px;
+    min-height: 18px;
+    padding: 1px 8px;
+    border-radius: 99px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .mac-recv.on {
+    opacity: 1;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  /* ---------- connection map ---------- */
+  .map {
+    margin-top: 28px;
+    padding: 18px 20px 8px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--card);
+  }
+  .map-title {
+    font-size: 14px;
+  }
+  .map-pics :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--font-ja, var(--font));
+  }
+  .map-pics :global(.map-v) {
+    display: none;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .map-pics :global(.ln) {
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+  .map-pics :global(.ln.ok) {
+    stroke: var(--ok-text);
+  }
+  .map-pics :global(.ln.dead) {
+    stroke: var(--danger);
+    stroke-dasharray: 6 5;
+  }
+  .map-pics :global(.ln.plan) {
+    stroke: var(--accent);
+    stroke-dasharray: 6 5;
+  }
+  .map-pics :global(.nd circle) {
+    fill: var(--card);
+    stroke-width: 2.5;
+  }
+  .map-pics :global(.nd.ok circle) {
+    stroke: var(--ok-text);
+  }
+  .map-pics :global(.nd.dead circle) {
+    stroke: var(--danger);
+  }
+  .map-pics :global(.ic rect) {
+    fill: none;
+    stroke: var(--text);
+    stroke-width: 2.2;
+  }
+  .map-pics :global(.ic .fillc) {
+    fill: var(--text);
+    stroke: none;
+  }
+  .map-pics :global(.nd.dead .ic rect) {
+    stroke: var(--danger);
+  }
+  .map-pics :global(.nd.dead .ic .fillc) {
+    fill: var(--danger);
+  }
+  .map-pics :global(text) {
+    fill: var(--text);
+  }
+  .map-pics :global(.nm) {
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .map-pics :global(.sb) {
+    font-size: 11px;
+  }
+  .map-pics :global(.sb.ok) {
+    fill: var(--ok-text);
+  }
+  .map-pics :global(.sb.dead),
+  .map-pics :global(.lb.dead) {
+    fill: var(--danger);
+  }
+  .map-pics :global(.lb) {
+    font-size: 10.5px;
+    font-weight: 700;
+    fill: var(--sec);
+  }
+  .map-pics :global(.plan-t) {
+    fill: var(--accent);
+    font-size: 11.5px;
+  }
+  .map-pics :global(.xm) {
+    fill: var(--danger);
+  }
+  .map-pics :global(.xm-t) {
+    fill: #fff;
+    font-size: 11px;
+    font-weight: 900;
+  }
+  .map-pics :global(.bd) {
+    fill: var(--accent);
+  }
+  .map-pics :global(.bd-t) {
+    fill: var(--accent-text);
+    font-size: 10.5px;
+    font-weight: 800;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 14px;
+    margin-top: 24px;
+  }
+  .ctl {
+    min-height: 46px;
+    padding: 0 20px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--text) !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+  }
+  .ctl.stopmain {
+    border: 2px solid var(--fixed);
+    color: var(--fixed) !important;
+    font-weight: 800 !important;
+  }
+  .ctl:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .controls p,
+  .foot {
+    margin: 0;
+    color: var(--sec);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .foot {
+    margin-top: 22px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .holding .holdfill {
+      transition: none;
+    }
+    .mac-recv {
+      transition: none;
+    }
+  }
+
+  /* ---------- narrower screens ---------- */
+  @media (max-width: 1100px) {
+    .demo-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .side {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+    }
+    .macs {
+      margin-top: 0;
+    }
+  }
+  @media (max-width: 759px) {
+    .phone {
+      border-radius: 40px;
+      padding: 10px;
+    }
+    .screen {
+      aspect-ratio: 402 / 740;
+      border-radius: 30px;
+    }
+    .app {
+      --p: calc(100cqw / 402);
+    }
+    .tb {
+      height: auto;
+      flex-wrap: wrap;
+      row-gap: calc(var(--p) * 8);
+      padding: calc(var(--p) * 10) calc(var(--p) * 12);
+    }
+    .tb-status {
+      flex: 1;
+      width: auto;
+    }
+    .tb-transport {
+      order: 3;
+      flex-basis: 100%;
+    }
+    .body {
+      flex-direction: column;
+    }
+    .pane-go {
+      flex-direction: column;
+    }
+    .go-left {
+      display: contents;
+    }
+    .spacer {
+      display: none;
+    }
+    .gobtn {
+      order: 3;
+      width: auto;
+      flex: 1;
+      min-height: calc(var(--p) * 200);
+    }
+    .choose {
+      order: 4;
+    }
+    .rail {
+      width: auto;
+      height: calc(var(--p) * 62);
+      flex-direction: row;
+      border-left: 0;
+      border-top: 1px solid #38383a;
+    }
+    .side {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .watch-row {
+      flex-direction: column;
+      align-items: center;
+    }
+    .watch-copy {
+      padding-top: 0;
+      text-align: center;
+    }
+    .crown-btns {
+      justify-content: center;
+    }
+    .map {
+      padding: 16px 12px 8px;
+    }
+    .map-pics :global(.map-h) {
+      display: none;
+    }
+    .map-pics :global(.map-v) {
+      display: block;
+    }
+    .controls .ctl {
+      flex: 1 1 100%;
+    }
+  }
+</style>

@@ -32,6 +32,9 @@ jobs:
       working_directory: iOS
       project: TwinKeysRemote.xcodeproj
       scheme: TwinKeysRemote
+      # 2.3: the Apple Watch app (io.github.kajisho5.twinkeys.remote.watchkitapp) is embedded in the iPhone app
+      # and signed by the same automatic signing; runway makes sure the watchOS SDK is installed.
+      extra_sdks: watchOS
       xcode: ${{ inputs.xcode || '26' }}
       runner: ${{ inputs.runner || 'macos-26' }}
       # The Xcode project is generated from iOS/project.yml (XcodeGen 2.46.0, checked by SHA-256).

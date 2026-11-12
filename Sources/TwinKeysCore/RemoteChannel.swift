@@ -99,13 +99,73 @@ public struct RemoteStatus: Codable, Equatable, Sendable {
     }
 }
 
+/// Connection display (docs/design-links.md): the Apple Watch as the iPhone sees it
+/// (WatchConnectivity). The watch never talks to a Mac; the iPhone reports it with each ping.
+public struct RemoteWatchState: Codable, Equatable, Sendable {
+    /// A watch is paired with the iPhone.
+    public var paired: Bool
+    /// TwinKeys is installed on that watch.
+    public var appInstalled: Bool
+    /// The watch app answers right now (it is open on the watch).
+    public var reachable: Bool
+    public init(paired: Bool, appInstalled: Bool, reachable: Bool) {
+        self.paired = paired; self.appInstalled = appInstalled; self.reachable = reachable
+    }
+
+    public var level: WatchLevel {
+        guard paired, appInstalled else { return .absent }
+        return reachable ? .reachable : .notReachable
+    }
+}
+
+/// What a screen shows for the Apple Watch.
+public enum WatchLevel: UInt8, Equatable, Sendable, Comparable {
+    /// No watch with TwinKeys (nothing is shown).
+    case absent = 0
+    /// Paired with TwinKeys installed, but not reachable now (yellow).
+    case notReachable = 1
+    /// Reachable through the iPhone (green).
+    case reachable = 2
+
+    public static func < (a: WatchLevel, b: WatchLevel) -> Bool { a.rawValue < b.rawValue }
+
+    /// Several iPhones: the best watch counts (one reachable watch is enough to use it).
+    /// nil: an iPhone that does not report its watch (TwinKeys Remote before the connection display).
+    public static func combined(_ states: [RemoteWatchState?]) -> WatchLevel {
+        states.compactMap { $0?.level }.max() ?? .absent
+    }
+}
+
+/// Connection display: a Mac's TwinKeys Remote side in short (approved iPhones connected to it and
+/// their Apple Watch). The main Mac tells the backup with each heartbeat (packet `remoteSummary`).
+public struct RemoteSummary: Equatable, Sendable {
+    public var phones: Int
+    public var watch: WatchLevel
+    public init(phones: Int, watch: WatchLevel) { self.phones = phones; self.watch = watch }
+}
+
 /// Messages after the handshake.
 public enum RemoteMessage: Codable, Equatable, Sendable {
     // iPhone → Mac
     case command(id: Int, LiveCommand)
+    /// 2.2: a command plus the Live layout (`LiveSong.structure`) the iPhone was showing when it
+    /// was tapped; the Mac refuses it if Live's layout has changed since.
+    case commandAt(id: Int, LiveCommand, structure: Int?)
+    /// 2.3: GO — launch `scene` on both Macs and select the next one. Never stopped by the show
+    /// lock (it is the way to run the show while everything else is locked).
+    case go(id: Int, scene: Int, structure: Int?)
+    /// 2.3: the show lock with what it stops (`LockScope.rawValue`).
+    case lockScope(on: Bool, scope: UInt8)
+    /// 2.3: "make this Mac the main" (sent to the backup Mac after the main stopped answering).
+    case becomeMain(id: Int)
     case cue(id: Int, keycode: UInt16)
     case allNotesOff(id: Int)
-    case ping(Double)
+    /// Every 2 s (and right after `welcome`). `watch` (connection display): the iPhone's Apple Watch,
+    /// also sent at once when it changes. It rides on the ping instead of being a message of its own
+    /// because a Mac cannot decode a message case it does not know (`RemoteSession.receive` throws and
+    /// the Mac closes the connection), while an extra key inside a known case is skipped: older Macs
+    /// read this as a plain ping, and a ping from an older iPhone decodes with `watch` nil.
+    case ping(Double, watch: RemoteWatchState? = nil)
     /// The iPhone's show lock changed (also sent right after `welcome`). While on, the Mac refuses
     /// commands that are not `LiveCommand.allowedWhileLocked` (result error "locked").
     case lock(Bool)

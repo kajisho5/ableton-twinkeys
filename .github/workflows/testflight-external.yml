@@ -1,0 +1,50 @@
+# External TestFlight for TwinKeys Remote: the "テスター" group with a public link, the build added,
+# "What to Test" filled in and the build submitted for TestFlight (beta) App Review (scripts/asc_beta.py).
+# Run it from Actions > testflight-external > Run workflow once this is on main; before that, a change to
+# iOS/testflight-external.txt on the work branch runs it. Personal Test Information is never filled in:
+# the run lists what is missing and stops before submitting.
+name: testflight-external
+
+on:
+  push:
+    branches: [claude/new-session-k8s13h]
+    paths: [iOS/testflight-external.txt]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (CFBundleShortVersionString)"
+        type: string
+        default: "1.2.0"
+      build:
+        description: "Build number on TestFlight"
+        type: string
+        default: "6"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight-external
+  cancel-in-progress: false
+
+jobs:
+  external:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python tools (PyJWT 2.15.1, cryptography 50.0.2)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet "PyJWT==2.15.1" "cryptography==50.0.2"
+      - name: External group, build, What to Test, TestFlight App Review
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          VERSION: ${{ inputs.version || '1.2.0' }}
+          BUILD: ${{ inputs.build || '6' }}
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" -I scripts/asc_beta.py io.github.kajisho5.twinkeys.remote "$VERSION" "$BUILD" "テスター"

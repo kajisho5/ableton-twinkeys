@@ -428,6 +428,7 @@ class StateTracker(object):
             "tracks": len(self._tracks),
             "scenes": len(self._scenes),
             "structure": self._structure,
+            "bridge_version": C.BRIDGE_VERSION,
         }
 
     def _update_song(self, song, out):

@@ -3,16 +3,26 @@ import { getEntry, render } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import { t, type Lang } from '../lib/i18n';
 
+// One Markdown page from docs/: the guide (docs/help), the privacy policy (docs/privacy) or support (docs/support).
+type Doc = 'guide' | 'privacy' | 'support';
+
 interface Props {
   lang: Lang;
+  doc?: Doc;
 }
-const { lang } = Astro.props;
+const { lang, doc = 'guide' } = Astro.props;
 const s = t[lang];
-const entry = await getEntry('help', lang);
-if (!entry) throw new Error(`docs/help/${lang}.md not found`);
+const source = {
+  guide: { collection: 'help', title: s.guideDocTitle, description: undefined },
+  privacy: { collection: 'privacy', title: s.privacyDocTitle, description: s.privacyDescription },
+  support: { collection: 'support', title: s.supportDocTitle, description: s.supportDescription },
+} as const;
+const { collection, title, description } = source[doc];
+const entry = await getEntry(collection, lang);
+if (!entry) throw new Error(`docs/${collection}/${lang}.md not found`);
 const { Content } = await render(entry);
 ---
-<Base lang={lang} page="guide" title={s.guideDocTitle}>
+<Base lang={lang} page={doc} title={title} description={description}>
   <article class="wrap narrow prose guide">
     <Content />
   </article>

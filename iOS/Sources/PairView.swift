@@ -55,6 +55,16 @@ struct PairView: View {
                         }
                     }
                 }
+
+                // Without a Mac (App Review, or a first look): fictional data, nothing is sent.
+                VStack(spacing: 6) {
+                    Button(L.s("Try with sample data", "サンプルで試す")) { model.startTrial() }
+                        .buttonStyle(.bordered).controlSize(.large)
+                    Text(L.s("Shows the screens with made-up data. Nothing is sent to a Mac.",
+                             "架空のデータで画面を試せます。Mac には何も送りません。"))
+                        .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .padding(.top, 12).padding(.bottom, 24)
             }
             .padding(.horizontal, 20)
             .frame(maxWidth: 520)

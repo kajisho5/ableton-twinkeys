@@ -109,7 +109,7 @@ TwinKeys Remote controls both Lives from an iPhone or iPad: scenes and clips, pl
 ### What you need
 
 - TwinKeys 2.0 or later on both Macs (GO, the set check and sends need 2.1)
-- An iPhone or iPad with iOS 17 or later (TestFlight for now)
+- An iPhone or iPad with iOS 17 or later (TestFlight for now); watchOS 10 or later for the Apple Watch
 - The iPhone or iPad on the same network as the Macs
 
 ### On the Macs (both)
@@ -119,6 +119,8 @@ TwinKeys Remote controls both Lives from an iPhone or iPad: scenes and clips, pl
 3. Restart Live. In **Settings > Link, Tempo & MIDI**, choose **TwinKeysBridge** in a free **Control Surface** slot. Input and Output can stay at None.
 4. TwinKeys Settings shows **Live: Connected** when it works.
 5. On the main Mac, turn on **Allow TwinKeys Remote to connect** under iPhone and iPad (TwinKeys Remote).
+
+When you update TwinKeys, TwinKeysBridge is updated too (2.2 or later). If you are asked to restart Live, do it before the show.
 
 ### Connecting the iPhone (once)
 
@@ -140,15 +142,43 @@ TwinKeys Remote controls both Lives from an iPhone or iPad: scenes and clips, pl
 
 ### Checking both Macs
 
+- The Connections row at the top of the Mac window shows the other Mac (Live ✓ and latency), how many iPhones are connected, and their Apple Watch. On the backup Mac it says the iPhone is connected to the main Mac. Click it to open Settings.
+- On the iPhone, an Apple Watch mark appears next to the Mac's name in the top bar (green: connected, yellow: not reachable). Tap it to open Settings > Connection.
 - "Backup ✓ · Live ✓" in the top bar means the backup Mac and its Live both answer. With "Live ✗ no answer", check Live and TwinKeysBridge on the backup Mac.
 - When the two Macs have different sets open, a yellow bar "Backup's set differs" appears (on the Mac too). Tap it for the tracks and scenes that differ. Only track and scene counts and names are compared, and nothing is changed automatically.
 - Fader, pan, tempo, mute and solo changes made while the link to the backup was down are sent when it is back. Clip and scene launches are not sent late, because a late launch is dangerous.
+- The backup Mac reports whether each action also ran in its Live (TwinKeys 2.2 or later). If it did not, you see for example "Ran on the main Mac, but the backup's Live refused it."
+- When Live is slow to answer you see "No answer from Live". If it then runs after all, you see "Live ran it after all (late). Do not tap again."
+- If Live's tracks or scenes changed since the screen was drawn (for example right after adding a track), the action is not sent and you see "Live's tracks or scenes changed, so it was not sent." Tap again.
 
 ### Safety during the show
 
 - **Stop** and **Stop all clips** need a long press.
 - The **show lock** (the lock button) freezes tempo and the mixer. Play, stop, clips, scenes and cues still work. Hold the lock for 1 second to unlock.
+- Choose what the show lock stops in Settings > What the show lock stops (tempo, mixer, clip and scene launches, stops, cue buttons). GO, All Notes Off and unlocking are never stopped. These cannot be changed while the lock is on.
 - With **Faders stop at 0 dB** on (in Settings), the volume never goes above 0 dB.
+
+### When the main Mac stops (switching to the backup)
+
+TwinKeys 2.2 or later. On the backup Mac, also turn on **Allow TwinKeys Remote to connect**, and allow this iPhone there once.
+
+- When the main Mac has not answered for 3 seconds, the iPhone shows "The main Mac is not answering". The screens stay usable (they show the last state).
+- Tap "Switch to the backup" and hold "Hold to switch" for 1 second. The iPhone connects to the backup Mac and that Mac becomes the main; its keyboard fires the cues too.
+- To switch on the Macs alone, click "Make This Mac the Main" on the backup Mac.
+- When the old main Mac comes back, it only receives (the two Macs never send keys at the same time). To switch back, click "Make This Mac the Main" on the old main Mac, or "Return to Main" on the current main Mac.
+
+### Apple Watch
+
+TwinKeys Remote 1.2 or later. TwinKeys appears on the Apple Watch (watchOS 10 or later). The watch works through the iPhone, so keep TwinKeys Remote open on the iPhone and connected to the main Mac. The show lock applies as on the iPhone.
+
+- **GO**: plays the scene shown as Next on both Macs. Turn the Digital Crown to choose back or next (choosing does not play). A second GO within 0.5 seconds is ignored.
+- **Choose scene**: the scene list. Tap a scene to make it Next (does not play).
+- **All Notes Off**: stops every note on both Macs. The link status and the last cue are shown too.
+- Swipe left or right to switch pages.
+
+### Trying it without a Mac
+
+Tap "Try with sample data" on the pairing screen to try the screens with made-up data. Nothing is sent to a Mac. To end it, tap "End the sample and connect to a Mac" in Settings.
 
 ## Troubleshooting
 

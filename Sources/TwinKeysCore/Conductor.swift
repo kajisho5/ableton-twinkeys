@@ -305,7 +305,7 @@ public final class Conductor: @unchecked Sendable {
         var f = filters[peer] ?? SequenceFilter()
         let orderFree: Bool
         switch packet.body {
-        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem: orderFree = true
+        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem, .liveResult, .roleClaim, .remoteSummary: orderFree = true
         case let .liveCommand(_, c): orderFree = !c.isContinuous   // a late fader value must not overwrite a newer one
         default: orderFree = false
         }
@@ -396,7 +396,15 @@ public final class Conductor: @unchecked Sendable {
             if !ranLiveCommands.contains(key) {
                 ranLiveCommands.append(key)
                 if ranLiveCommands.count > 256 { ranLiveCommands.removeFirst() }
-                onLiveCommand?(cmd)
+                if let run = onLiveCommandRun {
+                    // Tell the main Mac what this Mac's Live did, once it has answered.
+                    run(cmd) { [weak self] r in
+                        // Never under the lock (the hook may answer right away).
+                        DispatchQueue.global().async { self?.reportLiveRun(id: id, r, to: peer) }
+                    }
+                } else {
+                    onLiveCommand?(cmd)
+                }
             }
             sendBody(.liveAck(id: id), to: peer)
         case let .liveAck(id):
@@ -405,6 +413,26 @@ public final class Conductor: @unchecked Sendable {
         case let .liveStatus(on):
             guard link.peer == peer else { return peer }
             peerLive = on
+        case let .remoteSummary(phones, watch):
+            guard link.peer == peer else { return peer }
+            peerRemote = RemoteSummary(phones: Int(phones), watch: WatchLevel(rawValue: watch) ?? .absent)
+        case let .roleClaim(ms):
+            guard link.peer == peer, link.isConnected else { return peer }
+            let theirsNewer = ms > mainClaim || (ms == mainClaim && peer > myID)
+            if theirsNewer {
+                if sendKeys || mainClaim > 0 { becomeReceiver() }
+            } else if mainClaim > 0 {
+                sendBody(.roleClaim(millis: mainClaim), to: peer)    // ours is newer: tell them now
+            }
+        case .roleHandover:
+            guard link.peer == peer, link.isConnected else { return peer }
+            claimMainLocked()
+        case let .liveResult(id, code):
+            guard link.peer == peer else { return peer }
+            if var p = pendingLive[id] {
+                p.delivery = code == 0 ? "ran" : code == 1 ? "failedLive" : "noLive"
+                pendingLive[id] = p
+            }
         case let .setSummary(t, sc, h):
             guard link.peer == peer else { return peer }
             var ps = peerSet ?? PeerSet()
@@ -755,6 +783,17 @@ public final class Conductor: @unchecked Sendable {
     /// The backup runs Live commands forwarded by the main Mac here (called with the lock held:
     /// hand the work to another queue).
     public var onLiveCommand: ((LiveCommand) -> Void)?
+    /// 2.2: like `onLiveCommand`, but the hook calls back with what Live did; the main Mac then
+    /// knows the command really ran on the backup (not only that it arrived). Used when set.
+    public var onLiveCommandRun: ((LiveCommand, @escaping (LiveRun) -> Void) -> Void)?
+
+    public enum LiveRun: UInt8, Sendable { case ran = 0, refused = 1, noAnswer = 2 }
+
+    private func reportLiveRun(id: UInt32, _ r: LiveRun, to peer: String) {
+        lock.lock(); defer { lock.unlock() }
+        guard link.peer == peer, link.isConnected else { return }
+        sendBody(.liveResult(id: id, code: r.rawValue), to: peer, copies: redundancy)
+    }
     private var ranLiveCommands: [PlayedCue] = []
     private struct PendingLive { var cmd: LiveCommand; var sentAt: Double; var resends = 0; var delivery = "waiting" }
     private var pendingLive: [UInt32: PendingLive] = [:]
@@ -769,6 +808,51 @@ public final class Conductor: @unchecked Sendable {
     /// launches are never sent late.
     private var unsentLatest: [String: LiveCommand] = [:]
     private var wasLinkedForLive = false
+
+    // MARK: Switching to the backup (2.3)
+
+    /// Wall-clock time (ms) this Mac made itself the main; 0: no claim. Compared across Macs.
+    private var mainClaim: UInt64 = 0
+    /// Seconds since 1970 (both Macs keep network time, so claims compare across Macs).
+    public var wallClock: () -> Double = { Date().timeIntervalSince1970 }
+    /// Called (with the lock held: hand the work to another queue) when this Mac becomes the
+    /// main (true) or stops being it because the other Mac claimed it (false).
+    public var onRoleChange: ((Bool) -> Void)?
+
+    public var claimsMain: Bool { lock.lock(); defer { lock.unlock() }; return mainClaim > 0 }
+
+    /// "Make this Mac the main": send keys, stop playing the other Mac's notes, and tell the
+    /// other Mac (if it comes back it stops sending keys).
+    public func claimMain() {
+        lock.lock(); defer { lock.unlock() }
+        claimMainLocked()
+    }
+
+    /// "Return to main": this Mac only receives again and asks the other Mac to be the main.
+    public func handOverMain() {
+        lock.lock(); defer { lock.unlock() }
+        becomeReceiver()
+        if link.isConnected, let p = link.peer { sendBody(.roleHandover, to: p, copies: redundancy) }
+    }
+
+    private func claimMainLocked() {
+        mainClaim = max(UInt64(max(0, wallClock()) * 1000), mainClaim + 1)
+        sendKeys = true
+        receiveNotes = false
+        for m in peerGuard.releaseAll() { midi?.send(m.bytes) }
+        if link.isConnected, let p = link.peer { sendBody(.roleClaim(millis: mainClaim), to: p, copies: redundancy) }
+        log("This Mac is now the main Mac")
+        onRoleChange?(true)
+    }
+
+    private func becomeReceiver() {
+        if sendKeys { apply(.sendingTurnedOff, peer: link.isConnected ? link.peer : nil) }
+        sendKeys = false
+        receiveNotes = true
+        mainClaim = 0
+        log("The other Mac is the main Mac now: this Mac only receives")
+        onRoleChange?(false)
+    }
 
     /// This Mac's Live set (names only) and the other Mac's as it has told us (2.1 set check).
     private var localSet: SetSummary?
@@ -820,6 +904,32 @@ public final class Conductor: @unchecked Sendable {
         return link.isConnected ? peerLive : nil
     }
 
+    // MARK: Connection display (docs/design-links.md)
+
+    /// This Mac's iPhones and their Apple Watch; told to the other Mac with each heartbeat.
+    private var localRemote: RemoteSummary?
+    /// The other Mac's, as it last told us (nil: not linked, or a version without it).
+    private var peerRemote: RemoteSummary?
+
+    /// The approved iPhones connected to this Mac and their watch. A change is sent at once.
+    public func setRemoteSummary(_ s: RemoteSummary) {
+        lock.lock(); defer { lock.unlock() }
+        guard s != localRemote else { return }
+        localRemote = s
+        if link.isConnected, let p = link.peer { sendRemoteSummary(to: p) }
+    }
+
+    /// The other Mac's iPhones (the backup shows "iPhone connected to the main Mac").
+    public var peerRemoteSummary: RemoteSummary? {
+        lock.lock(); defer { lock.unlock() }
+        return link.isConnected ? peerRemote : nil
+    }
+
+    private func sendRemoteSummary(to p: String) {
+        guard let s = localRemote else { return }
+        sendBody(.remoteSummary(phones: UInt8(clamping: s.phones), watch: s.watch.rawValue), to: p)
+    }
+
     /// The control a "latest value counts" command sets, or nil for one-shot commands.
     static func latestKey(_ cmd: LiveCommand) -> String? {
         switch cmd {
@@ -859,7 +969,8 @@ public final class Conductor: @unchecked Sendable {
         return id
     }
 
-    /// "waiting", "delivered", "missing" (no answer in time), "unconfirmed" (old backup), "unknown".
+    /// "waiting", "delivered" (arrived), "ran" / "failedLive" / "noLive" (what the backup's Live did,
+    /// 2.2 backups), "missing" (no answer in time), "unconfirmed" (old backup), "unknown".
     public func liveDelivery(_ id: UInt32) -> String {
         lock.lock(); defer { lock.unlock() }
         return pendingLive[id]?.delivery ?? "unknown"
@@ -880,6 +991,7 @@ public final class Conductor: @unchecked Sendable {
             wasLinkedForLive = false
             peerLive = nil
             peerSet = nil
+            peerRemote = nil
             return
         }
         if !wasLinkedForLive {
@@ -961,6 +1073,8 @@ public final class Conductor: @unchecked Sendable {
                 sendBody(.held(channel: engine.channel, notes: on ? engine.heldNotes : []), to: p)
                 sendBody(features(), to: p)
                 if let localLive { sendBody(.liveStatus(connected: localLive), to: p) }
+                sendRemoteSummary(to: p)
+                if mainClaim > 0 { sendBody(.roleClaim(millis: mainClaim), to: p) }
                 sendSet(to: p)
                 heartbeatsSinceNames += 1
                 if heartbeatsSinceNames >= 10, link.isConnected { sendCueNames(to: p) }

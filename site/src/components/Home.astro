@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import { t, url, pageUrl, DOWNLOAD_URL, type Lang } from '../lib/i18n';
 import { latestVersion } from '../lib/releases';
+import RemoteDemo from './RemoteDemo.astro';
 
 interface Props {
   lang: Lang;
@@ -80,6 +81,26 @@ const suffix = lang === 'ja' ? '-ja' : '';
       </ul>
     </div>
   </section>
+
+  <section class="section" aria-labelledby="remote">
+    <div class="wrap remote">
+      <div class="remote-copy">
+        <h2 class="section-title" id="remote">{s.remoteTitle}</h2>
+        <p class="remote-lead">{s.remoteLead}</p>
+        <ul class="remote-points">
+          {s.remotePoints.map((p) => <li>{p}</li>)}
+        </ul>
+        <p class="remote-status">{s.remoteStatus}</p>
+        <p class="remote-needs">{s.remoteNeeds}</p>
+        <p class="remote-more"><a href={pageUrl(lang, 'guide')}>{s.remoteMore}</a></p>
+      </div>
+      <div class="remote-shot">
+        <img src={url('images/remote-session.png')} width="1311" height="603" alt={s.remoteShotAlt} loading="lazy" />
+      </div>
+    </div>
+  </section>
+
+  <RemoteDemo lang={lang} />
 
   <section class="section" aria-labelledby="start">
     <div class="wrap">
@@ -221,6 +242,57 @@ const suffix = lang === 'ja' ? '-ja' : '';
     line-height: 1.6;
   }
 
+  .remote {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 560px);
+    gap: 48px;
+    align-items: center;
+  }
+  .remote .section-title {
+    margin-bottom: 16px;
+    text-align: left;
+  }
+  .remote-lead {
+    margin: 0;
+    color: var(--sec);
+    font-size: 16px;
+    line-height: 1.7;
+  }
+  .remote-points {
+    margin: 20px 0 0;
+    padding: 0 0 0 1.2em;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+  .remote-points li + li {
+    margin-top: 6px;
+  }
+  .remote-points li::marker {
+    color: var(--accent);
+  }
+  .remote-status {
+    margin: 24px 0 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .remote-needs {
+    margin: 4px 0 0;
+    color: var(--sec);
+    font-size: 14px;
+  }
+  .remote-more {
+    margin: 16px 0 0;
+    font-size: 15px;
+  }
+  .remote-shot img {
+    width: 100%;
+    height: auto;
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+  }
+
   .steps {
     list-style: none;
     margin: 0;
@@ -265,6 +337,13 @@ const suffix = lang === 'ja' ? '-ja' : '';
     }
     .features {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .remote {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 28px;
+    }
+    .remote-shot {
+      max-width: 560px;
     }
     .steps {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -351,6 +430,13 @@ const suffix = lang === 'ja' ? '-ja' : '';
     .steps {
       grid-template-columns: minmax(0, 1fr);
       gap: 10px;
+    }
+    .remote-points {
+      font-size: 16px;
+    }
+    .remote-shot img {
+      border-radius: 10px;
+      box-shadow: none;
     }
   }
 </style>

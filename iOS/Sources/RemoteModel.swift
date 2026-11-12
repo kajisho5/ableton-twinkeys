@@ -31,7 +31,11 @@ final class RemoteModel: ObservableObject {
     @Published var macs: [FoundMac] = []
     @Published var pairingCode: String = ""
     /// Show lock: only playback, scenes, clips, cues and All Notes Off work.
-    @Published var locked = false { didSet { if locked != oldValue, isConnected, !demo { send(.lock(locked)) } } }
+    @Published var locked = false { didSet { if locked != oldValue { sendLock() } } }
+    /// What the show lock stops (2.3). Changed only while the lock is off.
+    @Published var lockScope: LockScope = .standard {
+        didSet { UserDefaults.standard.set(Int(lockScope.rawValue), forKey: "lockScope"); if lockScope != oldValue { sendLock() } }
+    }
     /// iPhone never moves a fader above 0 dB (Live's volume 0.85).
     @Published var capAtZeroDB = true { didSet { UserDefaults.standard.set(capAtZeroDB, forKey: "capAtZeroDB") } }
     @Published var followSelection = true { didSet { UserDefaults.standard.set(followSelection, forKey: "followSelection") } }
@@ -45,6 +49,21 @@ final class RemoteModel: ObservableObject {
         }
     }
     @Published var lastBackup: String?
+    /// 2.3: the main screen stays up when the link drops (stale data is better than the pairing
+    /// screen mid-show). Set at the first welcome; cleared when choosing another Mac.
+    @Published var wasConnected = false
+    /// When the link to the Mac was lost (nil while connected).
+    @Published var lostAt: Date?
+    /// The iPhone switched to the backup Mac and asked it to be the main.
+    @Published var switchedToBackup = false
+    /// The backup Mac's name as the main Mac told it (kept for switching when the main is gone).
+    @Published var backupMacName: String? = UserDefaults.standard.string(forKey: "backupMac")
+    /// Connection display: the Apple Watch as WatchConnectivity reports it (set by WatchLink; nil
+    /// without WatchConnectivity). The Mac learns it with every ping, and at once when it changes.
+    @Published var watch: RemoteWatchState? = nil {
+        didSet { if watch != oldValue { sendWatch() } }
+    }
+    private var becomeMainOnWelcome = false
 
     static let zeroDB = 0.85
 
@@ -59,12 +78,18 @@ final class RemoteModel: ObservableObject {
     /// Continuous controls (faders, tempo): the last value sent and when, plus the newest one waiting.
     private var lastContinuous: [String: (value: Double, at: Date)] = [:]
     private var pendingContinuous: [String: LiveCommand] = [:]
+    /// Ids of fader / tempo commands (their backup results are not shown one by one).
+    private var continuousIDs: Set<Int> = []
     private let queue = DispatchQueue(label: "TwinKeysRemote.net")
-    let demo: Bool
+    /// Fictional sample data instead of a Mac (`-demo` for screenshots, or "Try with sample data").
+    @Published private(set) var demo: Bool
+    /// Sample data started from the pairing screen (App Review has no Mac): shown as such, and can be ended.
+    @Published private(set) var trialMode = false
 
     init(demo: Bool = false) {
         self.demo = demo
         capAtZeroDB = UserDefaults.standard.object(forKey: "capAtZeroDB") as? Bool ?? true
+        if let raw = UserDefaults.standard.object(forKey: "lockScope") as? Int { lockScope = LockScope(rawValue: UInt8(clamping: raw)) }
         followSelection = UserDefaults.standard.object(forKey: "followSelection") as? Bool ?? true
         if demo { loadDemo(); return }
         if let code = Keychain.load("pairingCode"), Pairing.normalize(code) != nil {
@@ -112,7 +137,7 @@ final class RemoteModel: ObservableObject {
         guard !demo else { return }
         startBrowsing()
         switch phase {
-        case .connected: send(.ping(Date().timeIntervalSince1970))
+        case .connected: ping()
         case .searching: autoConnect()
         default: break
         }
@@ -172,6 +197,7 @@ final class RemoteModel: ObservableObject {
     /// Forget the Mac and search again (or after the main Mac failed: pick the backup).
     func chooseAnotherMac() {
         UserDefaults.standard.removeObject(forKey: "lastMac")
+        wasConnected = false; lostAt = nil; switchedToBackup = false
         disconnect()
         phase = pairingCode.isEmpty ? .needsCode : .searching
         startBrowsing()
@@ -179,6 +205,7 @@ final class RemoteModel: ObservableObject {
 
     private func fail(_ why: String) {
         disconnect()
+        if lostAt == nil, wasConnected { lostAt = Date() }
         phase = .failed(why)
         // A wrong pairing code does not fix itself: wait until a new code is saved.
         if why == "code" { return }
@@ -228,24 +255,49 @@ final class RemoteModel: ObservableObject {
             case let .waitingForApproval(code): phase = .waitingForApproval(code: code)
             case let .welcome(name):
                 phase = .connected(name)
+                wasConnected = true
+                lostAt = nil
+                if becomeMainOnWelcome {
+                    becomeMainOnWelcome = false
+                    switchedToBackup = true
+                    nextID += 1
+                    send(.becomeMain(id: nextID))
+                }
                 UIApplication.shared.isIdleTimerDisabled = true    // keep the screen on during a show
                 pingTimer?.invalidate()
-                send(.lock(locked))
+                sendLock()
+                sendWatch()
                 pingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
                     Task { @MainActor in
                         guard let self else { return }
                         // Nothing heard for 7 s (pings are answered every 2 s): the link is gone.
                         if Date().timeIntervalSince(self.lastHeard) > 7 { self.fail("timeout"); return }
-                        self.send(.ping(Date().timeIntervalSince1970))
+                        self.ping()
                     }
                 }
             case .denied: phase = .denied; disconnect()
             case let .update(u):
                 live.apply(u)
-            case let .status(st): status = st
-            case let .result(_, ok, err, backup):
-                lastResult = ok ? nil : (err ?? "error")
+            case let .status(st):
+                status = st
+                // Remember the backup's name while the main tells it (it is gone once the main is).
+                if !switchedToBackup, let b = st.backupName, b != backupMacName {
+                    backupMacName = b
+                    UserDefaults.standard.set(b, forKey: "backupMac")
+                }
+            case let .result(rid, ok, err, backup):
                 lastBackup = backup
+                // Fader and tempo moves: no banner per step (the top bar shows the backup's Live).
+                if continuousIDs.remove(rid) != nil, ok { break }
+                if !ok {
+                    lastResult = err ?? "error"
+                } else if err == "late" {
+                    lastResult = "late"          // ran after "no answer": do not tap again
+                } else if ["failedLive", "noLive", "missing"].contains(backup) {
+                    lastResult = "backup_" + backup   // ran here, but not on the backup's Live
+                } else if lastResult == "no_answer" {
+                    lastResult = nil
+                }
             default: break
             }
         }
@@ -256,12 +308,23 @@ final class RemoteModel: ObservableObject {
         c.send(content: Data(bytes), completion: .contentProcessed { _ in })
     }
 
+    /// Pings carry the Apple Watch's state (older Macs read a plain ping).
+    private func ping() {
+        send(.ping(Date().timeIntervalSince1970, watch: watch))
+    }
+
+    /// Tells the Mac about the Apple Watch now (it shows it in its connection row).
+    private func sendWatch() {
+        guard case .connected = phase, !demo else { return }
+        ping()
+    }
+
     // MARK: Actions (respect the show lock)
 
     var isConnected: Bool { if case .connected = phase { return true }; return demo }
 
     func run(_ cmd: LiveCommand) {
-        guard !locked || cmd.allowedWhileLocked else { return }
+        guard !locked || !lockScope.blocks(cmd) else { return }
         var cmd = cmd
         if capAtZeroDB, case let .setVolume(t, v) = cmd { cmd = .setVolume(track: t, value: min(v, Self.zeroDB)) }
         if demo { applyDemo(cmd); return }
@@ -285,13 +348,15 @@ final class RemoteModel: ObservableObject {
         }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         nextID += 1
-        send(.command(id: nextID, cmd))
+        send(.commandAt(id: nextID, cmd, structure: live.song.structure))
     }
 
     private func sendContinuous(_ cmd: LiveCommand, _ key: String, value: Double) {
         lastContinuous[key] = (value, Date())
         nextID += 1
-        send(.command(id: nextID, cmd))
+        continuousIDs.insert(nextID)
+        if continuousIDs.count > 200 { continuousIDs.removeAll() }
+        send(.commandAt(id: nextID, cmd, structure: live.song.structure))
     }
 
     private static func continuousKey(_ cmd: LiveCommand) -> (String, Double)? {
@@ -304,7 +369,25 @@ final class RemoteModel: ObservableObject {
         }
     }
 
+    /// GO: launch `scene` on both Macs and select the next one (never stopped by the show lock).
+    func go(scene: Int) {
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        if demo {
+            applyDemo(.fireScene(scene))
+            if scene + 1 < live.scenes.count { applyDemo(.selectScene(scene + 1)) }
+            return
+        }
+        nextID += 1
+        send(.go(id: nextID, scene: scene, structure: live.song.structure))
+    }
+
+    private func sendLock() {
+        guard isConnected, !demo else { return }
+        send(.lockScope(on: locked, scope: lockScope.rawValue))
+    }
+
     func cue(_ keycode: UInt16) {
+        if locked, lockScope.contains(.cues) { return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         nextID += 1
         send(.cue(id: nextID, keycode: keycode))
@@ -314,6 +397,19 @@ final class RemoteModel: ObservableObject {
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
         nextID += 1
         send(.allNotesOff(id: nextID))
+    }
+
+    // MARK: Switching to the backup (2.3)
+
+    /// The backup Mac, if it is seen on the network (Bonjour) right now.
+    var backupMac: FoundMac? { backupMacName.flatMap { n in macs.first { $0.id == n } } }
+
+    /// Connect to the backup Mac and ask it to be the main (after the main stopped answering).
+    func switchToBackup() {
+        guard let mac = backupMac else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        becomeMainOnWelcome = true
+        connect(mac)
     }
 
     // MARK: Device identity (kept on this device only)
@@ -337,9 +433,33 @@ final class RemoteModel: ObservableObject {
 
     // MARK: Demo (screenshots and previews; fictional names)
 
+    /// "Try with sample data" on the pairing screen: nothing is sent anywhere.
+    func startTrial() {
+        disconnect()
+        browser?.cancel(); browser = nil; macs = []
+        let code = pairingCode
+        demo = true; trialMode = true
+        loadDemo()
+        pairingCode = code
+    }
+
+    /// Back to the pairing screen (or searching for the Mac with the saved code).
+    func endTrial() {
+        guard trialMode else { return }
+        locked = false
+        demo = false; trialMode = false
+        live = LiveState(); status = nil; lastResult = nil; lastBackup = nil
+        wasConnected = false; lostAt = nil; switchedToBackup = false
+        phase = pairingCode.isEmpty ? .needsCode : .searching
+        startBrowsing()
+    }
+
     private func loadDemo() {
         pairingCode = "K7MQ2-WX9TP"
         phase = .connected("Main Stage Mac")
+        // `-demo` (screenshots): the Apple Watch mark shows as connected. Trying it with sample data
+        // keeps the real watch state (WatchLink sets it).
+        if !trialMode { watch = RemoteWatchState(paired: true, appInstalled: true, reachable: true) }
         var s = LiveState()
         s.song.tempo = 124; s.song.playing = true; s.song.beat = "17.3.1"; s.song.selectedScene = 3
         let names = ["オープニング", "SE 拍手", "M1 イントロ", "M1 本編", "暗転", "M2 イントロ", "M2 本編", "エンディング"]

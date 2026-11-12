@@ -128,6 +128,48 @@ extension Strings {
     func remoteConnected(_ n: Int) -> String { s("\(n) connected now", "いま \(n) 台が接続中") }
     var removeDevice: String { s("Remove", "取り消す") }
 
+    var bridgeNeedsRestart: String {
+        s("Live is still running an older TwinKeysBridge. The new one is installed: restart Live to use it.",
+          "Live は古い TwinKeysBridge で動いています。新しい部品は入れてあるので、Live を再起動してください。")
+    }
+
+    // MARK: 2.3 switching to the backup
+    var mainLostTitle: String { s("⚠ When the main Mac has stopped", "⚠ メインの Mac が止まったときは") }
+    var mainLostMessage: String {
+        s("Make this Mac the main to fire the cues from this Mac's keyboard.",
+          "この Mac をメインにすると、この Mac のキーボードでキューを出せます。")
+    }
+    var becomeMainButton: String { s("Make This Mac the Main", "この Mac をメインにする") }
+    var becomeMainTitle: String { s("Make this Mac the main Mac?", "この Mac をメインにしますか？") }
+    var becomeMainMessage: String {
+        s("This Mac's cue keys turn on and it stops playing the other Mac's notes. When the other Mac comes back, it only receives.",
+          "この Mac のキューのキーがオンになり、相手の Mac のノートは鳴らさなくなります。相手の Mac が戻ってきたら、そちらは受信だけになります。")
+    }
+    var becomeMainConfirm: String { s("Make It the Main", "メインにする") }
+    var thisMacIsMain: String { s("This Mac is the main", "この Mac がメイン") }
+    var thisMacIsMainDetail: String {
+        s("This Mac's cue keys are on. When the other Mac comes back it only receives.",
+          "この Mac のキーボードのキューがオンです。元のメインが戻ったら、受信だけにします。")
+    }
+    var handOverMain: String { s("Return to Main", "メインに戻す") }
+
+    // MARK: Connection row (docs/design-links.md)
+    var linkSection: String { s("Connections", "つながり") }
+    var linkOtherMac: String { s("Other Mac", "相手の Mac") }
+    var linkLiveOK: String { s("Live ✓", "Live ✓") }
+    var linkLiveNo: String { s("Live ✗", "Live ✗") }
+    func linkPhones(_ n: Int) -> String { s("iPhone (\(n))", "iPhone（\(n)台）") }
+    func linkPhonesOnMain(_ n: Int) -> String { s("iPhone connected to the main Mac (\(n))", "iPhone はメインの Mac に接続中（\(n)台）") }
+    var linkNoPhone: String { s("No iPhone", "iPhone なし") }
+    var linkAccepting: String { s("(accepting)", "（受け付けはオン）") }
+    var linkViaPhone: String { s("via iPhone", "iPhone 経由") }
+    var linkWatchNotReachable: String { s("Not reachable", "届きません") }
+    var linkOpensSettings: String { s("Opens Settings (allowed devices)", "「設定」の「許可した端末」を開きます") }
+    func linkAccessibility(_ chips: [LinkChip]) -> String {
+        let items = chips.map { "\($0.title), \($0.detail)" }
+        return s("Connections: ", "つながり：") + items.joined(separator: s(". ", "。"))
+    }
+
     // MARK: 2.1 set check
     var peerLiveOK: String { s("Other Mac's Live ✓", "相手の Live ✓") }
     var peerLiveNo: String { s("Other Mac's Live ✗", "相手の Live ✗") }

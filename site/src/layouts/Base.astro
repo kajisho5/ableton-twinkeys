@@ -87,6 +87,8 @@ const nav = [
           <li><a href={pageUrl(lang, 'releases')}>{s.navReleases}</a></li>
           <li><a href={DOWNLOAD_URL}>{s.navDownload}</a></li>
           <li><a href={REPO_URL}>GitHub</a></li>
+          <li><a href={pageUrl(lang, 'support')} aria-current={page === 'support' ? 'page' : undefined}>{s.navSupport}</a></li>
+          <li><a href={pageUrl(lang, 'privacy')} aria-current={page === 'privacy' ? 'page' : undefined}>{s.navPrivacy}</a></li>
         </ul>
         <p>{s.footerMade}{lang === 'ja' ? ' ・ ' : ' · '}<a href={LICENSE_URL}>{s.footerLicense}</a></p>
         <p class="small">{s.footerTrademark}</p>

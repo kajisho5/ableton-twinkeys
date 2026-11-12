@@ -12,8 +12,14 @@ export function url(path = ''): string {
 }
 
 /** Page key -> path without language prefix. */
-export type PageKey = 'home' | 'guide' | 'releases';
-const PATHS: Record<PageKey, string> = { home: '', guide: 'guide/', releases: 'releases/' };
+export type PageKey = 'home' | 'guide' | 'releases' | 'privacy' | 'support';
+const PATHS: Record<PageKey, string> = {
+  home: '',
+  guide: 'guide/',
+  releases: 'releases/',
+  privacy: 'privacy/',
+  support: 'support/',
+};
 
 export function pageUrl(lang: Lang, page: PageKey): string {
   return url((lang === 'ja' ? 'ja/' : '') + PATHS[page]);
@@ -57,6 +63,18 @@ export const t = {
       ['Delivery check', 'A ✓ shows each cue reached the backup'],
       ['English and Japanese', 'App and guide in both languages'],
     ],
+    remoteTitle: 'Control both Lives from an iPhone or iPad',
+    remoteLead: 'TwinKeys Remote talks to the main Mac, and the main Mac passes every action on to the backup.',
+    remotePoints: [
+      'Scenes, clips, mixer and tempo on both Lives at once',
+      'A big GO button for the next scene, and a show lock against slips',
+      'See at a glance that both Lives answer and both sets match',
+    ],
+    remoteStatus: 'In beta testing now. The App Store release is being prepared.',
+    remoteNeeds: 'iOS 17 or later · TwinKeys 2.0 or later on the Macs',
+    remoteMore: 'How to set it up',
+    remoteShotAlt:
+      'TwinKeys Remote on an iPhone held sideways: the session grid of scenes and clips, with play, stop, tempo, All Notes Off and the show lock along the top (sample data).',
     stepsTitle: 'Get started',
     steps: ['Install on both Macs', 'Set the same pairing code', 'Turn on TwinKeys in Live', 'Click Connect'],
     stepsMore: 'Step-by-step instructions are in the guide.',
@@ -66,6 +84,13 @@ export const t = {
     releasesDocTitle: 'Release notes — TwinKeys',
     releasesLead: 'What is new and what was fixed in each version.',
     latest: 'Latest',
+    navPrivacy: 'Privacy',
+    navSupport: 'Support',
+    privacyDocTitle: 'Privacy Policy — TwinKeys',
+    privacyDescription:
+      'TwinKeys and TwinKeys Remote collect no data. No accounts, no analytics, no ads. Traffic stays on your local network.',
+    supportDocTitle: 'Support — TwinKeys Remote',
+    supportDescription: 'Help for TwinKeys Remote, the iPhone and iPad app that controls Live on two Macs, and how to contact us.',
     footerMade: 'Made by Shogo Kajiyama / SEVENTHWELL',
     footerLicense: 'MIT License',
     footerTrademark:
@@ -113,6 +138,18 @@ export const t = {
       ['届いたか分かる', 'キューがバックアップに届いたかを ✓ で表示'],
       ['日本語・英語', '画面もヘルプも両方の言語に対応'],
     ],
+    remoteTitle: 'iPhone・iPad から2台の Live を操作',
+    remoteLead: 'TwinKeys Remote はメインの Mac につながり、メインの Mac が同じ操作をバックアップにも送ります。',
+    remotePoints: [
+      'シーン・クリップ・ミキサー・テンポを、2台の Live でまとめて操作',
+      '大きな GO ボタンで次のシーンを再生。本番ロックで誤操作を防ぐ',
+      '2台の Live が応答しているか、セットが同じかをひと目で確認',
+    ],
+    remoteStatus: 'いまはベータ版をテスト中です。App Store での公開を準備しています。',
+    remoteNeeds: 'iOS 17 以降・Mac に TwinKeys 2.0 以降',
+    remoteMore: 'つなぎかたを見る',
+    remoteShotAlt:
+      '横向きの iPhone の TwinKeys Remote。シーンとクリップの一覧、上に再生・停止・テンポ・全ノートオフ・本番ロック（架空のサンプル）。',
     stepsTitle: 'はじめかた',
     steps: ['両方の Mac に入れる', '同じ合言葉を設定', 'Live で TwinKeys をオン', '「接続」をクリック'],
     stepsMore: 'くわしい手順は「使い方」にあります。',
@@ -122,6 +159,13 @@ export const t = {
     releasesDocTitle: 'リリースノート — TwinKeys',
     releasesLead: 'バージョンごとに、新しくなったことと直した不具合をまとめています。',
     latest: '最新',
+    navPrivacy: 'プライバシー',
+    navSupport: 'サポート',
+    privacyDocTitle: 'プライバシーポリシー — TwinKeys',
+    privacyDescription:
+      'TwinKeys と TwinKeys Remote は、データを一切集めません。アカウント・分析・広告はありません。通信は手元のネットワークの中だけです。',
+    supportDocTitle: 'サポート — TwinKeys Remote',
+    supportDescription: '2台の Mac の Live を操作する iPhone・iPad アプリ「TwinKeys Remote」の困ったときと、問い合わせ先です。',
     footerMade: '制作: Shogo Kajiyama / SEVENTHWELL',
     footerLicense: 'MIT License',
     footerTrademark:

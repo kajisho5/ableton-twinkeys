@@ -15,11 +15,14 @@ struct ContentView: View {
             Rectangle().fill(Theme.separator).frame(height: 1)
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.groupSpacing) {
+                    linksSection
                     if !state.isPaired { pairingBanner }
                     if state.inputMonitoring != .granted && state.sendKeys { permissionBanner }
                     if !state.midiPortReady || !state.problems.isEmpty { problemBanner }
                     UpdateBanner(state: state, actions: actions)
                     if state.cueKeysLeaking { cueLeakBanner }
+                    if state.mainLost && !state.claimsMain { mainLostBanner }
+                    if state.claimsMain { claimsMainBanner }
                     if let d = state.setDiff { setDiffBanner(d) }
                     if !state.cueKeys.isEmpty || state.lastCue != nil { CuePanel(state: state) }
                     peersSection
@@ -71,6 +74,80 @@ struct ContentView: View {
         .padding(.vertical, 12)
     }
 
+    // MARK: Connections (docs/design-links.md)
+
+    /// Who is connected: the other Mac, the iPhones and their Apple Watch (as the iPhones report it).
+    /// Clicking opens Settings, where the allowed devices are.
+    private var linksSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel(t.linkSection)
+            linksButton
+                .accessibilityLabel(t.linkAccessibility(state.linkChips))
+                .accessibilityHint(t.linkOpensSettings)
+                .help(t.linkOpensSettings)
+        }
+    }
+
+    @ViewBuilder private var linksButton: some View {
+        if #available(macOS 14, *) {
+            SettingsLink { linksBox }
+                .buttonStyle(.plain)
+        } else {
+            Button(action: actions.openSettings) { linksBox }
+                .buttonStyle(.plain)
+        }
+    }
+
+    private var linksBox: some View {
+        TKGroup {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 24) {
+                    linkChipViews
+                    Spacer(minLength: 0)
+                }
+                VStack(alignment: .leading, spacing: 8) { linkChipViews }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: Theme.groupRadius))
+    }
+
+    private var linkChipViews: some View {
+        ForEach(state.linkChips) { chip in linkChipView(chip) }
+    }
+
+    private func linkChipView(_ c: LinkChip) -> some View {
+        let idle = c.tone == .idle
+        return HStack(spacing: 8) {
+            Image(systemName: linkSymbol(c.kind))
+                .font(.system(size: 20))
+                .foregroundStyle(idle ? Theme.idleDot : Theme.textPrimary)
+                .frame(width: 28, height: 26)
+                .overlay(alignment: .topTrailing) {
+                    if !idle { StatusDot(color: c.tone == .ok ? Theme.ok : Theme.warning).offset(x: 3, y: -1) }
+                }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(c.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(idle ? Theme.textSecondary : Theme.textPrimary)
+                    .lineLimit(1)
+                Text(c.detail)
+                    .font(.system(size: Theme.caption))
+                    .foregroundStyle(c.tone == .warning ? Theme.warning : Theme.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func linkSymbol(_ k: LinkChip.Kind) -> String {
+        switch k {
+        case .mac: return "desktopcomputer"
+        case .phone: return "iphone"
+        case .watch: return "applewatch"
+        }
+    }
+
     // MARK: Banners
 
     private var permissionBanner: some View {
@@ -92,6 +169,47 @@ struct ContentView: View {
                             .buttonStyle(TKButtonStyle())
                     }
                 }
+            }
+            .padding(12)
+        }
+    }
+
+    /// 2.3: the main Mac stopped answering; this (receiving) Mac can take over.
+    private var mainLostBanner: some View {
+        TKGroup(border: Theme.dangerText) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 12) { mainLostText; Spacer(); becomeMainButton }
+                VStack(alignment: .leading, spacing: 8) { mainLostText; becomeMainButton }
+            }
+            .padding(12)
+        }
+    }
+
+    private var mainLostText: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(t.mainLostTitle).font(.system(size: 12, weight: .semibold))
+            Text(t.mainLostMessage).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var becomeMainButton: some View {
+        Button(t.becomeMainButton, action: actions.becomeMain).buttonStyle(TKButtonStyle(kind: .destructive))
+    }
+
+    /// 2.3: this Mac made itself the main.
+    private var claimsMainBanner: some View {
+        TKGroup(border: Theme.accent) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(t.thisMacIsMain).font(.system(size: 12, weight: .bold))
+                        .padding(.horizontal, 10).padding(.vertical, 3)
+                        .background(Capsule().fill(Theme.accent.opacity(0.2)))
+                    Text(t.thisMacIsMainDetail).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Button(t.handOverMain, action: actions.handOverMain).buttonStyle(TKButtonStyle())
             }
             .padding(12)
         }

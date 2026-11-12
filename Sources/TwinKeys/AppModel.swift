@@ -55,6 +55,8 @@ final class AppModel: ObservableObject {
         var alert: NSAlert?
     }
     private var remoteClients = 0
+    /// Connection display: the Apple Watch as this Mac's iPhones report it.
+    private var remoteWatch: WatchLevel = .absent
     private var lastStatusBroadcast = 0.0
     private var hasAccessibility = KeyMonitor.hasAccessibility
     /// "Restart Now" was clicked: open the new version after the swap.
@@ -136,7 +138,14 @@ final class AppModel: ObservableObject {
             connectByAddress: { [weak self] address in self?.connectByAddress(address) ?? false },
             openAccessibilitySettings: { [weak self] in self?.openAccessibilitySettings() },
             restartForUpdate: { [weak self] in self?.restartForUpdate() },
-            openReleasePage: { [weak self] in if let u = self?.updater.releasePage { NSWorkspace.shared.open(u) } }
+            openReleasePage: { [weak self] in if let u = self?.updater.releasePage { NSWorkspace.shared.open(u) } },
+            becomeMain: { [weak self] in self?.confirmBecomeMain() },
+            handOverMain: { [weak self] in self?.conductor.handOverMain(); self?.refresh() },
+            // macOS 13 (from 14 on the window uses SettingsLink, as the menu bar menu does).
+            openSettings: {
+                NSApp.activate(ignoringOtherApps: true)
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
         )
     }
 
@@ -393,7 +402,10 @@ final class AppModel: ObservableObject {
         let conductor = self.conductor, bridge = self.bridge, log = self.log
         bridge.onLog = { log.write($0) }
         // Backup: Live commands forwarded by the main Mac run on this Mac's Live.
-        conductor.onLiveCommand = { cmd in bridge.run(cmd) }
+        // Backup: run it and tell the main Mac what Live did (2.2).
+        conductor.onLiveCommandRun = { cmd, answer in
+            bridge.run(cmd) { ok, err in answer(ok ? .ran : err == "no_answer" ? .noAnswer : .refused) }
+        }
         let r = RemoteServer(serverID: settings.instanceID.uuidString, serverName: name)
         remote = r
         bridge.onUpdate = { [weak r] u in r?.broadcast(u) }
@@ -421,15 +433,18 @@ final class AppModel: ObservableObject {
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.showApprovalAlertSoon() }
         }
-        r.runCommand = { cmd, done in
+        r.currentStructure = { bridge.snapshot().song.structure }
+        r.currentSceneCount = { let s = bridge.snapshot(); return s.song.sceneCount ?? s.scenes.count }
+        r.runCommand = { cmd, done, late in
             // Both Macs: forward to the backup and run here at the same moment. Only this Mac's
             // command carries the layout it was aimed at (the backup's layout is its own).
             let id = conductor.forwardLive(cmd)
-            bridge.run(cmd, checkStructure: true) { ok, err in
-                bridge.queue.asyncAfter(deadline: .now() + Conductor.cueAnswerTimeout + 0.05) {
+            bridge.run(cmd, checkStructure: true, done: { ok, err in
+                // Wait for the backup's own Live to answer too (it has up to 1 s, like this one).
+                bridge.queue.asyncAfter(deadline: .now() + 1.2) {
                     done(ok, err, id.map { conductor.liveDelivery($0) } ?? "notLinked")
                 }
-            }
+            }, late: { ok, _ in late(ok) })
         }
         r.onApproved = { [weak self] h in
             let d = ApprovedDevice(id: h.deviceID, name: h.deviceName, publicKey: h.devicePublicKey)
@@ -438,6 +453,13 @@ final class AppModel: ObservableObject {
             DispatchQueue.main.async { self?.rememberDevice(d) }
         }
         r.pressCue = { conductor.pressCue(keycode: $0) }
+        // An iPhone switched to this Mac because the main stopped answering (2.3).
+        r.becomeMain = { [weak self] in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.becomeMain() } }
+        }
+        conductor.onRoleChange = { [weak self] isMain in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.roleChanged(isMain: isMain) } }
+        }
         r.allNotesOff = { conductor.panic() }
         r.snapshot = { bridge.snapshot() }
         r.status = { [weak self] in
@@ -446,6 +468,9 @@ final class AppModel: ObservableObject {
             return self.statusSnapshot
         }
         r.onClientsChanged = { [weak self] n in self?.remoteClients = n; self?.refresh() }
+        r.onWatchChanged = { [weak self] w in self?.remoteWatch = w; self?.refresh() }
+        // 2.2: an older TwinKeysBridge from a previous TwinKeys is replaced with the one in this app.
+        if LiveBridgeInstaller.updateIfOutdated() { log.write("Live Bridge: installed copy updated to version \(LiveBridgeInstaller.bundledVersion)") }
         bridge.start()
     }
 
@@ -578,6 +603,38 @@ final class AppModel: ObservableObject {
             lastStatusBroadcast = now
             remote?.broadcastStatus()
         }
+    }
+
+    // MARK: Switching to the backup (2.3)
+
+    /// When the link to the other Mac was lost (nil while linked or never linked).
+    private var linkLostAt: Date?
+    private var wasLinked = false
+
+    /// Asks first: making this Mac the main changes which Mac sends the cues.
+    private func confirmBecomeMain() {
+        let t = state.t
+        let alert = NSAlert()
+        alert.messageText = t.becomeMainTitle
+        alert.informativeText = t.becomeMainMessage
+        alert.addButton(withTitle: t.becomeMainConfirm)
+        alert.addButton(withTitle: t.cancel)
+        alert.buttons.first?.keyEquivalent = ""          // not by pressing Return by accident
+        if alert.runModal() == .alertFirstButtonReturn { becomeMain() }
+    }
+
+    /// Also called for an iPhone that switched to this Mac.
+    func becomeMain() {
+        conductor.claimMain()
+        refresh()
+    }
+
+    /// The conductor changed this Mac's role (this Mac claimed it, or the other Mac did).
+    private func roleChanged(isMain: Bool) {
+        settings.sendKeys = isMain
+        settings.receiveNotes = !isMain
+        log.write(isMain ? "Role: this Mac is the main Mac" : "Role: the other Mac is the main Mac; this Mac only receives")
+        persistModes()
     }
 
     private func updateShowActivity(linked: Bool) {
@@ -778,15 +835,26 @@ final class AppModel: ObservableObject {
         s.appVersion = updater.currentVersion
         s.autoUpdate = settings.autoUpdate
         updateShowActivity(linked: s.linkedPeerID != nil)
+        if case .connected = s.link { wasLinked = true; linkLostAt = nil }
+        else if wasLinked, linkLostAt == nil { linkLostAt = Date() }
+        s.claimsMain = conductor.claimsMain
+        s.mainLost = !settings.sendKeys && linkLostAt.map { Date().timeIntervalSince($0) >= 3 } == true
         s.liveConnected = bridge.isConnected
         conductor.setLiveConnected(s.liveConnected)
         conductor.setLocalSet(s.liveConnected ? SetSummary(bridge.snapshot()) : nil)
         s.setDiff = conductor.setDiff
         s.backupLiveConnected = conductor.peerLiveConnected
         s.bridgeInstalled = LiveBridgeInstaller.isInstalled
+        // Live still runs an older script (it loads the new files at its next start).
+        s.bridgeNeedsRestart = s.liveConnected && (bridge.snapshot().song.bridgeVersion ?? 0) < LiveBridgeInstaller.bundledVersion
         s.approvedDevices = settings.approvedDevices
         s.remoteClients = remoteClients
         s.remoteEnabled = settings.remoteEnabled
+        s.remoteWatch = remoteWatch
+        // Connection display: the other Mac learns this Mac's iPhones (the backup shows the line),
+        // and this Mac the other's.
+        conductor.setRemoteSummary(RemoteSummary(phones: remoteClients, watch: remoteWatch))
+        s.peerRemote = conductor.peerRemoteSummary
         updateRemoteStatus(s, snap)
         if s != state { state = s }
     }

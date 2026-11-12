@@ -22,6 +22,14 @@ public enum LiveCommand: Equatable, Sendable, Codable {
     case setSolo(track: Int, on: Bool)
     case selectScene(Int)
 
+    /// Aimed at a track or scene by its position (so it must not run after Live's layout changed).
+    public var targetsLayout: Bool {
+        switch self {
+        case .play, .stop, .continuePlaying, .setTempo, .stopAll: return false
+        default: return true
+        }
+    }
+
     /// Continuous controls: only the latest value matters (no resend of old values).
     public var isContinuous: Bool {
         switch self {
@@ -30,11 +38,18 @@ public enum LiveCommand: Equatable, Sendable, Codable {
         }
     }
 
-    /// Allowed while the iPhone's show lock is on (playback, scenes, clips, stops).
-    public var allowedWhileLocked: Bool {
+    /// Allowed while the show lock is on with the standard choice (tempo and mixer locked).
+    public var allowedWhileLocked: Bool { !LockScope.standard.blocks(self) }
+
+    /// Which choice of the show lock stops this command (2.3). Scene selection is never locked
+    /// (it only chooses; GO and Back / Next need it).
+    public var lockGroup: LockScope {
         switch self {
-        case .fireScene, .fireClip, .stopTrack, .stopAll, .play, .stop, .continuePlaying, .selectScene: return true
-        case .setTempo, .setVolume, .setPan, .setSend, .setMute, .setSolo: return false
+        case .setTempo: return .tempo
+        case .setVolume, .setPan, .setSend, .setMute, .setSolo: return .mixer
+        case .fireScene, .fireClip, .play, .continuePlaying: return .launches
+        case .stop, .stopAll, .stopTrack: return .stops
+        case .selectScene: return []
         }
     }
 
@@ -147,6 +162,8 @@ public struct LiveSong: Codable, Equatable, Sendable {
     public var sceneCount: Int?
     /// Rises whenever Live's track or scene list changes (from TwinKeysBridge; nil from older scripts).
     public var structure: Int?
+    /// Version of the TwinKeysBridge script Live is running (nil: older than 2.2).
+    public var bridgeVersion: Int?
     public init() {}
 }
 
@@ -255,6 +272,7 @@ public struct LiveState: Codable, Equatable, Sendable {
             if let n = i("tracks", m), n >= 0, n <= 4096 { x.trackCount = n }
             if let n = i("scenes", m), n >= 0, n <= 4096 { x.sceneCount = n }
             if let st = i("structure", m) { x.structure = st }
+            if let v = i("bridge_version", m) { x.bridgeVersion = v }
             song = x
             trim()
             return .song(x)
@@ -401,4 +419,23 @@ public enum LiveUpdate: Codable, Equatable, Sendable {
 public func formatTimeLeft(_ seconds: Double) -> String {
     let s = Int(seconds.rounded(.up))
     return String(format: "-%d:%02d", s / 60, s % 60)
+}
+
+/// What the show lock stops (2.3; chosen in the iPhone's settings). All Notes Off, GO and
+/// unlocking are never stopped.
+public struct LockScope: OptionSet, Codable, Equatable, Hashable, Sendable {
+    public let rawValue: UInt8
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public static let tempo = LockScope(rawValue: 1 << 0)
+    public static let mixer = LockScope(rawValue: 1 << 1)
+    /// Clip and scene launches, play and continue (GO stays usable).
+    public static let launches = LockScope(rawValue: 1 << 2)
+    /// Stop, Stop all clips and track stops.
+    public static let stops = LockScope(rawValue: 1 << 3)
+    /// The cue buttons.
+    public static let cues = LockScope(rawValue: 1 << 4)
+    /// Until 2.2, and the default: tempo and mixer.
+    public static let standard: LockScope = [.tempo, .mixer]
+
+    public func blocks(_ cmd: LiveCommand) -> Bool { !isDisjoint(with: cmd.lockGroup) }
 }
