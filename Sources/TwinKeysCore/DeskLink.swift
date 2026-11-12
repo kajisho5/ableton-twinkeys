@@ -141,7 +141,7 @@ public struct DeskSnapshot: Equatable, Sendable {
     public var readiness: DeskReadiness
     /// Last level read for each assigned channel (a stereo input: its L half).
     public var levels: [DeskChannel: Int]
-    /// Channels whose level was read less than 2 s ago.
+    /// Main channels whose level was read less than 2 s ago.
     public var fresh: Set<DeskChannel>
     public var move: DeskMoveSummary?
     public var refusal: DeskRefusal?
@@ -549,8 +549,9 @@ public struct DeskLink: Sendable {
         for r in settings.rows {
             for ch in [r.main, r.backup] {
                 if let l = channelLevel(ch) { lv[ch] = l.value }
-                if isFresh(ch, now: now) { fresh.insert(ch) }
             }
+            // Only the main channels' freshness matters (and backup channels are read every 5 s).
+            if isFresh(r.main, now: now) { fresh.insert(r.main) }
         }
         let summary = move.map { m in
             DeskMoveSummary(kind: m.kind, fade: m.fade, running: m.isRunning, path: m.path, readLevels: m.readLevels,
