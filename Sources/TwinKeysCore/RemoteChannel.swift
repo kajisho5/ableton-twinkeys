@@ -106,6 +106,11 @@ public enum RemoteMessage: Codable, Equatable, Sendable {
     /// 2.2: a command plus the Live layout (`LiveSong.structure`) the iPhone was showing when it
     /// was tapped; the Mac refuses it if Live's layout has changed since.
     case commandAt(id: Int, LiveCommand, structure: Int?)
+    /// 2.3: GO — launch `scene` on both Macs and select the next one. Never stopped by the show
+    /// lock (it is the way to run the show while everything else is locked).
+    case go(id: Int, scene: Int, structure: Int?)
+    /// 2.3: the show lock with what it stops (`LockScope.rawValue`).
+    case lockScope(on: Bool, scope: UInt8)
     case cue(id: Int, keycode: UInt16)
     case allNotesOff(id: Int)
     case ping(Double)

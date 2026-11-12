@@ -528,6 +528,19 @@ struct SettingsPane: View {
                 Toggle(L.s("Faders stop at 0 dB", "フェーダーの上限を 0dB にする"), isOn: $model.capAtZeroDB)
                 Toggle(L.s("Follow the selection in Live", "Live の選択に追従"), isOn: $model.followSelection)
             }
+            Section {
+                lockToggle(.tempo, L.s("Tempo", "テンポ"))
+                lockToggle(.mixer, L.s("Mixer (volume, pan, sends, M/S)", "ミキサー（音量・パン・センド・M/S）"))
+                lockToggle(.launches, L.s("Clip and scene launches", "クリップ・シーンの再生"),
+                           note: L.s("When on, only GO and the cues are left", "オンにすると GO とキューだけになります"))
+                lockToggle(.stops, L.s("Stop and Stop all clips", "停止・全クリップ停止"))
+                lockToggle(.cues, L.s("Cue buttons", "キューのボタン"))
+            } header: {
+                Text(L.s("What the show lock stops", "本番ロックで止めるもの"))
+            } footer: {
+                Text(L.s("All Notes Off and unlocking (1 s hold) are never stopped. Change these while the lock is off.",
+                         "全ノートオフと「ロックの解除（1 秒長押し）」は止めません。ロック中は変えられません。"))
+            }
             Section(L.s("Connection", "接続")) {
                 LabeledContent(L.s("Mac", "Mac"), value: model.status?.mainName ?? "—")
                 LabeledContent(L.s("Pairing code", "合言葉"), value: model.pairingCode)
@@ -540,5 +553,16 @@ struct SettingsPane: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func lockToggle(_ part: LockScope, _ title: String, note: String? = nil) -> some View {
+        Toggle(isOn: Binding(get: { model.lockScope.contains(part) },
+                             set: { on in if on { model.lockScope.insert(part) } else { model.lockScope.remove(part) } })) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let note { Text(note).font(.caption).foregroundStyle(.secondary) }
+            }
+        }
+        .disabled(model.locked)
     }
 }

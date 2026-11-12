@@ -148,8 +148,6 @@ struct GoView: View {
     private func go() {
         guard Date().timeIntervalSince(lastGo) >= Self.goGuard, let sc = next else { return }
         lastGo = Date()
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-        model.run(.fireScene(sc.index))
-        if sc.index + 1 < live.scenes.count { model.run(.selectScene(sc.index + 1)) }
+        model.go(scene: sc.index)
     }
 }

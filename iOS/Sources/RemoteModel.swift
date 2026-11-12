@@ -31,7 +31,11 @@ final class RemoteModel: ObservableObject {
     @Published var macs: [FoundMac] = []
     @Published var pairingCode: String = ""
     /// Show lock: only playback, scenes, clips, cues and All Notes Off work.
-    @Published var locked = false { didSet { if locked != oldValue, isConnected, !demo { send(.lock(locked)) } } }
+    @Published var locked = false { didSet { if locked != oldValue { sendLock() } } }
+    /// What the show lock stops (2.3). Changed only while the lock is off.
+    @Published var lockScope: LockScope = .standard {
+        didSet { UserDefaults.standard.set(Int(lockScope.rawValue), forKey: "lockScope"); if lockScope != oldValue { sendLock() } }
+    }
     /// iPhone never moves a fader above 0 dB (Live's volume 0.85).
     @Published var capAtZeroDB = true { didSet { UserDefaults.standard.set(capAtZeroDB, forKey: "capAtZeroDB") } }
     @Published var followSelection = true { didSet { UserDefaults.standard.set(followSelection, forKey: "followSelection") } }
@@ -67,6 +71,7 @@ final class RemoteModel: ObservableObject {
     init(demo: Bool = false) {
         self.demo = demo
         capAtZeroDB = UserDefaults.standard.object(forKey: "capAtZeroDB") as? Bool ?? true
+        if let raw = UserDefaults.standard.object(forKey: "lockScope") as? Int { lockScope = LockScope(rawValue: UInt8(clamping: raw)) }
         followSelection = UserDefaults.standard.object(forKey: "followSelection") as? Bool ?? true
         if demo { loadDemo(); return }
         if let code = Keychain.load("pairingCode"), Pairing.normalize(code) != nil {
@@ -232,7 +237,7 @@ final class RemoteModel: ObservableObject {
                 phase = .connected(name)
                 UIApplication.shared.isIdleTimerDisabled = true    // keep the screen on during a show
                 pingTimer?.invalidate()
-                send(.lock(locked))
+                sendLock()
                 pingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
                     Task { @MainActor in
                         guard let self else { return }
@@ -273,7 +278,7 @@ final class RemoteModel: ObservableObject {
     var isConnected: Bool { if case .connected = phase { return true }; return demo }
 
     func run(_ cmd: LiveCommand) {
-        guard !locked || cmd.allowedWhileLocked else { return }
+        guard !locked || !lockScope.blocks(cmd) else { return }
         var cmd = cmd
         if capAtZeroDB, case let .setVolume(t, v) = cmd { cmd = .setVolume(track: t, value: min(v, Self.zeroDB)) }
         if demo { applyDemo(cmd); return }
@@ -318,7 +323,25 @@ final class RemoteModel: ObservableObject {
         }
     }
 
+    /// GO: launch `scene` on both Macs and select the next one (never stopped by the show lock).
+    func go(scene: Int) {
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        if demo {
+            applyDemo(.fireScene(scene))
+            if scene + 1 < live.scenes.count { applyDemo(.selectScene(scene + 1)) }
+            return
+        }
+        nextID += 1
+        send(.go(id: nextID, scene: scene, structure: live.song.structure))
+    }
+
+    private func sendLock() {
+        guard isConnected, !demo else { return }
+        send(.lockScope(on: locked, scope: lockScope.rawValue))
+    }
+
     func cue(_ keycode: UInt16) {
+        if locked, lockScope.contains(.cues) { return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         nextID += 1
         send(.cue(id: nextID, keycode: keycode))

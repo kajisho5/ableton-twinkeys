@@ -425,6 +425,7 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated { self?.showApprovalAlertSoon() }
         }
         r.currentStructure = { bridge.snapshot().song.structure }
+        r.currentSceneCount = { let s = bridge.snapshot(); return s.song.sceneCount ?? s.scenes.count }
         r.runCommand = { cmd, done, late in
             // Both Macs: forward to the backup and run here at the same moment. Only this Mac's
             // command carries the layout it was aimed at (the backup's layout is its own).

@@ -98,3 +98,30 @@ extension CueTests {
         XCTAssertEqual(try Packet.decode(p.encode()), p)
     }
 }
+
+final class LockScopeTests: XCTestCase {
+    func testStandardScopeKeepsTheOldRule() {
+        for c: LiveCommand in [.fireScene(1), .fireClip(track: 0, scene: 1), .stopTrack(0), .stopAll, .play, .stop, .continuePlaying, .selectScene(2)] {
+            XCTAssertTrue(c.allowedWhileLocked, "\(c)")
+            XCTAssertFalse(LockScope.standard.blocks(c), "\(c)")
+        }
+        for c: LiveCommand in [.setTempo(120), .setVolume(track: 0, value: 0.5), .setPan(track: 0, value: 0), .setSend(track: 0, send: 0, value: 0.2), .setMute(track: 0, on: true), .setSolo(track: 0, on: true)] {
+            XCTAssertFalse(c.allowedWhileLocked, "\(c)")
+            XCTAssertTrue(LockScope.standard.blocks(c), "\(c)")
+        }
+    }
+
+    func testEverythingLockedStillAllowsSceneSelection() {
+        let all: LockScope = [.tempo, .mixer, .launches, .stops, .cues]
+        XCTAssertTrue(all.blocks(.fireClip(track: 0, scene: 0)))
+        XCTAssertTrue(all.blocks(.stop))
+        XCTAssertFalse(all.blocks(.selectScene(3)))
+    }
+
+    func testNewMessagesRoundTrip() throws {
+        for m: RemoteMessage in [.go(id: 4, scene: 7, structure: 12), .lockScope(on: true, scope: LockScope([.tempo, .cues]).rawValue)] {
+            let d = try JSONEncoder().encode(m)
+            XCTAssertEqual(try JSONDecoder().decode(RemoteMessage.self, from: d), m)
+        }
+    }
+}
