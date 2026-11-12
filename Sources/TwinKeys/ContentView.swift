@@ -6,6 +6,7 @@ struct ContentView: View {
     let state: ViewState
     let actions: ViewActions
     @State private var showingHelp = false
+    @State private var showingSetRows = false
     private var t: Strings { state.t }
 
     var body: some View {
@@ -19,6 +20,7 @@ struct ContentView: View {
                     if !state.midiPortReady || !state.problems.isEmpty { problemBanner }
                     UpdateBanner(state: state, actions: actions)
                     if state.cueKeysLeaking { cueLeakBanner }
+                    if let d = state.setDiff { setDiffBanner(d) }
                     if !state.cueKeys.isEmpty || state.lastCue != nil { CuePanel(state: state) }
                     peersSection
                     modeSection
@@ -89,6 +91,33 @@ struct ContentView: View {
                         Button(t.checkAgain, action: actions.recheckPermissions)
                             .buttonStyle(TKButtonStyle())
                     }
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    /// 2.1: the two Macs have different Live sets (only warns; nothing is changed).
+    private func setDiffBanner(_ d: SetDiff) -> some View {
+        TKGroup(border: Theme.warning) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("⚠ " + t.setDiffTitle).font(.system(size: 12, weight: .semibold))
+                        Text(t.setDiffSummary(d)).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    if !d.rows.isEmpty {
+                        Button(showingSetRows ? t.setDiffHide : t.setDiffDetails) { showingSetRows.toggle() }
+                            .buttonStyle(TKButtonStyle())
+                    }
+                }
+                if showingSetRows {
+                    ForEach(Array(d.rows.enumerated()), id: \.offset) { _, r in
+                        Text(t.setDiffRow(r)).font(.system(size: Theme.caption)).lineLimit(1).truncationMode(.middle)
+                    }
+                    Text(t.setDiffNote).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(12)

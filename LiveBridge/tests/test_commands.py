@@ -98,6 +98,61 @@ class CommandTest(unittest.TestCase):
         self.assertOk({"cmd": "set_volume", "id": 1, "track": 1, "value": 0.5})
         self.assertAlmostEqual(p.value, 0.4)
 
+    def test_send(self):
+        self.song = FakeSong(4, 3, n_returns=3)
+        sends = [t.mixer_device.sends for t in self.song.tracks]
+        self.assertOk({"cmd": "set_send", "id": 1, "track": 0, "send": 0,
+                       "value": 0.5})
+        self.assertEqual(sends[0][0].value, 0.5)
+        self.assertOk({"cmd": "set_send", "id": 2, "track": 3, "send": 1,
+                       "value": 1})
+        self.assertEqual(sends[3][1].value, 1.0)
+        self.assertOk({"cmd": "set_send", "id": 3, "track": 3, "send": 1.0,
+                       "value": 0})
+        self.assertEqual(sends[3][1].value, 0.0)
+        # Only Send A and Send B (not the third send), never the master.
+        self.assertBad({"cmd": "set_send", "id": 4, "track": 0, "send": 2,
+                        "value": 0.5}, "'send' must be between 0 and 1")
+        self.assertBad({"cmd": "set_send", "id": 5, "track": 0, "send": -1,
+                        "value": 0.5}, "'send'")
+        for bad in ("0", True, 0.5, None):
+            self.assertBad({"cmd": "set_send", "id": 6, "track": 0,
+                            "send": bad, "value": 0.5}, "'send'")
+        self.assertBad({"cmd": "set_send", "id": 7, "track": 0,
+                        "value": 0.5}, "missing 'send'")
+        self.assertBad({"cmd": "set_send", "id": 8, "track": -1, "send": 0,
+                        "value": 0.5}, "master")
+        self.assertBad({"cmd": "set_send", "id": 9, "track": 4, "send": 0,
+                        "value": 0.5}, "range")
+        for bad in (1.1, -0.1, "0.5", True):
+            self.assertBad({"cmd": "set_send", "id": 10, "track": 1,
+                            "send": 0, "value": bad}, "'value'")
+        self.assertBad(b'{"cmd":"set_send","id":11,"track":1,"send":0,'
+                       b'"value":NaN}')
+        self.assertBad({"cmd": "set_send", "id": 12, "track": 1, "send": 0},
+                       "missing 'value'")
+        self.assertEqual([p.value for p in sends[1]], [0.0, 0.0, 0.0])
+        self.assertEqual(sends[0][2].value, 0.0)
+
+    def test_send_uses_parameter_range(self):
+        self.song = FakeSong(2, 1, n_returns=2)
+        p = self.song.tracks[1].mixer_device.sends[1]
+        p.min, p.max = 0.2, 0.6
+        self.assertOk({"cmd": "set_send", "id": 1, "track": 1, "send": 1,
+                       "value": 0.5})
+        self.assertAlmostEqual(p.value, 0.4)
+        self.assertOk({"cmd": "set_send", "id": 2, "track": 1, "send": 1,
+                       "value": 1})
+        self.assertAlmostEqual(p.value, 0.6)
+
+    def test_send_the_set_does_not_have(self):
+        self.song = FakeSong(2, 1, n_returns=1)
+        self.assertBad({"cmd": "set_send", "id": 1, "track": 0, "send": 1,
+                        "value": 0.5}, "send 1 out of range (0..0)")
+        self.song = FakeSong(2, 1)
+        self.assertBad({"cmd": "set_send", "id": 2, "track": 0, "send": 0,
+                        "value": 0.5}, "no return tracks")
+
     def test_mute_solo(self):
         self.assertOk({"cmd": "set_mute", "id": 1, "track": 1, "on": True})
         self.assertTrue(self.song.tracks[1].mute)
@@ -266,6 +321,31 @@ class CommandTest(unittest.TestCase):
         d = CommandDispatcher(lambda: self.song, tracker)
         run(d, {"cmd": "set_mute", "id": 1, "track": 2, "on": True})
         self.assertIn(2, tracker._dirty_tracks)
+
+    def test_send_honours_structure(self):
+        self.song = FakeSong(4, 3, n_returns=2)
+        old = self.make_tracked()
+        target = self.song.tracks[1]
+        self.song.tracks.insert(0, FakeTrack("New", 3, n_sends=2))
+        self.tracker.mark_structure_dirty()
+        msgs = run(self.d, {"cmd": "set_send", "id": 1, "track": 1,
+                            "send": 0, "value": 0.7, "structure": old})
+        new = self.tracker.structure
+        self.assertEqual(msgs, [{"type": "ack", "id": 1, "ok": False,
+                                 "error": "structure_changed",
+                                 "structure": new}])
+        for t in self.song.tracks:
+            self.assertEqual(t.mixer_device.sends[0].value, 0.0)
+        self.assertOk({"cmd": "set_send", "id": 2, "track": 2, "send": 0,
+                       "value": 0.7, "structure": new})
+        self.assertEqual(target.mixer_device.sends[0].value, 0.7)
+        self.assertIn(2, self.tracker._dirty_tracks)
+        # The row (not the clips) is what the next tick re-reads and sends.
+        self.clock.advance(0.1)
+        rows = [i for m in map(json.loads, self.tracker.tick())
+                if m["type"] == "tracks" for i in m["items"]
+                if i["index"] == 2]
+        self.assertEqual(rows[-1]["sends"], [0.7, 0.0])
 
 
 if __name__ == "__main__":

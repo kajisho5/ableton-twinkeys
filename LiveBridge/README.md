@@ -136,6 +136,7 @@ listener reported is only noticed by the 1 s structure poll.
 | `set_tempo`    | `bpm` (20–999)             | `song.tempo = bpm` |
 | `set_volume`   | `track`, `value` (0..1)    | `mixer_device.volume.value = min + value*(max-min)` |
 | `set_pan`      | `track`, `value` (-1..1)   | `mixer_device.panning.value` mapped to the parameter's `min..max` |
+| `set_send`     | `track`, `send` (0 or 1), `value` (0..1) | `mixer_device.sends[send].value = min + value*(max-min)`, clamped to the parameter's `min..max` |
 | `set_mute`     | `track`, `on` (bool)       | `track.mute = on` |
 | `set_solo`     | `track`, `on` (bool)       | `track.solo = on` (not exclusive, as in Live's API) |
 | `select_scene` | `scene`                    | `song.view.selected_scene = scene` |
@@ -145,6 +146,15 @@ listener reported is only noticed by the 1 s structure poll.
 `set_pan`. Volume `value` is the parameter's normalised position, not dB. On
 Live's volume parameter, 0.85 is about 0 dB and 1.0 is +6 dB (**unverified**,
 from general Live knowledge).
+
+`send` is `0` (Send A, the first return track) or `1` (Send B, the second); it
+is an index into the track's `mixer_device.sends`, which has one entry per
+return track in Live's return-track order (**unverified**, see below). Other
+values get `"'send' must be between 0 and 1"`. A send the set does not have
+(fewer return tracks) gets `"send 1 out of range (0..0)"`, or
+`"track 2 has no sends (no return tracks)"`. `value` is the parameter's
+normalised position, like volume. The master track has no sends
+(`track: -1` is refused).
 
 ### State messages (Live → TwinKeys)
 
@@ -179,8 +189,9 @@ state is sent again in full, which repairs lost datagrams.
 ```json
 {"type":"tracks","start":0,"master":{"volume":0.85,"pan":0.0},
  "items":[{"index":0,"name":"Drums","color":"#FF3A34","volume":0.85,"pan":0.0,
-           "mute":false,"solo":false,"playing_slot":-1,"fired_slot":-1,
-           "stop_fired":false,"is_group":false,"is_foldable":false,"is_grouped":false}]}
+           "sends":[0.0,0.5],"mute":false,"solo":false,"playing_slot":-1,
+           "fired_slot":-1,"stop_fired":false,"is_group":false,
+           "is_foldable":false,"is_grouped":false}]}
 ```
 
 - `start` is the index of the first item. Items are contiguous runs. An update
@@ -194,6 +205,12 @@ state is sent again in full, which repairs lost datagrams.
   `"stop_fired":true` (extra field).
 - `volume` is 0..1 and `pan` is -1..1, normalised from each parameter's
   `min`/`max`.
+- `sends` holds the track's first two sends, `[send A, send B]`
+  (`mixer_device.sends[0]` and `[1]`), each 0..1 normalised from the
+  parameter's `min`/`max`. It is shorter when the set has fewer return tracks:
+  `[a]` with one, `[]` with none. Further sends are not reported. `master` has
+  no `sends`. Adding, removing or moving a return track changes which send is
+  "A" and "B" (they are positions) but does **not** change `structure`.
 
 **scenes**
 
@@ -287,12 +304,14 @@ when it is sent, so a queued full message can never overwrite a newer update.
 - **Listeners** (`listeners.py`): `Song.tracks` and `Song.scenes` mark a
   structure change. Each track's `name`, `color`, `mute`, `solo`,
   `playing_slot_index` and `fired_slot_index`, plus its mixer volume/panning
-  `value`, mark that track's row dirty. A track row re-read never re-reads the
-  clip column; only a change of `playing_slot`/`fired_slot` re-reads the (at
-  most four) slots involved. So mixer automation costs one row read per track
-  and tick, not a clip column. Each scene's `name`, `color` and
-  `is_triggered` mark that scene dirty. Listeners only set flags and never
-  touch Live.
+  `value` and the `value` of its first two sends, mark that track's row dirty.
+  A track row re-read never re-reads the clip column; only a change of
+  `playing_slot`/`fired_slot` re-reads the (at most four) slots involved. So
+  mixer and send automation costs one row read per track and tick, not a clip
+  column. `Song.return_tracks` marks every track row dirty (rows only) and
+  rebinds just the send listeners, under the same per-tick listener budget.
+  Each scene's `name`, `color` and `is_triggered` mark that scene dirty.
+  Listeners only set flags and never touch Live.
 - On a structure change, tracks and scenes that are still there keep their
   listeners (only the index their callback reports is updated). Listeners for
   new objects are added, and those of removed objects removed, at most 400
@@ -319,9 +338,10 @@ when it is sent, so a queued full message can never overwrite a newer update.
 cd LiveBridge && python3 -m unittest -v
 ```
 
-73 tests, no Live needed. `tests/fake_live.py` is a fake Live object model
-(Song, View, Track, MixerDevice, DeviceParameter with value/min/max, Scene,
-ClipSlot, Clip, listener methods). The tests cover:
+88 tests, no Live needed. `tests/fake_live.py` is a fake Live object model
+(Song with return tracks, View, Track, MixerDevice with sends,
+DeviceParameter with value/min/max, Scene, ClipSlot, Clip, listener methods).
+The tests cover:
 
 - command dispatch and validation, malformed input, and Live exceptions
   becoming `ok:false`
@@ -329,9 +349,15 @@ ClipSlot, Clip, listener methods). The tests cover:
   the 5 s resend, and the 100 ms rate limit
 - chunking with 200 tracks × 200 scenes: every datagram < 8 000 bytes, all
   40 000 slots present, UTF-8 counted in bytes
+- sends: the first two are reported (shorter with fewer return tracks,
+  normalised from min/max); `set_send` validation, range mapping and the
+  `structure` check; send listeners mark only the row; a return-track insert
+  or removal rebinds the send listeners in budgeted steps and does not change
+  `structure`
 - budgets on 200 × 200: a scene or track insert and `hello` stay within the
-  slot and byte budgets per tick and still deliver every column; mixer changes
-  do not re-read clips; a play change re-reads only the affected slots;
+  slot and byte budgets per tick and still deliver every column; mixer and
+  send changes do not re-read clips; a play change re-reads only the affected
+  slots;
   listener re-registration is incremental and bounded per tick; 64 `hello`s
   in one tick give one full state
 - the `structure` counter and command check (match, mismatch, missing field)
@@ -370,6 +396,8 @@ Sources:
 | `Track.playing_slot_index` is -1 when nothing plays; `fired_slot_index` is -1 when none and -2 when the stop button is fired | [LOM] |
 | `Track.output_meter_left/right` are 0.0–1.0, audio-output tracks only | [LOM] |
 | `MixerDevice.volume` / `panning` are DeviceParameters with `value` / `min` / `max` and `add_value_listener` | [LOM]; [AOSC] `track.py` |
+| `MixerDevice.sends` is "the Tracks list of Send Amount Device Parameters" (observable with `add_sends_listener`); a send is set with `mixer_device.sends[i].value` | [LOM] Live.MixerDevice.MixerDevice; [AOSC] `track.py` (`/live/track/set/send`) |
+| `Song.return_tracks` is "the list of available Return Tracks", with `add_return_tracks_listener` | [LOM] Live.Song.Song |
 | `Scene.name`, `color`, `is_triggered`, `fire()` | [LOM]; [AOSC] `scene.py` |
 | `ClipSlot.has_clip`, `clip`, `fire()` (fires the stop button on an empty slot) | [LOM]; [AOSC] `clip_slot.py` |
 | `Clip.name`, `color`, `length` (beats, or seconds if unwarped), `playing_position` (beats, or seconds for unwarped audio, 0 when stopped) | [LOM]; [AOSC] `clip.py` |
@@ -394,6 +422,13 @@ Sources:
   [LOM]. The script never changes state inside a listener.
 - The Live 12 menu label, the `Log.txt` location, and the volume dB mapping
   (see above).
+- Sends: that `mixer_device.sends` has one entry per return track, in
+  return-track order (so `sends[0]` is the return track "A"), that
+  `Song.return_tracks` fires when a return track is added, deleted or moved,
+  and that each track's `sends` then lists the parameters in the new order.
+  [LOM] documents the properties and listeners but not this behaviour. The
+  send level is assumed to be 0..1 (`min`/`max` are read, so another range
+  still maps correctly); what dB a given send value means is not stated here.
 - The macOS UDP behaviour (`SO_SNDBUF` needed for datagrams larger than 9216
   bytes, `ENOBUFS` on bursts) is from general macOS knowledge. It was not
   tested on macOS here; the tests ran on Linux.

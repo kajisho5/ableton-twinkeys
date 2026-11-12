@@ -4,7 +4,7 @@ import unittest
 from TwinKeysBridge import constants as C
 from TwinKeysBridge.state import StateTracker
 from tests.fake_live import (FakeSong, FakeClock, FakeClip, FakeTrack,
-                             FakeScene, FakeClipSlot)
+                             FakeScene, FakeClipSlot, FakeParameter)
 
 
 def decode(msgs):
@@ -17,8 +17,8 @@ def of_type(msgs, t):
 
 class TrackerTestBase(unittest.TestCase):
 
-    def make(self, tracks=4, scenes=4):
-        self.song = FakeSong(tracks, scenes)
+    def make(self, tracks=4, scenes=4, returns=0):
+        self.song = FakeSong(tracks, scenes, returns)
         self.clock = FakeClock()
         self.errors = []
         self.tracker = StateTracker(lambda: self.song, clock=self.clock,
@@ -352,8 +352,8 @@ class CountingSlot(object):
 class BurstTest(TrackerTestBase):
     """Structure changes, hello and mixer changes stay within the budgets."""
 
-    def big(self):
-        self.make(200, 200)
+    def big(self, returns=0):
+        self.make(200, 200, returns)
         for t, track in enumerate(self.song.tracks):
             for s, slot in enumerate(track.clip_slots):
                 if (t + s) % 3:
@@ -462,6 +462,39 @@ class BurstTest(TrackerTestBase):
         self.assertEqual(self.tracker.bulk_pending(), 0)
         self.assertEqual([m for m in msgs if m["type"] == "clips"], [])
 
+    def test_send_change_does_not_reread_clips(self):
+        self.big(returns=2)
+        reads = self.count_reads()
+        for i, track in enumerate(self.song.tracks):
+            track.mixer_device.sends[i % 2].value = 0.6
+            self.tracker.mark_track_dirty(i)    # as the send listener does
+        msgs = decode(self.tick())
+        items = [i for m in msgs if m["type"] == "tracks" for i in m["items"]]
+        self.assertEqual(len(items), 200)
+        self.assertEqual(items[3]["sends"], [0.0, 0.6])
+        self.assertLessEqual(reads["n"], C.SLOT_BUDGET + 200)
+        self.assertEqual(self.tracker._clip_patches, {})
+        self.assertEqual(self.tracker.bulk_pending(), 0)
+        self.assertEqual([m for m in msgs if m["type"] == "clips"], [])
+
+    def test_return_track_change_rereads_rows_not_clips(self):
+        self.big(returns=1)
+        reads = self.count_reads()
+        structure = self.tracker.structure
+        self.song.return_tracks.insert(0, FakeTrack("New return"))
+        for track in self.song.tracks:
+            track.mixer_device.sends.insert(0, FakeParameter(0.5, 0.0, 1.0))
+        self.tracker.mark_all_tracks_dirty()  # as the return_tracks listener
+        msgs = decode(self.tick())
+        items = [i for m in msgs if m["type"] == "tracks" for i in m["items"]]
+        self.assertEqual(len(items), 200)
+        self.assertEqual(set(tuple(i["sends"]) for i in items), {(0.5, 0.0)})
+        self.assertLessEqual(reads["n"], C.SLOT_BUDGET + 200)
+        self.assertEqual(self.tracker.bulk_pending(), 0)
+        self.assertEqual([m for m in msgs if m["type"] == "clips"], [])
+        # Send indices are positions, not a track/scene layout change.
+        self.assertEqual(self.tracker.structure, structure)
+
     def test_play_change_reads_only_affected_slots(self):
         self.make(3, 50)
         self.song.tracks[1].clip_slots[7].clip = FakeClip("P", 1, 4)
@@ -485,6 +518,58 @@ class BurstTest(TrackerTestBase):
         got = {i["scene"]: i for i in clips[0]["items"]}
         self.assertFalse(got[7]["is_playing"])
         self.assertTrue(got[9]["is_triggered"])
+
+
+class SendTest(TrackerTestBase):
+
+    def track_items(self, msgs):
+        return dict((i["index"], i) for m in of_type(msgs, "tracks")
+                    for i in m["items"])
+
+    def test_tracks_report_the_first_two_sends(self):
+        self.make(3, 2, returns=3)
+        sends = self.song.tracks[1].mixer_device.sends
+        sends[0].value, sends[1].value, sends[2].value = 0.25, 0.5, 0.9
+        items = self.track_items(self.tick())
+        self.assertEqual(items[1]["sends"], [0.25, 0.5])   # Send C not sent
+        self.assertEqual(items[0]["sends"], [0.0, 0.0])
+
+    def test_fewer_return_tracks_give_a_shorter_list(self):
+        for returns, want in ((0, []), (1, [0.0])):
+            self.make(2, 1, returns=returns)
+            items = self.track_items(self.tick())
+            self.assertEqual([items[t]["sends"] for t in (0, 1)],
+                             [want, want])
+
+    def test_send_is_normalised_from_parameter_range(self):
+        self.make(1, 1, returns=1)
+        p = self.song.tracks[0].mixer_device.sends[0]
+        p.min, p.max, p.value = -2.0, 2.0, 1.0
+        self.assertEqual(self.track_items(self.tick())[0]["sends"], [0.75])
+
+    def test_master_has_no_sends(self):
+        self.make(2, 1, returns=2)
+        tracks = of_type(self.tick(), "tracks")[0]
+        self.assertEqual(set(tracks["master"]), {"volume", "pan"})
+
+    def test_send_change_sends_only_that_track_row(self):
+        self.make(10, 3, returns=2)
+        self.settle()
+        self.song.tracks[6].mixer_device.sends[1].value = 0.4
+        self.tracker.mark_track_dirty(6)   # as the send listener does
+        msgs = decode(self.tick())
+        self.assertEqual([m["type"] for m in msgs], ["tracks"])
+        self.assertEqual([i["index"] for i in msgs[0]["items"]], [6])
+        self.assertEqual(msgs[0]["items"][0]["sends"], [0.0, 0.4])
+
+    def test_send_change_found_by_polling_without_listener(self):
+        self.make(4, 2, returns=2)
+        self.settle()
+        self.song.tracks[3].mixer_device.sends[0].value = 0.3
+        found = []
+        for _ in range(5):
+            found.extend(of_type(self.tick(), "tracks"))
+        self.assertEqual(found[0]["items"][0]["sends"], [0.3, 0.0])
 
 
 class ErrorIsolationTest(TrackerTestBase):

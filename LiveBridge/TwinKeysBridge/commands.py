@@ -92,6 +92,7 @@ class CommandDispatcher(object):
             "set_tempo": self._set_tempo,
             "set_volume": self._set_volume,
             "set_pan": self._set_pan,
+            "set_send": self._set_send,
             "set_mute": self._set_mute,
             "set_solo": self._set_solo,
             "select_scene": self._select_scene,
@@ -244,6 +245,23 @@ class CommandDispatcher(object):
         track, t = self._track(song, cmd, allow_master=True)
         value = _get_number(cmd, "value", -1.0, 1.0)
         _set_param(track.mixer_device.panning, (value + 1.0) / 2.0)
+        self._dirty_track(t)
+
+    def _set_send(self, song, cmd):
+        track, t = self._track(song, cmd)
+        k = _get_int(cmd, "send")
+        if not 0 <= k < C.MAX_SENDS:
+            raise CommandError("'send' must be between 0 and %d"
+                               % (C.MAX_SENDS - 1))
+        value = _get_number(cmd, "value", 0.0, 1.0)
+        sends = track.mixer_device.sends
+        n = len(sends)
+        if k >= n:
+            if not n:
+                raise CommandError("track %d has no sends (no return tracks)"
+                                   % t)
+            raise CommandError("send %d out of range (0..%d)" % (k, n - 1))
+        _set_param(sends[k], value)
         self._dirty_track(t)
 
     def _set_mute(self, song, cmd):

@@ -52,3 +52,7 @@ MAX_NAME_LENGTH = 200           # names are truncated to this many chars
 
 TEMPO_MIN = 20.0
 TEMPO_MAX = 999.0
+
+# Sends reported per track ("sends" in the tracks message) and settable with
+# set_send: Send A and Send B, i.e. mixer_device.sends[0] and [1].
+MAX_SENDS = 2

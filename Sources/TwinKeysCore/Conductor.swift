@@ -305,7 +305,7 @@ public final class Conductor: @unchecked Sendable {
         var f = filters[peer] ?? SequenceFilter()
         let orderFree: Bool
         switch packet.body {
-        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus: orderFree = true
+        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem: orderFree = true
         case let .liveCommand(_, c): orderFree = !c.isContinuous   // a late fader value must not overwrite a newer one
         default: orderFree = false
         }
@@ -405,6 +405,15 @@ public final class Conductor: @unchecked Sendable {
         case let .liveStatus(on):
             guard link.peer == peer else { return peer }
             peerLive = on
+        case let .setSummary(t, sc, h):
+            guard link.peer == peer else { return peer }
+            var ps = peerSet ?? PeerSet()
+            ps.summary(tracks: Int(t), scenes: Int(sc), hash: h)
+            peerSet = ps
+        case let .setItem(kind, index, name):
+            guard link.peer == peer, var ps = peerSet, let k = SetItemKind(rawValue: kind) else { return peer }
+            ps.item(kind: k, index: Int(index), name: name)
+            peerSet = ps
         case let .cueCount(cueSeq, count):
             guard link.peer == peer else { return peer }
             applyPeerCount(session: packet.session, seq: cueSeq, count: Int(count))
@@ -761,6 +770,46 @@ public final class Conductor: @unchecked Sendable {
     private var unsentLatest: [String: LiveCommand] = [:]
     private var wasLinkedForLive = false
 
+    /// This Mac's Live set (names only) and the other Mac's as it has told us (2.1 set check).
+    private var localSet: SetSummary?
+    private var peerSet: PeerSet?
+    /// Next name to send (tracks first, then scenes), a few per heartbeat.
+    private var setCursor = 0
+    static let setItemsPerHeartbeat = 8
+
+    /// nil while this Mac's Live does not answer (then nothing is compared).
+    public func setLocalSet(_ s: SetSummary?) {
+        lock.lock(); defer { lock.unlock() }
+        if s != localSet { localSet = s; setCursor = 0 }
+    }
+
+    /// How this Mac's set differs from the other Mac's, or nil (same, or not known yet).
+    public var setDiff: SetDiff? {
+        lock.lock(); defer { lock.unlock() }
+        guard link.isConnected, let localSet else { return nil }
+        return SetDiff.compare(mine: localSet, peer: peerSet)
+    }
+
+    /// With each heartbeat: the summary, and the next few names (round and round, so a lost
+    /// packet is repaired on the next pass).
+    private func sendSet(to p: String) {
+        guard let s = localSet else { return }
+        sendBody(.setSummary(tracks: UInt16(clamping: s.tracks.count), scenes: UInt16(clamping: s.scenes.count), hash: s.hash), to: p)
+        let total = s.tracks.count + s.scenes.count
+        guard total > 0 else { return }
+        for _ in 0..<min(Self.setItemsPerHeartbeat, total) {
+            if setCursor >= total { setCursor = 0 }
+            let i = setCursor
+            setCursor += 1
+            if i < s.tracks.count {
+                sendBody(.setItem(kind: SetItemKind.track.rawValue, index: UInt16(clamping: i), name: s.tracks[i]), to: p)
+            } else {
+                let j = i - s.tracks.count
+                sendBody(.setItem(kind: SetItemKind.scene.rawValue, index: UInt16(clamping: j), name: s.scenes[j]), to: p)
+            }
+        }
+    }
+
     public func setLiveConnected(_ on: Bool) {
         lock.lock(); defer { lock.unlock() }
         localLive = on
@@ -776,6 +825,7 @@ public final class Conductor: @unchecked Sendable {
         switch cmd {
         case let .setVolume(t, _): return "v\(t)"
         case let .setPan(t, _): return "p\(t)"
+        case let .setSend(t, k, _): return "send\(k)/\(t)"
         case .setTempo: return "tempo"
         case let .setMute(t, _): return "m\(t)"
         case let .setSolo(t, _): return "s\(t)"
@@ -818,6 +868,7 @@ public final class Conductor: @unchecked Sendable {
     private static func sameControl(_ a: LiveCommand, _ b: LiveCommand) -> Bool {
         switch (a, b) {
         case let (.setVolume(t1, _), .setVolume(t2, _)), let (.setPan(t1, _), .setPan(t2, _)): return t1 == t2
+        case let (.setSend(t1, k1, _), .setSend(t2, k2, _)): return t1 == t2 && k1 == k2
         case (.setTempo, .setTempo): return true
         default: return false
         }
@@ -828,6 +879,7 @@ public final class Conductor: @unchecked Sendable {
             for k in pendingLive.keys where pendingLive[k]!.delivery == "waiting" { pendingLive[k]!.delivery = "missing" }
             wasLinkedForLive = false
             peerLive = nil
+            peerSet = nil
             return
         }
         if !wasLinkedForLive {
@@ -909,6 +961,7 @@ public final class Conductor: @unchecked Sendable {
                 sendBody(.held(channel: engine.channel, notes: on ? engine.heldNotes : []), to: p)
                 sendBody(features(), to: p)
                 if let localLive { sendBody(.liveStatus(connected: localLive), to: p) }
+                sendSet(to: p)
                 heartbeatsSinceNames += 1
                 if heartbeatsSinceNames >= 10, link.isConnected { sendCueNames(to: p) }
             case let .sendHeartbeatAck(p, t):

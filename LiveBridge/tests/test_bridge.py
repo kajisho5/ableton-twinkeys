@@ -68,6 +68,57 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.song.listener_count(), 0)
         self.assertTrue(self.transport.closed)
 
+    def use_song_with_returns(self, n_returns):
+        self.song = FakeSong(3, 2, n_returns=n_returns)
+        for _ in range(60):
+            self.tick()
+
+    def test_send_listeners_mark_only_the_row(self):
+        self.use_song_with_returns(3)
+        sends = self.song.tracks[1].mixer_device.sends
+        # Send A and Send B are listened to; the third send is not reported.
+        self.assertEqual([p.listener_count() for p in sends], [1, 1, 0])
+        sends[1].value = 0.4
+        sends[1].notify("value")
+        out = self.tick()
+        self.assertEqual([m["type"] for m in out], ["tracks"])
+        self.assertEqual([i["index"] for i in out[0]["items"]], [1])
+        self.assertEqual(out[0]["items"][0]["sends"], [0.0, 0.4])
+
+    def test_return_track_change_rebinds_send_listeners(self):
+        self.use_song_with_returns(2)
+        for t in self.song.tracks:
+            t.mixer_device.sends[0].value = 0.5
+        self.tick()
+        old_a, old_b = self.song.tracks[0].mixer_device.sends
+        structure = self.bridge.tracker.structure
+        self.song.insert_return_track(0)    # fires return_tracks
+        out = [m for m in self.tick() if m["type"] == "tracks"]
+        rows = [i for m in out for i in m["items"]]
+        self.assertEqual([i["sends"] for i in rows], [[0.0, 0.5]] * 3)
+        self.assertEqual(self.bridge._binder.pending(), 0)
+        for t in self.song.tracks:
+            self.assertEqual([p.listener_count()
+                              for p in t.mixer_device.sends], [1, 1, 0])
+        self.assertEqual(old_b.listener_count(), 0)
+        self.assertEqual(self.bridge.tracker.structure, structure)
+        # The new Send A is live; removing it moves the old ones back.
+        new_a = self.song.tracks[2].mixer_device.sends[0]
+        new_a.value = 0.25
+        new_a.notify("value")
+        out = [m for m in self.tick() if m["type"] == "tracks"]
+        self.assertEqual(out[0]["items"][0]["sends"], [0.25, 0.5])
+        self.song.delete_return_track(0)
+        self.tick()
+        self.assertEqual(new_a.listener_count(), 0)
+        self.assertEqual([old_a.listener_count(), old_b.listener_count()],
+                         [1, 1])
+        self.bridge.shutdown()
+        for t in self.song.tracks:
+            self.assertEqual([p.listener_count()
+                              for p in t.mixer_device.sends], [0, 0])
+        self.assertEqual(self.song.listener_count(), 0)
+
     def test_internal_error_reported_not_raised(self):
         self.tick()
 
@@ -133,6 +184,8 @@ class BridgeBudgetTest(unittest.TestCase):
             yield t
             yield t.mixer_device.volume
             yield t.mixer_device.panning
+            for p in t.mixer_device.sends:
+                yield p
         for s in self.song.scenes:
             yield s
 
@@ -200,6 +253,38 @@ class BridgeBudgetTest(unittest.TestCase):
         self.bridge.shutdown()
         for obj in self.all_objects():
             self.assertEqual(obj.listener_count(), 0)
+
+    def test_return_track_change_rebinds_sends_in_steps(self):
+        self.song = FakeSong(200, 30, n_returns=2)
+        for obj in self.all_objects():
+            self.wrap(obj)
+        for t in self.song.tracks:
+            t.mixer_device.sends[1].value = 0.5
+        self.settle()
+        self.assertEqual(self.bridge._binder.pending(), 0)
+        self.song.insert_return_track(1)
+        for t in self.song.tracks:
+            self.wrap(t.mixer_device.sends[1])
+        first = None
+        ticks = 0
+        while True:
+            out = self.tick()
+            ticks += 1
+            self.assertLessEqual(self.ops["n"], C.LISTENER_OPS_PER_TICK + 10)
+            self.assertEqual([m for m in out if m["type"] == "clips"], [])
+            if first is None:
+                first = [i for m in out if m["type"] == "tracks"
+                         for i in m["items"]]
+            if not self.bridge._binder.pending():
+                break
+            self.assertLess(ticks, 20)
+        self.assertGreaterEqual(ticks, 2)    # 800 calls: spread out
+        # Every row is re-read in the first tick: Send B is the new return.
+        self.assertEqual(len(first), 200)
+        self.assertEqual(set(tuple(i["sends"]) for i in first), {(0.0, 0.0)})
+        for t in self.song.tracks:
+            self.assertEqual([p.listener_count()
+                              for p in t.mixer_device.sends], [1, 1, 0])
 
     def test_many_reordered_scenes_spread_over_ticks(self):
         self.settle()

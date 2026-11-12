@@ -1,0 +1,72 @@
+import XCTest
+@testable import TwinKeysCore
+
+final class SetCheckTests: XCTestCase {
+    func testSameSetsHaveNoDiff() {
+        let a = SetSummary(tracks: ["Music", "SE"], scenes: ["1 Intro", "2 Main"])
+        var p = PeerSet()
+        p.summary(tracks: 2, scenes: 2, hash: a.hash)
+        XCTAssertNil(SetDiff.compare(mine: a, peer: p))
+        XCTAssertNil(SetDiff.compare(mine: a, peer: nil))
+    }
+
+    func testDifferentNamesAndCountsAreListed() throws {
+        let main = SetSummary(tracks: ["Music", "SE", "FX"], scenes: ["1 Intro", "2 Main"])
+        let backup = SetSummary(tracks: ["Music", "SE"], scenes: ["1 Intro", "2 Main v2"])
+        var p = PeerSet()
+        p.summary(tracks: 2, scenes: 2, hash: backup.hash)
+        for (i, n) in backup.tracks.enumerated() { p.item(kind: .track, index: i, name: n) }
+        for (i, n) in backup.scenes.enumerated() { p.item(kind: .scene, index: i, name: n) }
+        let d = try XCTUnwrap(SetDiff.compare(mine: main, peer: p))
+        XCTAssertTrue(d.complete)
+        XCTAssertEqual(d.differences, 2)
+        XCTAssertEqual(d.mainTracks, 3); XCTAssertEqual(d.backupTracks, 2)
+        XCTAssertEqual(d.rows, [.init(kind: "track", index: 2, main: "FX", backup: nil),
+                                .init(kind: "scene", index: 1, main: "2 Main", backup: "2 Main v2")])
+    }
+
+    func testNamesStillArrivingAreNotCountedAsDifferent() throws {
+        let main = SetSummary(tracks: ["A", "B"], scenes: ["S"])
+        var p = PeerSet()
+        p.summary(tracks: 2, scenes: 1, hash: 12345)       // differs, names not here yet
+        let d = try XCTUnwrap(SetDiff.compare(mine: main, peer: p))
+        XCTAssertFalse(d.complete)
+        XCTAssertEqual(d.differences, 0)
+    }
+
+    func testLongNamesAreCutTheSameWayOnBothSides() {
+        let long = String(repeating: "あ", count: 40)        // 120 bytes
+        let a = SetSummary(tracks: [long], scenes: [])
+        XCTAssertLessThanOrEqual(a.tracks[0].utf8.count, SetSummary.maxNameBytes)
+        XCTAssertEqual(a.hash, SetSummary(tracks: [long + "x"], scenes: []).hash)
+    }
+
+    func testPacketsRoundTrip() throws {
+        for body in [PacketBody.setSummary(tracks: 300, scenes: 7, hash: 0xDEADBEEF),
+                     .setItem(kind: 1, index: 513, name: "M2 本編")] {
+            let p = Packet(session: 1, seq: 2, body: body)
+            XCTAssertEqual(try Packet.decode(p.encode()), p)
+        }
+    }
+}
+
+/// The two Macs tell each other their sets over the link.
+extension CueTests {
+    func testMacsCompareTheirSets() throws {
+        let t = self
+        t.main.setLocalSet(SetSummary(tracks: (0..<12).map { "T\($0)" }, scenes: (0..<10).map { "S\($0)" }))
+        t.backup.setLocalSet(SetSummary(tracks: (0..<11).map { "T\($0)" }, scenes: (0..<10).map { $0 == 6 ? "S6 v2" : "S\($0)" }))
+        t.connect()
+        t.tick(6)            // enough heartbeats for 21 names at 8 per heartbeat
+        let d = try XCTUnwrap(t.main.setDiff)
+        XCTAssertTrue(d.complete)
+        XCTAssertEqual(d.differences, 2)       // track 11 missing on the backup, scene 6 renamed
+        XCTAssertEqual(d.backupTracks, 11)
+        // The backup sees the same difference from its side.
+        XCTAssertEqual(try XCTUnwrap(t.backup.setDiff).differences, 2)
+        // Same set on both: the warning goes away.
+        t.backup.setLocalSet(SetSummary(tracks: (0..<12).map { "T\($0)" }, scenes: (0..<10).map { "S\($0)" }))
+        t.tick(2)
+        XCTAssertNil(t.main.setDiff)
+    }
+}

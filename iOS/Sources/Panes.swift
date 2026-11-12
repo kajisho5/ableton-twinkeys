@@ -178,27 +178,57 @@ struct SessionView: View {
 // MARK: - Mixer
 
 /// The whole column is the fader: drag anywhere in it. The dashed line is 0 dB.
+/// Volume, Pan, Send A and Send B are shown on the same faders (one at a time).
 struct MixerView: View {
     @EnvironmentObject var model: RemoteModel
     var compact = false
-    /// Landscape iPhone: the Volume / Pan buttons stand at the right of the faders.
+    /// Landscape iPhone: the Volume / Pan / Send A / Send B buttons stand at the right of the faders.
     var sideModes = false
-    enum Mode: String, CaseIterable { case volume, pan }
+    enum Mode: String, CaseIterable {
+        case volume, pan, sendA, sendB
+        var title: String {
+            switch self {
+            case .volume: return L.s("Volume", "音量")
+            case .pan: return L.s("Pan", "パン")
+            case .sendA: return L.s("Send A", "センド A")
+            case .sendB: return L.s("Send B", "センド B")
+            }
+        }
+        /// Index in `LiveTrack.sends` (Live's first two sends), nil for volume and pan.
+        var send: Int? {
+            switch self {
+            case .sendA: return 0
+            case .sendB: return 1
+            case .volume, .pan: return nil
+            }
+        }
+    }
     @State private var mode: Mode = .volume
-    /// Fader position when the current drag started (per track).
-    @State private var dragStart: [Int: Double] = [:]
+    /// Fader position when the current drag started (per track), and the mode it started in.
+    @State private var dragStart: [Int: (mode: Mode, value: Double)] = [:]
+
+    /// Volume and Pan always; a send only when some track has it (the set has that many return tracks).
+    private var modes: [Mode] {
+        Mode.allCases.filter { m in
+            guard let k = m.send else { return true }
+            return model.live.tracks.contains { $0.sends.count > k }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !sideModes {
-                HStack {
-                    Text(L.s("Mixer", "ミキサー")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                    Spacer()
-                    Picker("", selection: $mode) {
-                        Text(L.s("Volume", "音量")).tag(Mode.volume)
-                        Text(L.s("Pan", "パン")).tag(Mode.pan)
+                // On one line when there is room; otherwise the modes go under the title.
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        mixerTitle
+                        Spacer()
+                        modePicker.frame(width: CGFloat(modes.count) * 90)
                     }
-                    .pickerStyle(.segmented).frame(width: 180)
+                    VStack(alignment: .leading, spacing: 6) {
+                        mixerTitle
+                        modePicker
+                    }
                 }
             }
             if model.locked {
@@ -211,8 +241,8 @@ struct MixerView: View {
                     let w = min(110, max(compact ? 58 : 66, (g.size.width - CGFloat(n - 1) * 6) / CGFloat(max(1, n))))
                     ScrollView(.horizontal) {
                         HStack(alignment: .top, spacing: 6) {
-                            ForEach(model.live.tracks) { t in strip(t.index, t.name, t.color, t.volume, t.pan, t.mute, t.solo, model.live.meters[t.index], width: w) }
-                            strip(-1, "Master", "#8E8E93", model.live.master.volume, model.live.master.pan, false, false, model.live.masterMeter, width: w)
+                            ForEach(model.live.tracks) { t in strip(t.index, t.name, t.color, t.volume, t.pan, t.sends, t.mute, t.solo, model.live.meters[t.index], width: w) }
+                            strip(-1, "Master", "#8E8E93", model.live.master.volume, model.live.master.pan, [], false, false, model.live.masterMeter, width: w)
                         }
                         .padding(.bottom, 4)
                         .frame(minHeight: g.size.height, alignment: .top)
@@ -220,8 +250,7 @@ struct MixerView: View {
                 }
                 if sideModes {
                     VStack(spacing: 8) {
-                        modeButton(.volume, L.s("Volume", "音量"))
-                        modeButton(.pan, L.s("Pan", "パン"))
+                        ForEach(modes, id: \.self) { modeButton($0) }
                         Spacer()
                     }
                     .frame(width: 84)
@@ -229,11 +258,24 @@ struct MixerView: View {
             }
         }
         .padding(compact ? 0 : 12)
+        // The send went away (its return track was deleted in Live): show the volume again.
+        .onChange(of: modes) { _, now in if !now.contains(mode) { mode = .volume } }
     }
 
-    private func modeButton(_ m: Mode, _ title: String) -> some View {
+    private var mixerTitle: some View {
+        Text(L.s("Mixer", "ミキサー")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+    }
+
+    private var modePicker: some View {
+        Picker("", selection: $mode) {
+            ForEach(modes, id: \.self) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private func modeButton(_ m: Mode) -> some View {
         Button { mode = m } label: {
-            Text(title).font(.subheadline.bold()).frame(maxWidth: .infinity, minHeight: 48)
+            Text(m.title).font(.subheadline.bold()).lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: .infinity, minHeight: 48)
                 .foregroundStyle(mode == m ? .white : .primary)
                 .background(RoundedRectangle(cornerRadius: 10).fill(mode == m ? Color.tkAccent : Color.tkCell))
         }
@@ -249,16 +291,50 @@ struct MixerView: View {
         return "\(Int((v * 100).rounded()))%"
     }
 
-    private func strip(_ i: Int, _ name: String, _ color: String, _ vol: Double, _ pan: Double, _ mute: Bool, _ solo: Bool, _ meter: [Double]?, width: CGFloat) -> some View {
+    /// Where the fader stands (0...1) in the current mode, or nil when the strip has no such send
+    /// (the master, or a track without it).
+    private func position(_ vol: Double, _ pan: Double, _ sends: [Double]) -> Double? {
+        switch mode {
+        case .volume: return vol
+        case .pan: return (pan + 1) / 2
+        case .sendA, .sendB:
+            guard let k = mode.send, k < sends.count else { return nil }
+            return sends[k]
+        }
+    }
+
+    /// The number above a fader. A send is shown as a percentage of its knob, like the volume.
+    private func valueText(_ vol: Double, _ pan: Double, _ sends: [Double]) -> String {
+        switch mode {
+        case .volume: return dB(vol)
+        case .pan: return String(format: "%+.0f", pan * 50)
+        case .sendA, .sendB:
+            guard let v = position(vol, pan, sends) else { return "–" }
+            return v > 0.001 ? "\(Int((v * 100).rounded()))%" : "-∞"
+        }
+    }
+
+    /// Sets the control the faders show now; `v` is the fader position 0...1.
+    private func setFader(_ i: Int, _ v: Double, sends: [Double]) {
+        switch mode {
+        case .volume: model.run(.setVolume(track: i, value: v))
+        case .pan: model.run(.setPan(track: i, value: v * 2 - 1))
+        case .sendA, .sendB:
+            guard let k = mode.send, i >= 0, k < sends.count else { return }
+            model.run(.setSend(track: i, send: k, value: v))
+        }
+    }
+
+    private func strip(_ i: Int, _ name: String, _ color: String, _ vol: Double, _ pan: Double, _ sends: [Double], _ mute: Bool, _ solo: Bool, _ meter: [Double]?, width: CGFloat) -> some View {
         VStack(spacing: 6) {
-            Text(mode == .volume ? dB(vol) : String(format: "%+.0f", pan * 50)).font(.caption.bold()).monospacedDigit()
+            Text(valueText(vol, pan, sends)).font(.caption.bold()).monospacedDigit()
             GeometryReader { g in
                 let h = g.size.height
-                let value = mode == .volume ? vol : (pan + 1) / 2
+                let value = position(vol, pan, sends)
                 ZStack(alignment: .bottom) {
                     RoundedRectangle(cornerRadius: 8).fill(Color.tkCard)
                     RoundedRectangle(cornerRadius: 8).fill(i == -1 ? Color.secondary : Color.tkAccent)
-                        .frame(height: h * value).padding(.trailing, 8)
+                        .frame(height: h * (value ?? 0)).padding(.trailing, 8)
                     // meter
                     HStack { Spacer(); Capsule().fill(Color.tkOK).frame(width: 4, height: h * (meter?.max() ?? 0)) }
                     if mode == .volume {
@@ -271,14 +347,14 @@ struct MixerView: View {
                 // downward drag, so a sideways swipe to scroll the mixer does not touch any fader.
                 .gesture(DragGesture(minimumDistance: 6).onChanged { d in
                     if dragStart[i] == nil {
-                        guard abs(d.translation.height) > abs(d.translation.width) else { return }
-                        dragStart[i] = mode == .volume ? vol : (pan + 1) / 2
+                        guard let value, abs(d.translation.height) > abs(d.translation.width) else { return }
+                        dragStart[i] = (mode: mode, value: value)
                     }
-                    guard let start = dragStart[i] else { return }
-                    let v = min(1, max(0, start - d.translation.height / h))
-                    if mode == .volume { model.run(.setVolume(track: i, value: v)) } else { model.run(.setPan(track: i, value: v * 2 - 1)) }
+                    // A drag that began in another mode does nothing more (it must not jump this control).
+                    guard let start = dragStart[i], start.mode == mode else { return }
+                    setFader(i, min(1, max(0, start.value - d.translation.height / h)), sends: sends)
                 }.onEnded { _ in dragStart[i] = nil })
-                .opacity(model.locked ? 0.5 : 1)
+                .opacity(model.locked || value == nil ? 0.5 : 1)
             }
             .frame(minHeight: 120)
             if i >= 0 {
@@ -292,15 +368,19 @@ struct MixerView: View {
         }
         .frame(width: width)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name) \(dB(vol))")
+        .accessibilityLabel("\(name) \(mode.title) \(valueText(vol, pan, sends))")
         .accessibilityAdjustableAction { dir in
             let step = dir == .increment ? 0.02 : -0.02
-            if mode == .pan {
+            switch mode {
+            case .pan:
                 model.run(.setPan(track: i, value: min(1, max(-1, pan + step * 2))))
-            } else {
+            case .volume:
                 // Above the 0 dB cap already (set on the Mac): "up" must not pull the fader down to the cap.
                 if step > 0, model.capAtZeroDB, vol >= RemoteModel.zeroDB { return }
                 model.run(.setVolume(track: i, value: min(1, max(0, vol + step))))
+            case .sendA, .sendB:
+                guard let v = position(vol, pan, sends) else { return }
+                setFader(i, min(1, max(0, v + step)), sends: sends)
             }
         }
     }
@@ -414,7 +494,10 @@ struct CuesView: View {
         let st = model.status
         return VStack(alignment: .leading, spacing: 10) {
             row(L.s("Main Mac", "メインの Mac"), st?.mainName ?? "—", st?.mainLiveConnected == true ? L.s("Live connected", "Live 接続済み") : L.s("Live not connected", "Live 未接続"), st?.mainLiveConnected == true)
-            row(L.s("Backup Mac", "バックアップの Mac"), st?.backupName ?? "—", st?.backupLinked == true ? L.s("Linked", "接続済み") : L.s("Not linked", "未接続"), st?.backupLinked == true)
+            row(L.s("Backup Mac", "バックアップの Mac"), st?.backupName ?? "—",
+                st?.backupLinked != true ? L.s("Not linked", "未接続")
+                    : st?.backupLiveConnected == true ? L.s("Linked · Live ✓", "接続済み・Live ✓") : L.s("Linked · Live ✗ no answer", "接続済み・Live ✗ 応答なし"),
+                st?.backupLinked == true && st?.backupLiveConnected == true)
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCard))

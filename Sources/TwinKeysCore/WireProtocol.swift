@@ -50,6 +50,10 @@ public enum PacketBody: Equatable, Sendable {
     case liveAck(id: UInt32)
     /// Since 2.0.1: whether the sender's Live answers (TwinKeysBridge). Sent with each heartbeat.
     case liveStatus(connected: Bool)
+    /// Since 2.1: the sender's Live set in short (track and scene counts, hash of all names).
+    case setSummary(tracks: UInt16, scenes: UInt16, hash: UInt32)
+    /// Since 2.1: one track or scene name of the sender's set (sent a few at a time).
+    case setItem(kind: UInt8, index: UInt16, name: String)
 
     var typeCode: UInt8 {
         switch self {
@@ -70,6 +74,8 @@ public enum PacketBody: Equatable, Sendable {
         case .liveCommand: return 0x18
         case .liveAck: return 0x19
         case .liveStatus: return 0x1A
+        case .setSummary: return 0x1B
+        case .setItem: return 0x1C
         }
     }
 }
@@ -134,6 +140,12 @@ extension Packet {
             b.appendBE(id)
         case let .liveStatus(on):
             b.append(on ? 1 : 0)
+        case let .setSummary(t, s, h):
+            b += [UInt8(t >> 8), UInt8(t & 0xFF), UInt8(s >> 8), UInt8(s & 0xFF)]
+            b.appendBE(h)
+        case let .setItem(kind, index, name):
+            let n = Array(truncatedUTF8(name, max: SetSummary.maxNameBytes))
+            b += [kind, UInt8(index >> 8), UInt8(index & 0xFF), UInt8(n.count)] + n
         }
         return b
     }
@@ -201,6 +213,14 @@ extension Packet {
         case 0x1A:
             guard p.count >= 1 else { throw DecodeError.badPayload }
             body = .liveStatus(connected: p[0] != 0)
+        case 0x1B:
+            guard p.count >= 8 else { throw DecodeError.badPayload }
+            body = .setSummary(tracks: UInt16(p[0]) << 8 | UInt16(p[1]), scenes: UInt16(p[2]) << 8 | UInt16(p[3]), hash: p.readBE32(at: 4))
+        case 0x1C:
+            guard p.count >= 4, p[0] <= 1 else { throw DecodeError.badPayload }
+            let len = Int(p[3])
+            guard len <= SetSummary.maxNameBytes, p.count >= 4 + len else { throw DecodeError.badPayload }
+            body = .setItem(kind: p[0], index: UInt16(p[1]) << 8 | UInt16(p[2]), name: String(decoding: p[4..<(4 + len)], as: UTF8.self))
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)

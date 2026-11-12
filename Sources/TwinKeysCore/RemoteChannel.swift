@@ -69,11 +69,14 @@ public struct RemoteStatus: Codable, Equatable, Sendable {
     public var latencyMs: Double?
     public var lastCue: CueSummary?
     public var cueKeys: [CueKeySummary]
+    /// 2.1: how the backup's Live set differs from the main's (nil: same, or not known).
+    public var setDiff: SetDiff?
     public init(mainName: String, mainLiveConnected: Bool, backupName: String?, backupLinked: Bool,
-                backupLiveConnected: Bool, latencyMs: Double?, lastCue: CueSummary?, cueKeys: [CueKeySummary]) {
+                backupLiveConnected: Bool, latencyMs: Double?, lastCue: CueSummary?, cueKeys: [CueKeySummary],
+                setDiff: SetDiff? = nil) {
         self.mainName = mainName; self.mainLiveConnected = mainLiveConnected; self.backupName = backupName
         self.backupLinked = backupLinked; self.backupLiveConnected = backupLiveConnected
-        self.latencyMs = latencyMs; self.lastCue = lastCue; self.cueKeys = cueKeys
+        self.latencyMs = latencyMs; self.lastCue = lastCue; self.cueKeys = cueKeys; self.setDiff = setDiff
     }
 
     public struct CueSummary: Codable, Equatable, Sendable {

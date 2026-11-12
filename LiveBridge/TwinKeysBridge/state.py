@@ -51,6 +51,15 @@ def param_pan(param):
     return param_norm(param) * 2.0 - 1.0
 
 
+def read_sends(mixer, limit=C.MAX_SENDS):
+    """The first `limit` sends of a mixer as 0..1 (each from its parameter's
+    min/max). Shorter, or empty, when the set has fewer return tracks."""
+    sends = getattr(mixer, "sends", None)
+    if sends is None:
+        return []
+    return [rnd(param_norm(sends[k])) for k in range(min(limit, len(sends)))]
+
+
 def _clip_same(a, b):
     """Clip items are equal ignoring position_beats (it moves constantly;
     the "progress" message carries it)."""
@@ -141,6 +150,12 @@ class StateTracker(object):
         the row's playing/fired slot changed (see _store_track), so mixer
         automation does not cause clip column reads."""
         self._dirty_tracks.add(index)
+
+    def mark_all_tracks_dirty(self):
+        """Re-read every track row next tick: the return-track list changed,
+        so every track's sends did. Rows only; clip columns are not re-read
+        (see mark_track_dirty)."""
+        self._dirty_tracks.update(range(len(self._tracks)))
 
     def mark_scene_dirty(self, index):
         self._dirty_scenes.add(index)
@@ -439,6 +454,7 @@ class StateTracker(object):
             "color": color_hex(track.color),
             "volume": rnd(param_norm(mixer.volume)),
             "pan": rnd(param_pan(mixer.panning)),
+            "sends": read_sends(mixer),
             "mute": bool(track.mute),
             "solo": bool(track.solo),
             "playing_slot": playing if playing >= 0 else -1,
