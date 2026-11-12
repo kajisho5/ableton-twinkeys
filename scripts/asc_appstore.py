@@ -947,9 +947,17 @@ def step_price(c):
     if status == 200 and (body or {}).get("data"):
         sched = body["data"]
         base = (((sched.get("relationships") or {}).get("baseTerritory") or {}).get("data") or {}).get("id")
-        prices, included = c.api.get_all(f"/v1/appPriceSchedules/{sched['id']}/manualPrices",
-                                         {"include": "appPricePoint,territory", "filter[territory]": "JPN",
-                                          "limit": "200"}, "manual prices")
+        # An app that never had a price has a schedule record but no manual prices: Apple answers 404 here
+        # ("no resource of type 'null'"), which means "none yet", not an error.
+        m_status, m_body, m_raw = c.api.get(f"/v1/appPriceSchedules/{sched['id']}/manualPrices",
+                                            {"include": "appPricePoint,territory", "filter[territory]": "JPN",
+                                             "limit": "200"})
+        if m_status == 200:
+            prices, included = list(m_body.get("data") or []), list(m_body.get("included") or [])
+        else:
+            prices, included = [], []
+            if m_status != 404:
+                print(f"  reading the manual prices: HTTP {m_status} {error_summary(m_raw)} (setting it anyway)")
         points = {i["id"]: i for i in included if i.get("type") == "appPricePoints"}
         current, later = [], []
         for p in prices:
