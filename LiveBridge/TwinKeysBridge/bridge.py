@@ -3,6 +3,7 @@ tracker. Has no Live import: the ControlSurface in surface.py only calls
 Bridge.tick() from update_display() and Bridge.shutdown() from disconnect().
 """
 
+import collections
 import time
 
 from . import constants as C
@@ -26,7 +27,11 @@ class Bridge(object):
         self._next_bind = -1e9
         self._bind_failed_logged = False
         self._pending_errors = []
-        self._last_error_at = {}
+        # message -> last time logged, oldest first (bounded, see below)
+        self._last_error_at = collections.OrderedDict()
+        self._error_window_start = -1e9
+        self._error_window_count = 0
+        self._errors_suppressed = 0
         self.tracker = StateTracker(
             song_provider, clock=clock, report_error=self._report_error,
             on_structure=self._on_structure)
@@ -42,14 +47,34 @@ class Bridge(object):
     # ------------------------------------------------------------ errors
 
     def _report_error(self, message):
+        """Log and forward an error. The same text at most once per
+        ERROR_REPEAT_INTERVAL, and at most ERROR_LOG_MAX lines of any text
+        per interval, so an error storm cannot flood Log.txt. The memory of
+        texts is bounded: the least recently logged text is forgotten
+        first."""
         message = str(message)[:500]
         now = self._clock()
         last = self._last_error_at.get(message)
         if last is not None and now - last < C.ERROR_REPEAT_INTERVAL:
             return
-        if len(self._last_error_at) > 200:
-            self._last_error_at.clear()
+        if now - self._error_window_start >= C.ERROR_REPEAT_INTERVAL:
+            if self._errors_suppressed:
+                self._emit_error("%d further errors suppressed"
+                                 % self._errors_suppressed)
+            self._error_window_start = now
+            self._error_window_count = 0
+            self._errors_suppressed = 0
+        if self._error_window_count >= C.ERROR_LOG_MAX:
+            self._errors_suppressed += 1
+            return
+        self._error_window_count += 1
+        self._last_error_at.pop(message, None)
         self._last_error_at[message] = now
+        while len(self._last_error_at) > C.ERROR_KEYS_MAX:
+            self._last_error_at.popitem(last=False)
+        self._emit_error(message)
+
+    def _emit_error(self, message):
         self._pending_errors.append(message)
         try:
             self._log("TwinKeysBridge error: %s" % message)
@@ -107,6 +132,11 @@ class Bridge(object):
                 self._send(message)
         except Exception as exc:
             self._report_error("tick: %s: %s" % (type(exc).__name__, exc))
+        try:
+            if self._binder is not None:
+                self._binder.pump()
+        except Exception as exc:
+            self._report_error("listeners: %s: %s" % (type(exc).__name__, exc))
         try:
             self._flush_errors()
         except Exception:

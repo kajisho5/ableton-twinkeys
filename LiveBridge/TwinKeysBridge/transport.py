@@ -35,6 +35,7 @@ class UdpTransport(object):
         _require_loopback(self.dest_addr[0])
         self.sent = 0
         self.dropped = 0
+        self.recv_errors = 0
         sock = socket_factory(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.setblocking(False)
@@ -63,15 +64,23 @@ class UdpTransport(object):
     def receive(self, max_count):
         """Return up to max_count datagrams (bytes) that came from 127.0.0.1."""
         out = []
-        while len(out) < max_count:
+        # Every recvfrom() counts, errors and dropped datagrams included, so
+        # a persistent error (e.g. EBADF) cannot spin here forever.
+        for _ in range(max(0, int(max_count)) * 2):
+            if len(out) >= max_count:
+                break
             try:
                 data, addr = self._sock.recvfrom(RECV_BUFFER_BYTES)
             except (BlockingIOError, InterruptedError):
                 break
             except OSError as exc:
-                # E.g. ECONNREFUSED reported for an earlier send; keep going.
                 if exc.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
                     break
+                # E.g. ECONNREFUSED reported for an earlier send: try again
+                # (within the bound above).
+                self.recv_errors += 1
+                if exc.errno in (errno.EBADF, errno.ENOTSOCK, errno.EINVAL):
+                    break   # the socket itself is unusable
                 continue
             if not addr or addr[0] != LOOPBACK_HOST:
                 continue  # defence in depth; cannot happen on a loopback bind

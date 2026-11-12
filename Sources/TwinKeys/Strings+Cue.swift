@@ -106,6 +106,7 @@ extension Strings {
     }
     var approveAllow: String { s("Allow", "許可") }
     var approveDeny: String { s("Don’t Allow", "許可しない") }
+    func approveMenu(_ name: String) -> String { s("“\(name)” asks to connect…", "「\(name)」が接続を求めています…") }
     var liveSection: String { s("Live", "Live との連携") }
     var liveConnected: String { s("Live: Connected", "Live: 接続済み") }
     var liveNotConnected: String { s("Live: Not connected", "Live: 未接続") }
@@ -126,5 +127,25 @@ extension Strings {
     var noAllowedDevices: String { s("None yet", "まだありません") }
     func remoteConnected(_ n: Int) -> String { s("\(n) connected now", "いま \(n) 台が接続中") }
     var removeDevice: String { s("Remove", "取り消す") }
+
+    // MARK: 2.1 set check
+    var peerLiveOK: String { s("Other Mac's Live ✓", "相手の Live ✓") }
+    var peerLiveNo: String { s("Other Mac's Live ✗", "相手の Live ✗") }
+    var setDiffTitle: String { s("The other Mac's Live set is different", "相手の Mac の Live のセットが違います") }
+    func setDiffSummary(_ d: SetDiff) -> String {
+        s("Tracks \(d.mainTracks) / \(d.backupTracks)  ·  Scenes \(d.mainScenes) / \(d.backupScenes)  ·  \(d.differences) name(s) differ\(d.complete ? "" : " (still checking)")",
+          "トラック \(d.mainTracks) / \(d.backupTracks)  ・  シーン \(d.mainScenes) / \(d.backupScenes)  ・  名前の違い \(d.differences) か所\(d.complete ? "" : "（確認中）")")
+    }
+    var setDiffDetails: String { s("Details…", "詳しく…") }
+    var setDiffHide: String { s("Hide", "閉じる") }
+    var setDiffNote: String {
+        s("Only track and scene counts and names are compared. Open the same set file on both Macs to clear this. Nothing is changed automatically.",
+          "比べるのはトラックとシーンの数と名前だけです。2台で同じセットのファイルを開くと消えます。自動で直すことはしません。")
+    }
+    func setDiffRow(_ r: SetDiff.Row) -> String {
+        let kind = r.kind == "track" ? s("Track", "トラック") : s("Scene", "シーン")
+        let none = s("(none)", "（なし）")
+        return "\(kind) \(r.index + 1):  \(r.main ?? none)  →  \(r.backup ?? none)"
+    }
 }
 #endif

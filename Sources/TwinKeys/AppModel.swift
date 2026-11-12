@@ -44,7 +44,16 @@ final class AppModel: ObservableObject {
     private let remoteLock = NSLock()
     private var approvedSnapshot: [ApprovedDevice] = []
     private var statusSnapshot: RemoteStatus?
-    private var pendingApproval: ((Bool) -> Void)?
+    /// The device waiting for Allow / Don't Allow (the server asks about one at a time).
+    private var approval: ApprovalRequest?
+    private struct ApprovalRequest {
+        let token: Int
+        let name: String
+        let code: String
+        let answer: (Bool) -> Void
+        /// The alert on screen for it, if shown yet.
+        var alert: NSAlert?
+    }
     private var remoteClients = 0
     private var lastStatusBroadcast = 0.0
     private var hasAccessibility = KeyMonitor.hasAccessibility
@@ -394,19 +403,29 @@ final class AppModel: ObservableObject {
             self.remoteLock.lock(); defer { self.remoteLock.unlock() }
             return ApprovedDevice.isApproved(hello, in: self.approvedSnapshot)
         }
-        r.askApproval = { [weak self] deviceName, code, answer in
+        r.askApproval = { [weak self] token, deviceName, code, answer in
             guard let self else { answer(false); return }
-            // One request at a time; a new one replaces (and refuses) an older unanswered one.
-            self.pendingApproval?(false)
-            self.pendingApproval = answer
-            self.sheet = .approveDevice(name: deviceName, code: code)
+            // The server asks about one device at a time; never leave an older alert open.
+            if let old = self.approval { self.approval = nil; self.closeAlert(old.alert); old.answer(false) }
+            self.approval = ApprovalRequest(token: token, name: deviceName, code: code, answer: answer, alert: nil)
             self.refresh()
-            self.showApprovalAlert(name: deviceName, code: code)
+            if NSApp.isActive {
+                self.showApprovalAlert()
+            } else {
+                // Never take the screen from Live mid-show: bounce the Dock icon and show the
+                // question when TwinKeys is next brought to the front (or from the menu bar).
+                NSApp.requestUserAttention(.informationalRequest)
+            }
+        }
+        r.cancelApproval = { [weak self] token in self?.dismissApproval(token: token) }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.showApprovalAlertSoon() }
         }
         r.runCommand = { cmd, done in
-            // Both Macs: forward to the backup and run here at the same moment.
+            // Both Macs: forward to the backup and run here at the same moment. Only this Mac's
+            // command carries the layout it was aimed at (the backup's layout is its own).
             let id = conductor.forwardLive(cmd)
-            bridge.run(cmd) { ok, err in
+            bridge.run(cmd, checkStructure: true) { ok, err in
                 bridge.queue.asyncAfter(deadline: .now() + Conductor.cueAnswerTimeout + 0.05) {
                     done(ok, err, id.map { conductor.liveDelivery($0) } ?? "notLinked")
                 }
@@ -430,32 +449,65 @@ final class AppModel: ObservableObject {
         bridge.start()
     }
 
-    /// Asks on screen (as a sheet on the TwinKeys window when it is open, otherwise as a window).
-    private func showApprovalAlert(name: String, code: String) {
+    /// Asks on screen (as a sheet on the TwinKeys window when it is open, otherwise as a window),
+    /// only while TwinKeys is the active app. Each alert answers only its own request.
+    private func showApprovalAlert() {
+        guard NSApp.isActive, var req = approval, req.alert == nil else { return }
         let t = state.t
         let alert = NSAlert()
         alert.messageText = t.approveTitle
-        alert.informativeText = t.approveMessage(name, code)
+        alert.informativeText = t.approveMessage(req.name, req.code)
         alert.addButton(withTitle: t.approveAllow)
         alert.addButton(withTitle: t.approveDeny)
         alert.buttons.first?.keyEquivalent = ""          // never allowed by pressing Return by accident
-        NSApp.activate(ignoringOtherApps: true)
+        req.alert = alert
+        approval = req
+        let token = req.token
         if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain && $0.attachedSheet == nil }) {
-            alert.beginSheetModal(for: w) { [weak self] r in self?.answerApproval(r == .alertFirstButtonReturn) }
+            alert.beginSheetModal(for: w) { [weak self] r in self?.answerApproval(token: token, allow: r == .alertFirstButtonReturn) }
         } else {
-            answerApproval(alert.runModal() == .alertFirstButtonReturn)
+            let r = alert.runModal()
+            answerApproval(token: token, allow: r == .alertFirstButtonReturn)
         }
     }
 
-    /// The approval sheet was answered.
-    func answerApproval(_ allow: Bool) {
-        guard case let .approveDevice(name, _)? = sheet else { return }
-        sheet = nil
-        let answer = pendingApproval
-        pendingApproval = nil
-        if allow { log.write("Remote: \(name) allowed") }
-        answer?(allow)
+    /// From the menu bar: show the waiting request now.
+    func showApprovalRequest() {
+        NSApp.activate(ignoringOtherApps: true)
+        showApprovalAlertSoon()
+    }
+
+    /// Next turn of the main loop, not inside a notification or menu action (the alert may run
+    /// its own modal loop).
+    private func showApprovalAlertSoon() {
+        DispatchQueue.main.async { [weak self] in self?.showApprovalAlert() }
+    }
+
+    /// An approval alert was answered. Ignored unless `token` is still the open request.
+    private func answerApproval(token: Int, allow: Bool) {
+        guard let req = approval, req.token == token else { return }
+        approval = nil
+        if allow { log.write("Remote: \(req.name) allowed") }
+        req.answer(allow)
         refresh()
+    }
+
+    /// The server gave up on request `token` (time limit, or the device left): close its alert.
+    private func dismissApproval(token: Int) {
+        guard let req = approval, req.token == token else { return }
+        approval = nil
+        closeAlert(req.alert)
+        refresh()
+    }
+
+    /// Closes an approval alert without answering (its completion is then ignored).
+    private func closeAlert(_ alert: NSAlert?) {
+        guard let alert else { return }
+        if let parent = alert.window.sheetParent {
+            parent.endSheet(alert.window, returnCode: .abort)
+        } else if NSApp.modalWindow === alert.window {
+            NSApp.abortModal()
+        }
     }
 
     /// Called by the server through `askApproval` → `answerApproval`; stores an allowed device.
@@ -512,9 +564,11 @@ final class AppModel: ObservableObject {
             return .init(label: c.label, memo: c.memo, count: c.count, delivery: d)
         }
         let st = RemoteStatus(mainName: Host.current().localizedName ?? "Mac", mainLiveConnected: s.liveConnected,
-                              backupName: peerName, backupLinked: peerName != nil, backupLiveConnected: false,
+                              backupName: peerName, backupLinked: peerName != nil,
+                              backupLiveConnected: peerName != nil && conductor.peerLiveConnected == true,
                               latencyMs: { if case let .connected(_, ms) = s.link { return ms }; return nil }(),
-                              lastCue: cue, cueKeys: settings.cueKeys.map { .init(keycode: $0.keycode, label: $0.label, memo: $0.memo) })
+                              lastCue: cue, cueKeys: settings.cueKeys.map { .init(keycode: $0.keycode, label: $0.label, memo: $0.memo) },
+                              setDiff: s.setDiff)
         remoteLock.lock()
         let changed = statusSnapshot != st
         statusSnapshot = st
@@ -714,6 +768,7 @@ final class AppModel: ObservableObject {
         s.localAddresses = localAddresses
         s.lastManualAddress = settings.manualAddress ?? ""
         s.sheet = sheet
+        s.approvalRequest = approval?.name
         s.lastCue = snap.lastCue
         s.cueKeys = settings.cueKeys
         s.blockCueKeys = settings.blockCueKeys
@@ -724,6 +779,10 @@ final class AppModel: ObservableObject {
         s.autoUpdate = settings.autoUpdate
         updateShowActivity(linked: s.linkedPeerID != nil)
         s.liveConnected = bridge.isConnected
+        conductor.setLiveConnected(s.liveConnected)
+        conductor.setLocalSet(s.liveConnected ? SetSummary(bridge.snapshot()) : nil)
+        s.setDiff = conductor.setDiff
+        s.backupLiveConnected = conductor.peerLiveConnected
         s.bridgeInstalled = LiveBridgeInstaller.isInstalled
         s.approvedDevices = settings.approvedDevices
         s.remoteClients = remoteClients

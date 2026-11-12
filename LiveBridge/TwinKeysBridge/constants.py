@@ -35,15 +35,24 @@ PROGRESS_INTERVAL = 0.2         # ~5 progress messages per second
 STRUCTURE_CHECK_INTERVAL = 1.0  # fallback poll of the track/scene lists
 BIND_RETRY_INTERVAL = 5.0       # retry binding the port if it was busy
 ERROR_REPEAT_INTERVAL = 5.0     # identical error messages at most this often
+ERROR_LOG_MAX = 20              # at most this many error lines per
+                                # ERROR_REPEAT_INTERVAL, whatever the text
+ERROR_KEYS_MAX = 200            # distinct error texts remembered (oldest go)
+FULL_STATE_MIN_INTERVAL = 0.5   # "hello" full-state sends at most this often
 
 # Per-tick work budgets (keep CPU low on big sets).
 TRACK_BUDGET = 25               # track rows re-read per tick (round robin)
 SCENE_BUDGET = 25               # scene rows re-read per tick (round robin)
 SLOT_BUDGET = 2000              # clip slots re-read per tick (round robin)
 BULK_BYTES_PER_TICK = 400000    # bytes of full-state clip data per tick
+LISTENER_OPS_PER_TICK = 400     # Live add/remove listener calls per tick
 
 METER_THRESHOLD = 0.01          # only send meter values that moved more
 MAX_NAME_LENGTH = 200           # names are truncated to this many chars
 
 TEMPO_MIN = 20.0
 TEMPO_MAX = 999.0
+
+# Sends reported per track ("sends" in the tracks message) and settable with
+# set_send: Send A and Send B, i.e. mixer_device.sends[0] and [1].
+MAX_SENDS = 2

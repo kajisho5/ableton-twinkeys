@@ -57,10 +57,15 @@ struct ViewState: Equatable {
     var autoUpdate = true
     /// Live on this Mac answers through the Bridge.
     var liveConnected = false
+    /// 2.1: the other Mac's Live answers (nil: not linked or not told), and how its set differs.
+    var backupLiveConnected: Bool?
+    var setDiff: SetDiff?
     var bridgeInstalled = false
     var approvedDevices: [ApprovedDevice] = []
     var remoteClients = 0
     var remoteEnabled = true
+    /// Name of the device waiting for Allow / Don't Allow on this Mac.
+    var approvalRequest: String?
 
     var t: Strings { Strings(language) }
 
@@ -105,7 +110,8 @@ struct ViewState: Equatable {
         case let .connecting(_, attempt):
             return attempt > 1 ? t.retrying(attempt) : t.waitingForAnswer
         case let .connected(_, latency):
-            return t.latencyLine(latencyText(latency), roles)
+            let live = backupLiveConnected.map { $0 ? t.peerLiveOK : t.peerLiveNo }
+            return t.latencyLine(latencyText(latency), live.map { "\(roles)  ·  \($0)" } ?? roles)
         }
     }
 
@@ -138,5 +144,5 @@ struct ViewActions {
     var openReleasePage: () -> Void = {}
 }
 
-enum AppSheet: Equatable { case pairing, connectByIP, help, approveDevice(name: String, code: String) }
+enum AppSheet: Equatable { case pairing, connectByIP, help }
 #endif

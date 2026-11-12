@@ -67,6 +67,10 @@ struct MenuBarMenu: View {
         Text(model.state.headline)
         if case .connected = model.state.link { Text(model.state.detail) }
         Divider()
+        if let name = model.state.approvalRequest {
+            Button(t.approveMenu(name)) { model.showApprovalRequest() }
+            Divider()
+        }
         Button(t.allNotesOff) { model.actions.panic() }
             .keyboardShortcut("p", modifiers: [.command, .control])
         Button(model.state.connectMenuTitle) { model.toggleConnection() }

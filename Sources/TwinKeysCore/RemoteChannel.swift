@@ -31,6 +31,26 @@ public struct RemoteClientHello: Codable, Equatable, Sendable {
     public var nonce: Data
 }
 
+extension RemoteClientHello {
+    public static let maxNameLength = 64
+
+    /// A device name that is safe to show in an alert or a log: no control or invisible formatting
+    /// characters (line breaks, right-to-left overrides), trimmed, at most 64 characters.
+    public static func sanitizedName(_ name: String) -> String {
+        let kept = name.unicodeScalars.filter { u in
+            switch u.properties.generalCategory {
+            case .control, .format, .lineSeparator, .paragraphSeparator, .surrogate, .unassigned, .privateUse:
+                return u == "\u{200D}"     // keep the zero-width joiner (emoji sequences)
+            default:
+                return true
+            }
+        }
+        var s = String(String.UnicodeScalarView(kept)).trimmingCharacters(in: .whitespaces)
+        if s.count > maxNameLength { s = String(s.prefix(maxNameLength)).trimmingCharacters(in: .whitespaces) }
+        return s.isEmpty ? "iPhone" : s
+    }
+}
+
 public struct RemoteServerHello: Codable, Equatable, Sendable {
     public var version: Int
     public var serverID: String
@@ -49,11 +69,14 @@ public struct RemoteStatus: Codable, Equatable, Sendable {
     public var latencyMs: Double?
     public var lastCue: CueSummary?
     public var cueKeys: [CueKeySummary]
+    /// 2.1: how the backup's Live set differs from the main's (nil: same, or not known).
+    public var setDiff: SetDiff?
     public init(mainName: String, mainLiveConnected: Bool, backupName: String?, backupLinked: Bool,
-                backupLiveConnected: Bool, latencyMs: Double?, lastCue: CueSummary?, cueKeys: [CueKeySummary]) {
+                backupLiveConnected: Bool, latencyMs: Double?, lastCue: CueSummary?, cueKeys: [CueKeySummary],
+                setDiff: SetDiff? = nil) {
         self.mainName = mainName; self.mainLiveConnected = mainLiveConnected; self.backupName = backupName
         self.backupLinked = backupLinked; self.backupLiveConnected = backupLiveConnected
-        self.latencyMs = latencyMs; self.lastCue = lastCue; self.cueKeys = cueKeys
+        self.latencyMs = latencyMs; self.lastCue = lastCue; self.cueKeys = cueKeys; self.setDiff = setDiff
     }
 
     public struct CueSummary: Codable, Equatable, Sendable {
@@ -83,6 +106,9 @@ public enum RemoteMessage: Codable, Equatable, Sendable {
     case cue(id: Int, keycode: UInt16)
     case allNotesOff(id: Int)
     case ping(Double)
+    /// The iPhone's show lock changed (also sent right after `welcome`). While on, the Mac refuses
+    /// commands that are not `LiveCommand.allowedWhileLocked` (result error "locked").
+    case lock(Bool)
     // Mac → iPhone
     case waitingForApproval(code: String)
     case welcome(macName: String)
@@ -208,9 +234,11 @@ public final class RemoteSession {
             guard let ch = try? JSONDecoder().decode(RemoteClientHello.self, from: Data(json)) else { throw RemoteError.badHello }
             guard ch.version == RemoteProtocol.version else { throw RemoteError.versionMismatch }
             guard ch.devicePublicKey.count == 32, ch.nonce.count == 16, !ch.deviceID.isEmpty, ch.deviceID.count <= 64 else { throw RemoteError.badHello }
+            var hello = ch
+            hello.deviceName = RemoteClientHello.sanitizedName(ch.deviceName)
             clientHelloBytes = json
-            peerHello = ch
-            return .clientHello(ch, confirmCode: Self.confirmCode(json))
+            peerHello = hello
+            return .clientHello(hello, confirmCode: Self.confirmCode(json))
         case .client:
             guard Self.equal(tag(clientHelloBytes + json), t) else { throw RemoteError.wrongPairingCode }
             guard let sh = try? JSONDecoder().decode(RemoteServerHello.self, from: Data(json)) else { throw RemoteError.badHello }
@@ -255,6 +283,66 @@ public final class RemoteSession {
         var d: UInt8 = 0
         for i in a.indices { d |= a[i] ^ b[i] }
         return d == 0
+    }
+}
+
+/// Mac side: when to ask the person to approve a new device. At most one question at a time, each
+/// with a time limit, and after "Don't Allow", no answer, or the device leaving while asked, that
+/// device id is refused without asking for `coolDown` seconds. So a device that keeps reconnecting
+/// cannot keep putting alerts on the screen during a show. Times are any monotonic seconds.
+public struct RemoteApprovalGate {
+    public static let timeout: Double = 60
+    public static let coolDown: Double = 60
+
+    public enum Decision: Equatable {
+        /// Ask the person; answer with `finish(token:…)`.
+        case ask(token: Int)
+        /// Another question is open: refuse this connection without asking.
+        case busy
+        /// This device was refused a moment ago: refuse without asking.
+        case coolingDown
+    }
+
+    private var open: (token: Int, deviceID: String, since: Double)?
+    private var refusedAt: [String: Double] = [:]
+    private var lastToken = 0
+
+    public init() {}
+
+    /// The token of the open question, if any.
+    public var openToken: Int? { open?.token }
+
+    public mutating func request(deviceID: String, now: Double) -> Decision {
+        if let t = refusedAt[deviceID] {
+            if now - t < Self.coolDown { return .coolingDown }
+            refusedAt[deviceID] = nil
+        }
+        if let o = open {
+            if now - o.since < Self.timeout { return .busy }
+            finish(token: o.token, allowed: false, now: now)     // ran out of time (missed timer)
+        }
+        lastToken += 1
+        open = (lastToken, deviceID, now)
+        return .ask(token: lastToken)
+    }
+
+    /// The question `token` ended: allowed, refused, timed out or the device left. Returns false
+    /// when it is not the open question any more (an old answer must then be ignored).
+    @discardableResult
+    public mutating func finish(token: Int, allowed: Bool, now: Double) -> Bool {
+        guard let o = open, o.token == token else { return false }
+        open = nil
+        if !allowed {
+            if refusedAt.count > 200 { refusedAt = refusedAt.filter { now - $0.value < Self.coolDown } }
+            refusedAt[o.deviceID] = now
+        }
+        return true
+    }
+
+    /// Is `token` the open question and past its time limit?
+    public func isExpired(token: Int, now: Double) -> Bool {
+        guard let o = open, o.token == token else { return false }
+        return now - o.since >= Self.timeout
     }
 }
 

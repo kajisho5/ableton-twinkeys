@@ -5,6 +5,7 @@ import Foundation
 /// Something the iPhone asks Live to do. Sent to the main Mac, which runs it on its own Live
 /// and forwards it to the backup Mac, so both Lives do the same thing.
 /// Indices are 0-based. `track == -1` is the master track (volume and pan only).
+/// `send` is 0 (Send A) or 1 (Send B): the track's first two sends, i.e. the first two return tracks.
 public enum LiveCommand: Equatable, Sendable, Codable {
     case fireScene(Int)
     case fireClip(track: Int, scene: Int)
@@ -16,6 +17,7 @@ public enum LiveCommand: Equatable, Sendable, Codable {
     case setTempo(Double)
     case setVolume(track: Int, value: Double)
     case setPan(track: Int, value: Double)
+    case setSend(track: Int, send: Int, value: Double)
     case setMute(track: Int, on: Bool)
     case setSolo(track: Int, on: Bool)
     case selectScene(Int)
@@ -23,7 +25,7 @@ public enum LiveCommand: Equatable, Sendable, Codable {
     /// Continuous controls: only the latest value matters (no resend of old values).
     public var isContinuous: Bool {
         switch self {
-        case .setVolume, .setPan, .setTempo: return true
+        case .setVolume, .setPan, .setSend, .setTempo: return true
         default: return false
         }
     }
@@ -32,13 +34,16 @@ public enum LiveCommand: Equatable, Sendable, Codable {
     public var allowedWhileLocked: Bool {
         switch self {
         case .fireScene, .fireClip, .stopTrack, .stopAll, .play, .stop, .continuePlaying, .selectScene: return true
-        case .setTempo, .setVolume, .setPan, .setMute, .setSolo: return false
+        case .setTempo, .setVolume, .setPan, .setSend, .setMute, .setSolo: return false
         }
     }
 
     /// The JSON command for the Live Bridge script (see LiveBridge/README.md).
-    public func bridgeJSON(id: Int) -> [String: Any] {
+    /// `structure`: Live's track/scene layout this command was aimed at; TwinKeysBridge refuses the
+    /// command ("structure_changed") when the layout has changed since, so it never hits the wrong clip.
+    public func bridgeJSON(id: Int, structure: Int? = nil) -> [String: Any] {
         var d: [String: Any] = ["id": id]
+        if let structure { d["structure"] = structure }
         switch self {
         case let .fireScene(s): d["cmd"] = "fire_scene"; d["scene"] = s
         case let .fireClip(t, s): d["cmd"] = "fire_clip"; d["track"] = t; d["scene"] = s
@@ -50,6 +55,7 @@ public enum LiveCommand: Equatable, Sendable, Codable {
         case let .setTempo(b): d["cmd"] = "set_tempo"; d["bpm"] = b
         case let .setVolume(t, v): d["cmd"] = "set_volume"; d["track"] = t; d["value"] = v
         case let .setPan(t, v): d["cmd"] = "set_pan"; d["track"] = t; d["value"] = v
+        case let .setSend(t, k, v): d["cmd"] = "set_send"; d["track"] = t; d["send"] = k; d["value"] = v
         case let .setMute(t, on): d["cmd"] = "set_mute"; d["track"] = t; d["on"] = on
         case let .setSolo(t, on): d["cmd"] = "set_solo"; d["track"] = t; d["on"] = on
         case let .selectScene(s): d["cmd"] = "select_scene"; d["scene"] = s
@@ -69,6 +75,7 @@ public enum LiveCommand: Equatable, Sendable, Codable {
         case let .setTempo(b): return b.isFinite && (20...999).contains(b)
         case let .setVolume(t, v): return (t == -1 || idx(t)) && unit(v)
         case let .setPan(t, v): return (t == -1 || idx(t)) && v.isFinite && (-1...1).contains(v)
+        case let .setSend(t, k, v): return idx(t) && (0...1).contains(k) && unit(v)   // the master has no sends
         case let .setMute(t, _), let .setSolo(t, _): return idx(t)
         }
     }
@@ -91,6 +98,7 @@ public enum LiveCommand: Equatable, Sendable, Codable {
         case let .setMute(t, on): return [11] + i16(t) + [on ? 1 : 0]
         case let .setSolo(t, on): return [12] + i16(t) + [on ? 1 : 0]
         case let .selectScene(s): return [13] + i16(s)
+        case let .setSend(t, k, v): return [14] + i16(t) + [UInt8(truncatingIfNeeded: k)] + f64(v)
         }
     }
 
@@ -117,6 +125,7 @@ public enum LiveCommand: Equatable, Sendable, Codable {
         case 11: c = i16(1).flatMap { t in b.count > 3 ? .setMute(track: t, on: b[3] != 0) : nil }
         case 12: c = i16(1).flatMap { t in b.count > 3 ? .setSolo(track: t, on: b[3] != 0) : nil }
         case 13: c = i16(1).map { .selectScene($0) }
+        case 14: c = i16(1).flatMap { t in f64(4).map { .setSend(track: t, send: Int(b[3]), value: $0) } }
         default: c = nil
         }
         guard let c, c.isValid else { return nil }
@@ -133,6 +142,11 @@ public struct LiveSong: Codable, Equatable, Sendable {
     public var selectedTrack = 0
     public var selectedScene = 0
     public var setName = ""
+    /// Number of tracks and scenes in Live (the iPhone drops rows and strips that no longer exist).
+    public var trackCount: Int?
+    public var sceneCount: Int?
+    /// Rises whenever Live's track or scene list changes (from TwinKeysBridge; nil from older scripts).
+    public var structure: Int?
     public init() {}
 }
 
@@ -158,11 +172,29 @@ public struct LiveTrack: Codable, Equatable, Sendable, Identifiable {
     public var solo: Bool
     public var playingSlot: Int
     public var firedSlot: Int
+    /// Send A and Send B, 0...1 (Live's first two sends). Shorter, or empty, when the set has fewer
+    /// return tracks (and from older Macs and scripts).
+    public var sends: [Double]
     public var id: Int { index }
     public init(index: Int, name: String, color: String = "#888888", volume: Double = 0.85, pan: Double = 0,
-                mute: Bool = false, solo: Bool = false, playingSlot: Int = -1, firedSlot: Int = -1) {
+                mute: Bool = false, solo: Bool = false, playingSlot: Int = -1, firedSlot: Int = -1, sends: [Double] = []) {
         self.index = index; self.name = name; self.color = color; self.volume = volume; self.pan = pan
-        self.mute = mute; self.solo = solo; self.playingSlot = playingSlot; self.firedSlot = firedSlot
+        self.mute = mute; self.solo = solo; self.playingSlot = playingSlot; self.firedSlot = firedSlot; self.sends = sends
+    }
+
+    /// As synthesized, except that `sends` may be missing (a Mac from before sends): then it is empty.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        index = try c.decode(Int.self, forKey: .index)
+        name = try c.decode(String.self, forKey: .name)
+        color = try c.decode(String.self, forKey: .color)
+        volume = try c.decode(Double.self, forKey: .volume)
+        pan = try c.decode(Double.self, forKey: .pan)
+        mute = try c.decode(Bool.self, forKey: .mute)
+        solo = try c.decode(Bool.self, forKey: .solo)
+        playingSlot = try c.decode(Int.self, forKey: .playingSlot)
+        firedSlot = try c.decode(Int.self, forKey: .firedSlot)
+        sends = (try? c.decodeIfPresent([Double].self, forKey: .sends)) ?? []
     }
 }
 
@@ -220,12 +252,11 @@ public struct LiveState: Codable, Equatable, Sendable {
             x.selectedTrack = i("selected_track", m) ?? x.selectedTrack
             x.selectedScene = i("selected_scene", m) ?? x.selectedScene
             x.setName = s("set_name", m)
+            if let n = i("tracks", m), n >= 0, n <= 4096 { x.trackCount = n }
+            if let n = i("scenes", m), n >= 0, n <= 4096 { x.sceneCount = n }
+            if let st = i("structure", m) { x.structure = st }
             song = x
-            if let n = i("tracks", m), n >= 0, n <= 4096 {
-                if tracks.count > n { tracks.removeLast(tracks.count - n) }
-                if clips.count > n { clips.removeLast(clips.count - n) }
-            }
-            if let n = i("scenes", m), n >= 0, n <= 4096, scenes.count > n { scenes.removeLast(scenes.count - n) }
+            trim()
             return .song(x)
         case "scenes":
             guard let items = m["items"] as? [[String: Any]] else { return nil }
@@ -243,12 +274,21 @@ public struct LiveState: Codable, Equatable, Sendable {
                 master.volume = d("volume", mo) ?? master.volume
                 master.pan = d("pan", mo) ?? master.pan
             }
+            /// Send A and Send B (0...1); stops at the first entry that is not a number, so B never moves into A.
+            func sends(_ o: [String: Any]) -> [Double] {
+                var out: [Double] = []
+                for x in (o["sends"] as? [Any] ?? []).prefix(2) {
+                    guard let v = (x as? NSNumber)?.doubleValue, v.isFinite else { break }
+                    out.append(min(1, max(0, v)))
+                }
+                return out
+            }
             var list: [LiveTrack] = []
             for o in items {
                 guard let idx = i("index", o), (0...4095).contains(idx) else { continue }
                 let t = LiveTrack(index: idx, name: s("name", o), color: s("color", o), volume: d("volume", o) ?? 0,
                                   pan: d("pan", o) ?? 0, mute: b("mute", o), solo: b("solo", o),
-                                  playingSlot: i("playing_slot", o) ?? -1, firedSlot: i("fired_slot", o) ?? -1)
+                                  playingSlot: i("playing_slot", o) ?? -1, firedSlot: i("fired_slot", o) ?? -1, sends: sends(o))
                 while tracks.count <= idx { tracks.append(LiveTrack(index: tracks.count, name: "")) }
                 tracks[idx] = t; list.append(t)
             }
@@ -293,7 +333,7 @@ public struct LiveState: Codable, Equatable, Sendable {
     public mutating func apply(_ u: LiveUpdate) {
         switch u {
         case let .full(s): self = s
-        case let .song(x): song = x
+        case let .song(x): song = x; trim()
         case let .scenes(list):
             for sc in list where sc.index >= 0 && sc.index < 4096 {
                 while scenes.count <= sc.index { scenes.append(LiveScene(index: scenes.count, name: "")) }
@@ -314,6 +354,28 @@ public struct LiveState: Codable, Equatable, Sendable {
             }
         case let .meters(m, mm): meters = m; masterMeter = mm
         case let .progress(p): progress = p
+        }
+    }
+
+    /// The whole state for an iPhone that just connected, as several updates: everything but the
+    /// clips first, then one clip column per update (applying them in order rebuilds this state).
+    public func initialUpdates() -> [LiveUpdate] {
+        var head = self
+        head.clips = []
+        return [.full(head)] + clips.enumerated().map { .clips(track: $0.offset, $0.element) }
+    }
+
+    /// Drops tracks, scenes, clips, meters and progress beyond Live's current counts.
+    mutating func trim() {
+        if let n = song.trackCount {
+            if tracks.count > n { tracks.removeLast(tracks.count - n) }
+            if clips.count > n { clips.removeLast(clips.count - n) }
+            meters = meters.filter { $0.key < n }
+            progress = progress.filter { $0.key < n }
+        }
+        if let n = song.sceneCount {
+            if scenes.count > n { scenes.removeLast(scenes.count - n) }
+            for t in clips.indices where clips[t].count > n { clips[t].removeLast(clips[t].count - n) }
         }
     }
 

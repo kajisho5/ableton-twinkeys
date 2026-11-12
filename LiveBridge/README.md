@@ -81,7 +81,9 @@ under `~/Library/Preferences/Ableton/Live <version>/` (**unverified** path).
 ## Protocol
 
 One JSON object (UTF-8) per UDP datagram. Every datagram the script sends is
-**under 60 000 bytes**; large lists are split into several messages (chunks).
+**under 8 000 bytes** (`MAX_DATAGRAM_BYTES` in `constants.py`, below the macOS
+default UDP datagram limit of 9216 bytes); large lists are split into several
+messages (chunks).
 Names longer than 200 characters are cut to 200.
 
 TwinKeys should give its receiving socket a large `SO_RCVBUF` (for example
@@ -103,9 +105,27 @@ including `hello`, gets exactly one reply:
 `"error"` appears only when `ok` is false. If the datagram is not valid JSON or
 has no integer `id`, the reply is `{"type":"ack","id":null,"ok":false,...}`.
 
+**Optional `"structure"` field.** Any command except `hello` may carry
+`"structure": <int>`, the value from the latest `song` message. If it is
+present and differs from the script's current structure counter, the command
+is **not run** and the reply is:
+
+```json
+{"type":"ack","id":7,"ok":false,"error":"structure_changed","structure":43}
+```
+
+`structure` in that reply is the current value. The client should apply the
+newest `song`/`tracks`/`scenes` state (or send `hello`) and resend the command
+with re-resolved indices. A non-integer `structure` gets
+`"error":"'structure' must be an integer"`. Commands without the field work as
+before (indices are taken against the current `song.tracks` / `song.scenes`).
+`hello` ignores the field. The check sees a change as soon as Live's
+`tracks`/`scenes` listener has fired, even in the same tick; a change that no
+listener reported is only noticed by the 1 s structure poll.
+
 | cmd            | fields                     | Live call |
 |----------------|----------------------------|-----------|
-| `hello`        | –                          | ack, then the full state (see below) |
+| `hello`        | –                          | ack, then the full state from the next tick (see below) |
 | `fire_scene`   | `scene`                    | `song.scenes[scene].fire()` |
 | `fire_clip`    | `track`, `scene`           | `track.clip_slots[scene].fire()`. On an empty slot Live fires that slot's stop button, if it has one. |
 | `stop_track`   | `track`                    | `track.stop_all_clips()` |
@@ -116,6 +136,7 @@ has no integer `id`, the reply is `{"type":"ack","id":null,"ok":false,...}`.
 | `set_tempo`    | `bpm` (20–999)             | `song.tempo = bpm` |
 | `set_volume`   | `track`, `value` (0..1)    | `mixer_device.volume.value = min + value*(max-min)` |
 | `set_pan`      | `track`, `value` (-1..1)   | `mixer_device.panning.value` mapped to the parameter's `min..max` |
+| `set_send`     | `track`, `send` (0 or 1), `value` (0..1) | `mixer_device.sends[send].value = min + value*(max-min)`, clamped to the parameter's `min..max` |
 | `set_mute`     | `track`, `on` (bool)       | `track.mute = on` |
 | `set_solo`     | `track`, `on` (bool)       | `track.solo = on` (not exclusive, as in Live's API) |
 | `select_scene` | `scene`                    | `song.view.selected_scene = scene` |
@@ -125,6 +146,15 @@ has no integer `id`, the reply is `{"type":"ack","id":null,"ok":false,...}`.
 `set_pan`. Volume `value` is the parameter's normalised position, not dB. On
 Live's volume parameter, 0.85 is about 0 dB and 1.0 is +6 dB (**unverified**,
 from general Live knowledge).
+
+`send` is `0` (Send A, the first return track) or `1` (Send B, the second); it
+is an index into the track's `mixer_device.sends`, which has one entry per
+return track in Live's return-track order (**unverified**, see below). Other
+values get `"'send' must be between 0 and 1"`. A send the set does not have
+(fewer return tracks) gets `"send 1 out of range (0..0)"`, or
+`"track 2 has no sends (no return tracks)"`. `value` is the parameter's
+normalised position, like volume. The master track has no sends
+(`track: -1` is refused).
 
 ### State messages (Live → TwinKeys)
 
@@ -136,8 +166,15 @@ state is sent again in full, which repairs lost datagrams.
 
 ```json
 {"type":"song","tempo":120.0,"playing":true,"beat":"17.3.1","sig":[4,4],
- "selected_track":2,"selected_scene":0,"set_name":"","tracks":8,"scenes":16}
+ "selected_track":2,"selected_scene":0,"set_name":"","tracks":8,"scenes":16,
+ "structure":42}
 ```
+
+- `structure` is an integer that increases whenever the track list or the
+  scene list changes (add, remove, reorder). It does not change for renames,
+  colours, mixer or clip changes. Its start value is arbitrary (taken from the
+  clock when the script loads, so it is not reused after a reload); compare it
+  only for equality. See the `structure` command field above.
 
 - `beat` is `bars.beats.sixteenths`, all 1-based, computed from
   `current_song_time` (in beats) and the time signature. A "beat" is one
@@ -152,8 +189,9 @@ state is sent again in full, which repairs lost datagrams.
 ```json
 {"type":"tracks","start":0,"master":{"volume":0.85,"pan":0.0},
  "items":[{"index":0,"name":"Drums","color":"#FF3A34","volume":0.85,"pan":0.0,
-           "mute":false,"solo":false,"playing_slot":-1,"fired_slot":-1,
-           "stop_fired":false,"is_group":false,"is_foldable":false,"is_grouped":false}]}
+           "sends":[0.0,0.5],"mute":false,"solo":false,"playing_slot":-1,
+           "fired_slot":-1,"stop_fired":false,"is_group":false,
+           "is_foldable":false,"is_grouped":false}]}
 ```
 
 - `start` is the index of the first item. Items are contiguous runs. An update
@@ -167,6 +205,12 @@ state is sent again in full, which repairs lost datagrams.
   `"stop_fired":true` (extra field).
 - `volume` is 0..1 and `pan` is -1..1, normalised from each parameter's
   `min`/`max`.
+- `sends` holds the track's first two sends, `[send A, send B]`
+  (`mixer_device.sends[0]` and `[1]`), each 0..1 normalised from the
+  parameter's `min`/`max`. It is shorter when the set has fewer return tracks:
+  `[a]` with one, `[]` with none. Further sends are not reported. `master` has
+  no `sends`. Adding, removing or moving a return track changes which send is
+  "A" and "B" (they are positions) but does **not** change `structure`.
 
 **scenes**
 
@@ -230,34 +274,61 @@ stops, one message with empty `items` is sent.
 ```
 
 Internal errors are also written to Live's log via `log_message`. The same
-message is repeated at most every 5 s.
+message is repeated at most every 5 s, and at most 20 error lines of any text
+are written per 5 s; the rest are counted and reported as one
+"N further errors suppressed" line.
 
 ### `hello` and full state
 
-On `hello` the script sends the ack, then re-reads all of Live's state. It then
-sends `song`, `tracks` (with `master`), `scenes`, `meters` (every audio track,
-even if unchanged) and `progress` right away. The per-track `clips` messages
-start in the same tick but are streamed under a budget of about 400 kB per
-tick. A 200 × 200 set is roughly 6 MB of JSON, and a single burst would overflow
-TwinKeys' receive buffer. The periodic 5-second resend uses the same queue.
-Each queued track is encoded from the newest cache when it is sent, so a queued
-full message can never overwrite a newer update.
+On `hello` the script sends the ack at once and only records the request; the
+full state is sent from the tick (normally the same `update_display` call,
+right after the commands). Requests are coalesced: any number of `hello`s
+cause at most one full send per 0.5 s (`FULL_STATE_MIN_INTERVAL`); a `hello`
+that arrives sooner is kept and served when the interval has passed, and it
+re-queues every clip column (columns already queued are not duplicated).
+
+The full send re-reads the song, master, track and scene rows and sends `song`,
+`tracks` (with `master`), `scenes`, `meters` (every audio track, even if
+unchanged) and `progress` right away. The per-track `clips` messages are
+streamed from the cache under a budget of about 400 kB per tick
+(`BULK_BYTES_PER_TICK`). The clip cache is kept fresh by the round-robin poll
+(a 200 × 200 set every ~2 s), and changes are sent as normal updates. A column
+that has no cache yet (startup, structure change) is first re-read under
+`SLOT_BUDGET` and then sent. A 200 × 200 set is roughly 6 MB of JSON, and a
+single burst would overflow TwinKeys' receive buffer. The periodic 5-second
+resend uses the same queue. Each queued track is encoded from the newest cache
+when it is sent, so a queued full message can never overwrite a newer update.
 
 ## How it keeps CPU low
 
 - **Listeners** (`listeners.py`): `Song.tracks` and `Song.scenes` mark a
   structure change. Each track's `name`, `color`, `mute`, `solo`,
   `playing_slot_index` and `fired_slot_index`, plus its mixer volume/panning
-  `value`, mark that track dirty. Each scene's `name`, `color` and
-  `is_triggered` mark that scene dirty. Listeners only set flags and never
-  touch Live.
+  `value` and the `value` of its first two sends, mark that track's row dirty.
+  A track row re-read never re-reads the clip column; only a change of
+  `playing_slot`/`fired_slot` re-reads the (at most four) slots involved. So
+  mixer and send automation costs one row read per track and tick, not a clip
+  column. `Song.return_tracks` marks every track row dirty (rows only) and
+  rebinds just the send listeners, under the same per-tick listener budget.
+  Each scene's `name`, `color` and `is_triggered` mark that scene dirty.
+  Listeners only set flags and never touch Live.
+- On a structure change, tracks and scenes that are still there keep their
+  listeners (only the index their callback reports is updated). Listeners for
+  new objects are added, and those of removed objects removed, at most 400
+  Live calls per tick (`LISTENER_OPS_PER_TICK`); polling covers the gap.
 - **Polling with budgets** (`state.py`): every tick reads the song row (a few
   attributes), the master mixer, the dirty items, and a round-robin slice: 25
   track rows, 25 scene rows, and about 2000 clip slots. Clip slots have no
   listeners; 40 000 of them would cost more than polling. A 200 × 200 set is
   fully re-read about every 2 s, and a small set every tick.
 - Structure is re-checked every 1 s by comparing the cached track and scene
-  lists, as a fallback if a listener is missed.
+  lists, as a fallback if a listener is missed. After a structure change the
+  clip columns that must be re-read (all of them when the scene list changed)
+  are queued and re-read under `SLOT_BUDGET`, and sent under the bulk byte
+  budget, over several ticks. Measured with the fake model on 200 × 200: one
+  scene insert went from 810 datagrams / 5.5 MB and 4 400 listener calls in one
+  tick to at most about 480 kB per tick and 3 listener calls, spread over ~20
+  ticks.
 - Results are cached and compared. Encoded clip columns are cached and reused
   for full resends.
 
@@ -267,16 +338,31 @@ full message can never overwrite a newer update.
 cd LiveBridge && python3 -m unittest -v
 ```
 
-56 tests, no Live needed. `tests/fake_live.py` is a fake Live object model
-(Song, View, Track, MixerDevice, DeviceParameter with value/min/max, Scene,
-ClipSlot, Clip, listener methods). The tests cover:
+88 tests, no Live needed. `tests/fake_live.py` is a fake Live object model
+(Song with return tracks, View, Track, MixerDevice with sends,
+DeviceParameter with value/min/max, Scene, ClipSlot, Clip, listener methods).
+The tests cover:
 
 - command dispatch and validation, malformed input, and Live exceptions
   becoming `ok:false`
 - diffing: no message when nothing changed, partial track/scene/clip updates,
   the 5 s resend, and the 100 ms rate limit
-- chunking with 200 tracks × 200 scenes: every datagram < 60 000 bytes, all
+- chunking with 200 tracks × 200 scenes: every datagram < 8 000 bytes, all
   40 000 slots present, UTF-8 counted in bytes
+- sends: the first two are reported (shorter with fewer return tracks,
+  normalised from min/max); `set_send` validation, range mapping and the
+  `structure` check; send listeners mark only the row; a return-track insert
+  or removal rebinds the send listeners in budgeted steps and does not change
+  `structure`
+- budgets on 200 × 200: a scene or track insert and `hello` stay within the
+  slot and byte budgets per tick and still deliver every column; mixer and
+  send changes do not re-read clips; a play change re-reads only the affected
+  slots;
+  listener re-registration is incremental and bounded per tick; 64 `hello`s
+  in one tick give one full state
+- the `structure` counter and command check (match, mismatch, missing field)
+- a persistent receive error does not spin the receive loop; error log
+  flooding is bounded
 - beat formatting in 4/4, 3/4 and 6/8, and bad input
 - binding to `127.0.0.1` only: the bind address is asserted, other hosts are
   refused, plus a real loopback round trip
@@ -310,6 +396,8 @@ Sources:
 | `Track.playing_slot_index` is -1 when nothing plays; `fired_slot_index` is -1 when none and -2 when the stop button is fired | [LOM] |
 | `Track.output_meter_left/right` are 0.0–1.0, audio-output tracks only | [LOM] |
 | `MixerDevice.volume` / `panning` are DeviceParameters with `value` / `min` / `max` and `add_value_listener` | [LOM]; [AOSC] `track.py` |
+| `MixerDevice.sends` is "the Tracks list of Send Amount Device Parameters" (observable with `add_sends_listener`); a send is set with `mixer_device.sends[i].value` | [LOM] Live.MixerDevice.MixerDevice; [AOSC] `track.py` (`/live/track/set/send`) |
+| `Song.return_tracks` is "the list of available Return Tracks", with `add_return_tracks_listener` | [LOM] Live.Song.Song |
 | `Scene.name`, `color`, `is_triggered`, `fire()` | [LOM]; [AOSC] `scene.py` |
 | `ClipSlot.has_clip`, `clip`, `fire()` (fires the stop button on an empty slot) | [LOM]; [AOSC] `clip_slot.py` |
 | `Clip.name`, `color`, `length` (beats, or seconds if unwarped), `playing_position` (beats, or seconds for unwarped audio, 0 when stopped) | [LOM]; [AOSC] `clip.py` |
@@ -334,9 +422,17 @@ Sources:
   [LOM]. The script never changes state inside a listener.
 - The Live 12 menu label, the `Log.txt` location, and the volume dB mapping
   (see above).
+- Sends: that `mixer_device.sends` has one entry per return track, in
+  return-track order (so `sends[0]` is the return track "A"), that
+  `Song.return_tracks` fires when a return track is added, deleted or moved,
+  and that each track's `sends` then lists the parameters in the new order.
+  [LOM] documents the properties and listeners but not this behaviour. The
+  send level is assumed to be 0..1 (`min`/`max` are read, so another range
+  still maps correctly); what dB a given send value means is not stated here.
 - The macOS UDP behaviour (`SO_SNDBUF` needed for datagrams larger than 9216
   bytes, `ENOBUFS` on bursts) is from general macOS knowledge. It was not
   tested on macOS here; the tests ran on Linux.
 - CPU cost in a real 200 × 200 set. With the fake model, an incremental tick
-  takes about 2 ms (median) to 15 ms (worst), and `hello` takes about 50 ms.
+  takes about 2 ms (median) to 15 ms (worst); `hello`, a scene insert or a
+  track insert take under ~20 ms per tick (they are spread over ticks).
   Real Live objects are slower to read.

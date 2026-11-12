@@ -108,7 +108,7 @@ TwinKeys Remote controls both Lives from an iPhone or iPad: scenes and clips, pl
 
 ### What you need
 
-- TwinKeys 2.0 or later on both Macs
+- TwinKeys 2.0 or later on both Macs (GO, the set check and sends need 2.1)
 - An iPhone or iPad with iOS 17 or later (TestFlight for now)
 - The iPhone or iPad on the same network as the Macs
 
@@ -133,8 +133,16 @@ TwinKeys Remote controls both Lives from an iPhone or iPad: scenes and clips, pl
 - **Top bar**: link status (main Mac, latency to the backup), play, stop, tempo, position, All Notes Off and the show lock.
 - **Session**: the clip grid. Tap a clip to launch it, an empty slot to stop that track, ▶ at the right to launch the scene. Playing clips show the time left.
 - **Mixer**: drag anywhere in a column to set the volume (or pan). The dashed line is 0 dB. M is mute, S is solo.
-- **Cues**: the same buttons as the cue keys on the Mac, plus the last cue and whether it reached the backup.
+- **Cues**: the same buttons as the cue keys on the Mac, showing what each one does (the memo written on the Mac), plus the last cue and whether it reached the backup.
+- **GO**: uses Live's scene list as the script. Tap the big GO to launch the scene selected in Live on both Macs and move the selection down one. Back and Next only choose; they never play. A second GO within 0.5 s is ignored.
+- **Mixer sends**: Send A and Send B in the mixer move the sends to the return tracks (when the set has return tracks).
 - The iPhone is meant to be held sideways. In landscape the screen switcher is at the right edge. On an iPad or an open iPhone Duo the screen spreads into two or three columns.
+
+### Checking both Macs
+
+- "Backup ✓ · Live ✓" in the top bar means the backup Mac and its Live both answer. With "Live ✗ no answer", check Live and TwinKeysBridge on the backup Mac.
+- When the two Macs have different sets open, a yellow bar "Backup's set differs" appears (on the Mac too). Tap it for the tracks and scenes that differ. Only track and scene counts and names are compared, and nothing is changed automatically.
+- Fader, pan, tempo, mute and solo changes made while the link to the backup was down are sent when it is back. Clip and scene launches are not sent late, because a late launch is dangerous.
 
 ### Safety during the show
 

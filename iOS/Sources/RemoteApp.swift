@@ -5,6 +5,7 @@ import TwinKeysCore
 struct TwinKeysRemoteApp: App {
     /// `-demo` shows fictional sample data (for screenshots and checks without a Mac).
     @StateObject private var model = RemoteModel(demo: ProcessInfo.processInfo.arguments.contains("-demo"))
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -19,6 +20,7 @@ struct TwinKeysRemoteApp: App {
                         }
                     }
                 }
+                .onChange(of: scenePhase) { p in if p == .active { model.appBecameActive() } }
         }
     }
 }

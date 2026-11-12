@@ -168,7 +168,7 @@ jobs:
             for look in light dark; do
               xcrun simctl ui "$UDID" appearance $look
               for turn in landscape portrait; do
-                for pane in session mixer cues; do
+                for pane in session mixer cues go; do
                   xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
                   if [ "$turn" = landscape ]; then
                     xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane $pane -landscape
@@ -180,6 +180,11 @@ jobs:
                 done
               done
             done
+            # The warning for a different backup set (2.1).
+            xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
+            xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane session -landscape -setdiff
+            sleep 5
+            xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-landscape-setdiff.png"
             xcrun simctl shutdown "$UDID" || true
           done
           ls -la ios-screenshots

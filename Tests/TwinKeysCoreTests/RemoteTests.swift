@@ -152,3 +152,77 @@ extension CueTests {
         XCTAssertFalse(t.main.pressCue(keycode: 0x00), "not a cue key")
     }
 }
+
+extension RemoteTests {
+    func testSongCountsTrimTheIPhoneState() {
+        var mac = LiveState()
+        mac.apply(bridge: ["type": "tracks", "items": (0..<4).map { ["index": $0, "name": "T\($0)"] as [String: Any] }])
+        mac.apply(bridge: ["type": "scenes", "items": (0..<5).map { ["index": $0, "name": "S\($0)"] as [String: Any] }])
+        mac.apply(bridge: ["type": "clips", "track": 3, "items": (0..<5).map { ["scene": $0, "has_clip": true] as [String: Any] }])
+        var phone = LiveState()
+        phone.apply(.full(mac))
+        XCTAssertEqual(phone.tracks.count, 4)
+        // A track and a scene are deleted in Live: the next song message carries the new counts.
+        let u = mac.apply(bridge: ["type": "song", "tempo": 120, "tracks": 3, "scenes": 4, "structure": 7])
+        XCTAssertEqual(mac.song.structure, 7)
+        phone.apply(u!)
+        XCTAssertEqual(phone.tracks.count, 3)
+        XCTAssertEqual(phone.clips.count, 3)
+        XCTAssertEqual(phone.scenes.count, 4)
+        XCTAssertEqual(phone.song.structure, 7)
+    }
+
+    func testBridgeJSONCarriesStructure() {
+        XCTAssertEqual(LiveCommand.fireClip(track: 1, scene: 2).bridgeJSON(id: 3, structure: 9)["structure"] as? Int, 9)
+        XCTAssertNil(LiveCommand.play.bridgeJSON(id: 3)["structure"])
+    }
+}
+
+/// 2.0.1: the backup's Live status, and catching up values set while the backup was away.
+extension CueTests {
+    func testBackupTellsWhetherItsLiveAnswers() {
+        let t = self
+        t.connect(); t.tick(1.1)
+        XCTAssertNil(t.main.peerLiveConnected)          // not told yet
+        t.backup.setLiveConnected(true); t.tick(1.1)
+        XCTAssertEqual(t.main.peerLiveConnected, true)
+        t.backup.setLiveConnected(false); t.tick(1.1)
+        XCTAssertEqual(t.main.peerLiveConnected, false)
+    }
+
+    func testMixerChangesMadeWhileUnlinkedReachTheBackupLater() {
+        let t = self
+        var ran: [LiveCommand] = []
+        t.backup.onLiveCommand = { ran.append($0) }
+        t.connect(); t.tick(1.1)
+        t.mainToBackupUp = false; t.backupToMainUp = false
+        t.tick(8)
+        XCTAssertNil(t.main.peerLiveConnected)
+        XCTAssertNil(t.main.forwardLive(.setVolume(track: 1, value: 0.5)))
+        XCTAssertNil(t.main.forwardLive(.setVolume(track: 1, value: 0.6)))   // only the newest counts
+        XCTAssertNil(t.main.forwardLive(.setTempo(128)))
+        XCTAssertNil(t.main.forwardLive(.fireScene(3)))                      // never launched late
+        t.mainToBackupUp = true; t.backupToMainUp = true
+        t.tick(8)
+        XCTAssertEqual(Set(ran.map { "\($0)" }), Set(["\(LiveCommand.setVolume(track: 1, value: 0.6))", "\(LiveCommand.setTempo(128))"]))
+    }
+
+    func testLiveStatusPacketRoundTrip() throws {
+        let p = Packet(session: 7, seq: 9, body: .liveStatus(connected: true))
+        XCTAssertEqual(try Packet.decode(p.encode()), p)
+    }
+}
+
+extension RemoteTests {
+    func testInitialUpdatesRebuildTheState() {
+        var mac = LiveState()
+        mac.apply(bridge: ["type": "tracks", "items": (0..<3).map { ["index": $0, "name": "T\($0)"] as [String: Any] }])
+        mac.apply(bridge: ["type": "scenes", "items": (0..<4).map { ["index": $0, "name": "S\($0)"] as [String: Any] }])
+        for t in 0..<3 { mac.apply(bridge: ["type": "clips", "track": t, "items": (0..<4).map { ["scene": $0, "has_clip": ($0 + t) % 2 == 0, "name": "C\(t)\($0)"] as [String: Any] }]) }
+        let ups = mac.initialUpdates()
+        XCTAssertEqual(ups.count, 4)
+        var phone = LiveState()
+        for u in ups { phone.apply(u) }
+        XCTAssertEqual(phone, mac)
+    }
+}

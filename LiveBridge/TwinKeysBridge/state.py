@@ -51,6 +51,15 @@ def param_pan(param):
     return param_norm(param) * 2.0 - 1.0
 
 
+def read_sends(mixer, limit=C.MAX_SENDS):
+    """The first `limit` sends of a mixer as 0..1 (each from its parameter's
+    min/max). Shorter, or empty, when the set has fewer return tracks."""
+    sends = getattr(mixer, "sends", None)
+    if sends is None:
+        return []
+    return [rnd(param_norm(sends[k])) for k in range(min(limit, len(sends)))]
+
+
 def _clip_same(a, b):
     """Clip items are equal ignoring position_beats (it moves constantly;
     the "progress" message carries it)."""
@@ -67,7 +76,7 @@ class StateTracker(object):
 
     def __init__(self, song_provider, clock=time.monotonic,
                  report_error=None, on_structure=None,
-                 limit=C.MAX_DATAGRAM_BYTES):
+                 limit=C.MAX_DATAGRAM_BYTES, structure_seed=None):
         self._song_provider = song_provider
         self._clock = clock
         self._report = report_error or (lambda msg: None)
@@ -94,8 +103,23 @@ class StateTracker(object):
 
         self._dirty_tracks = set()
         self._dirty_scenes = set()
-        self._dirty_clips = set()
+        # Clip slots to re-read because a track's playing/fired slot moved:
+        # track index -> set of slot indices (at most 4 per change).
+        self._clip_patches = {}
+        # Whole clip columns to re-read (startup, structure change), spread
+        # over ticks under SLOT_BUDGET.
+        self._rescan = collections.deque()
+        self._rescan_set = set()
+        # Columns the bulk queue wanted while they were still being re-read.
+        self._resend_after_read = set()
         self._structure_dirty = True
+        self._full_requested = False
+        # Structure counter: increases whenever the track or scene list
+        # changes. Seeded from the wall clock so a reloaded script does not
+        # reuse a value a client still holds.
+        if structure_seed is None:
+            structure_seed = int(time.time() * 1000) % 1000000000
+        self._structure = int(structure_seed)
         self._initialized = False
 
         self._track_cursor = 0
@@ -110,6 +134,7 @@ class StateTracker(object):
         self._last_meter = neg
         self._last_progress = neg
         self._last_structure = neg
+        self._last_full_state = neg
         self._meter_until = neg
         self._sel_track_hint = -1
         self._sel_scene_hint = -1
@@ -121,11 +146,40 @@ class StateTracker(object):
         self._structure_dirty = True
 
     def mark_track_dirty(self, index):
+        """Re-read the track row next tick. Clip slots are re-read only if
+        the row's playing/fired slot changed (see _store_track), so mixer
+        automation does not cause clip column reads."""
         self._dirty_tracks.add(index)
-        self._dirty_clips.add(index)
+
+    def mark_all_tracks_dirty(self):
+        """Re-read every track row next tick: the return-track list changed,
+        so every track's sends did. Rows only; clip columns are not re-read
+        (see mark_track_dirty)."""
+        self._dirty_tracks.update(range(len(self._tracks)))
 
     def mark_scene_dirty(self, index):
         self._dirty_scenes.add(index)
+
+    def request_full_state(self):
+        """Ask for the full state (for "hello"). Coalesced: any number of
+        requests produce at most one full send per FULL_STATE_MIN_INTERVAL,
+        done by the next tick() under the usual budgets."""
+        self._full_requested = True
+
+    @property
+    def structure(self):
+        return self._structure
+
+    def current_structure(self):
+        """The structure counter, after applying a structure change a Live
+        listener has already reported (so a command arriving in the same
+        tick as the change is checked against the new lists)."""
+        if self._structure_dirty and self._initialized:
+            song = self._song()
+            if song is not None:
+                self._guard("structure", self._refresh_structure, song,
+                            self._clock(), False)
+        return self._structure
 
     @property
     def tracks(self):
@@ -146,13 +200,19 @@ class StateTracker(object):
         if now is None:
             now = self._clock()
         out = []
-        if now - self._last_state >= C.STATE_INTERVAL:
+        full = self._full_requested and \
+            now - self._last_full_state >= C.FULL_STATE_MIN_INTERVAL
+        if full or now - self._last_state >= C.STATE_INTERVAL:
             self._last_state = now
             song = self._song()
             if song is None:
                 return out
-            if not self._initialized:
-                self._guard("initial scan", self._full_scan, song, now)
+            if full:
+                self._full_requested = False
+                self._last_full_state = now
+                self._send_full_head(song, now, out)
+            elif not self._initialized:
+                self._guard("initial scan", self._full_scan, song, now, True)
             else:
                 self._guard("structure", self._refresh_structure, song, now,
                             False)
@@ -170,28 +230,26 @@ class StateTracker(object):
         return out
 
     def full_state(self, now=None):
-        """Re-read everything and return the full state (for "hello").
-        Song, tracks, scenes, meters and progress are returned at once; the
-        per-track clip messages are queued and streamed by tick() under a
-        byte budget so a big set does not overflow the receiver's buffer."""
-        if now is None:
-            now = self._clock()
-        out = []
-        song = self._song()
-        if song is None:
-            return out
-        self._guard("full scan", self._full_scan, song, now)
+        """Request the full state and run one tick (tests / direct use).
+        Song, tracks, scenes, meters and progress come at once; the clip
+        columns are re-read and streamed by later ticks under the budgets."""
+        self.request_full_state()
+        return self.tick(now)
+
+    def _send_full_head(self, song, now, out):
+        self._guard("full scan", self._full_scan, song, now,
+                    not self._initialized)
         self._last_full = now
         self._guard("full", self._full_from_cache, out)
         self._meters = {}
         self._master_meter = None
+        self._last_meter = now
         self._guard("meters", self._send_meters, song, out, True)
         self._guard("progress", self._update_progress, song, now, out, True)
-        self._guard("bulk", self._drain_bulk, out)
-        return out
 
     def bulk_pending(self):
-        return len(self._bulk)
+        """Clip columns still to be re-read or sent."""
+        return len(self._bulk) + len(self._rescan)
 
     # ------------------------------------------------------------ helpers
 
@@ -237,6 +295,8 @@ class StateTracker(object):
         if not (force or scenes_changed or tracks_changed or master_changed):
             return
 
+        if scenes_changed or tracks_changed:
+            self._structure += 1
         n = len(tracks)
         self._tracks = tracks
         self._scenes = scenes
@@ -250,16 +310,29 @@ class StateTracker(object):
                     self._clip_bytes):
             resize(lst, n)
         resize(self._track_audio, n, False)
-        reset = range(n) if (force or scenes_changed) else changed_tracks
+        # Drop queued work for indices that no longer exist.
+        self._rescan = collections.deque(t for t in self._rescan if t < n)
+        self._rescan_set = set(self._rescan)
+        self._resend_after_read = set(t for t in self._resend_after_read
+                                      if t < n)
+        reset = range(n) if force else changed_tracks
         for i in reset:
             self._slots[i] = None
             self._track_rows[i] = None
             self._clip_items[i] = None
             self._clip_bytes[i] = None
             self._dirty_tracks.add(i)
-            self._dirty_clips.add(i)
+            self._queue_rescan(i)
+        if scenes_changed and not force:
+            # Same tracks, new scene list: every column must be re-read, but
+            # under SLOT_BUDGET over several ticks (the old column stays
+            # cached until its re-read replaces it).
+            for i in range(n):
+                self._slots[i] = None
+                self._queue_rescan(i)
         self._dirty_tracks = set(i for i in self._dirty_tracks if i < n)
-        self._dirty_clips = set(i for i in self._dirty_clips if i < n)
+        self._clip_patches = dict((t, v) for t, v in self._clip_patches.items()
+                                  if t < n)
         self._meters = dict((k, v) for k, v in self._meters.items() if k < n)
         if scenes_changed or force:
             m = len(scenes)
@@ -291,8 +364,23 @@ class StateTracker(object):
             self._slots[t] = slots
         return slots
 
-    def _full_scan(self, song, now):
-        self._refresh_structure(song, now, True)
+    def _queue_rescan(self, t, front=False):
+        if t in self._rescan_set:
+            if front and self._rescan and self._rescan[0] != t:
+                self._rescan.remove(t)
+                self._rescan.appendleft(t)
+            return
+        self._rescan_set.add(t)
+        if front:
+            self._rescan.appendleft(t)
+        else:
+            self._rescan.append(t)
+
+    def _full_scan(self, song, now, force):
+        """Re-read the song, master, track and scene rows. Clip columns are
+        not read here: columns without a cache are queued and re-read by
+        _update_clips under SLOT_BUDGET."""
+        self._refresh_structure(song, now, force)
         self._song_row = self._read_song(song)
         self._master_row = self._read_master()
         for i in range(len(self._tracks)):
@@ -300,11 +388,8 @@ class StateTracker(object):
         for s in range(len(self._scenes)):
             self._guard("scene %d" % s, self._store_scene_live, s)
         self._compose_scenes()
-        for i in range(len(self._tracks)):
-            self._guard("clips %d" % i, self._store_clips, i)
         self._dirty_tracks.clear()
         self._dirty_scenes.clear()
-        self._dirty_clips.clear()
         self._initialized = True
 
     # ------------------------------------------------------------ song
@@ -342,6 +427,7 @@ class StateTracker(object):
             "set_name": set_name,
             "tracks": len(self._tracks),
             "scenes": len(self._scenes),
+            "structure": self._structure,
         }
 
     def _update_song(self, song, out):
@@ -368,6 +454,7 @@ class StateTracker(object):
             "color": color_hex(track.color),
             "volume": rnd(param_norm(mixer.volume)),
             "pan": rnd(param_pan(mixer.panning)),
+            "sends": read_sends(mixer),
             "mute": bool(track.mute),
             "solo": bool(track.solo),
             "playing_slot": playing if playing >= 0 else -1,
@@ -382,9 +469,17 @@ class StateTracker(object):
         row = self._read_track(i)
         old = self._track_rows[i]
         self._track_rows[i] = row
-        if old is None or old["playing_slot"] != row["playing_slot"] \
+        if old is None:
+            if self._clip_items[i] is None:
+                self._queue_rescan(i)
+        elif old["playing_slot"] != row["playing_slot"] \
                 or old["fired_slot"] != row["fired_slot"]:
-            self._dirty_clips.add(i)
+            # Only the slots that started/stopped playing or blinking.
+            slots = self._clip_patches.setdefault(i, set())
+            for s in (old["playing_slot"], row["playing_slot"],
+                      old["fired_slot"], row["fired_slot"]):
+                if s >= 0:
+                    slots.add(s)
         return row != old
 
     def _read_master(self):
@@ -466,33 +561,34 @@ class StateTracker(object):
 
     # ------------------------------------------------------------ clips
 
+    @staticmethod
+    def _read_slot(slot, s, playing, fired):
+        if slot.has_clip:
+            clip = slot.clip
+            return {
+                "scene": s, "has_clip": True,
+                "name": clean_name(clip.name),
+                "color": color_hex(clip.color),
+                "is_playing": s == playing,
+                "is_triggered": s == fired,
+                "length_beats": rnd(clip.length, 3),
+                "position_beats": rnd(clip.playing_position, 3)
+                if s == playing else 0.0,
+            }
+        return {
+            "scene": s, "has_clip": False, "name": "",
+            "color": None, "is_playing": False,
+            "is_triggered": s == fired,
+            "length_beats": 0.0, "position_beats": 0.0,
+        }
+
     def _read_clips(self, t):
         track = self._tracks[t]
         slots = self._get_slots(t)
         playing = int(track.playing_slot_index)
         fired = int(track.fired_slot_index)
-        items = []
-        for s, slot in enumerate(slots):
-            if slot.has_clip:
-                clip = slot.clip
-                items.append({
-                    "scene": s, "has_clip": True,
-                    "name": clean_name(clip.name),
-                    "color": color_hex(clip.color),
-                    "is_playing": s == playing,
-                    "is_triggered": s == fired,
-                    "length_beats": rnd(clip.length, 3),
-                    "position_beats": rnd(clip.playing_position, 3)
-                    if s == playing else 0.0,
-                })
-            else:
-                items.append({
-                    "scene": s, "has_clip": False, "name": "",
-                    "color": None, "is_playing": False,
-                    "is_triggered": s == fired,
-                    "length_beats": 0.0, "position_beats": 0.0,
-                })
-        return items
+        return [self._read_slot(slot, s, playing, fired)
+                for s, slot in enumerate(slots)]
 
     def _store_clips(self, t):
         """Re-read one track's clip column; returns the changed items."""
@@ -511,33 +607,90 @@ class StateTracker(object):
             self._clip_items[t] = old
         return changed
 
+    def _patch_clips(self, t, indices):
+        """Re-read only the given slots of a cached column (playing/fired
+        slot change). Returns the changed items, or None if the column has
+        to be re-read in full."""
+        items = self._clip_items[t]
+        row = self._track_rows[t]
+        if items is None or row is None or t in self._rescan_set:
+            return None
+        slots = self._get_slots(t)
+        if len(slots) != len(items):
+            return None
+        playing = row["playing_slot"]
+        fired = row["fired_slot"]
+        new_items = None
+        changed = []
+        for s in sorted(indices):
+            if not 0 <= s < len(items):
+                continue
+            item = self._read_slot(slots[s], s, playing, fired)
+            if not _clip_same(item, items[s]):
+                if new_items is None:
+                    new_items = list(items)
+                new_items[s] = item
+                changed.append(item)
+        if new_items is not None:
+            self._clip_items[t] = new_items
+            self._clip_bytes[t] = None
+        return changed
+
+    def _read_column(self, t, out, full_send):
+        """Re-read column t. A column read for the first time (or whose
+        length changed) goes to the bulk queue, which sends it under the
+        byte budget; otherwise only the changed items are sent now."""
+        old = self._clip_items[t]
+        changed = self._guard("clips %d" % t, self._store_clips, t)
+        if changed is None:
+            return
+        new = self._clip_items[t]
+        if full_send or old is None or new is None or len(old) != len(new):
+            self._enqueue_bulk(t)
+        elif changed:
+            out.extend(self._pack({"type": "clips", "track": t}, changed,
+                                  start=False))
+
     def _update_clips(self, out):
         n = len(self._tracks)
         if n == 0:
             return
-        todo = sorted(t for t in self._dirty_clips if t < n)
-        self._dirty_clips.clear()
         spent = 0
         done = set()
-        for t in todo:
-            changed = self._guard("clips %d" % t, self._store_clips, t)
-            done.add(t)
-            spent += len(self._scenes)
-            if changed:
+        # 1. Playing/fired changes: a few slots per track, never a column.
+        patches, self._clip_patches = self._clip_patches, {}
+        for t in sorted(patches):
+            if t >= n:
+                continue
+            changed = self._guard("clips %d" % t, self._patch_clips, t,
+                                  patches[t])
+            spent += len(patches[t])
+            if changed is None:
+                self._queue_rescan(t, front=True)   # re-read it first
+            elif changed:
                 out.extend(self._pack({"type": "clips", "track": t}, changed,
                                       start=False))
+        # 2. Whole columns queued by startup / structure changes.
+        while self._rescan and spent < C.SLOT_BUDGET:
+            t = self._rescan.popleft()
+            self._rescan_set.discard(t)
+            if t >= n:
+                continue
+            full_send = t in self._resend_after_read
+            self._resend_after_read.discard(t)
+            self._read_column(t, out, full_send)
+            done.add(t)
+            spent += max(1, len(self._scenes))
+        # 3. Round robin with what is left of the budget.
         visited = 0
-        while visited < n and (spent < C.SLOT_BUDGET or visited == 0):
+        while visited < n and spent < C.SLOT_BUDGET:
             t = self._clip_cursor % n
             self._clip_cursor = (t + 1) % n
             visited += 1
             if t in done:
                 continue
-            changed = self._guard("clips %d" % t, self._store_clips, t)
+            self._read_column(t, out, False)
             spent += max(1, len(self._scenes))
-            if changed:
-                out.extend(self._pack({"type": "clips", "track": t}, changed,
-                                      start=False))
 
     def _clip_column(self, t):
         data = self._clip_bytes[t]
@@ -548,12 +701,22 @@ class StateTracker(object):
             self._clip_bytes[t] = data
         return data
 
+    def _enqueue_bulk(self, t):
+        if t not in self._bulk_set:
+            self._bulk.append(t)
+            self._bulk_set.add(t)
+
     def _drain_bulk(self, out):
         spent = 0
         while self._bulk and spent < C.BULK_BYTES_PER_TICK:
             t = self._bulk.popleft()
             self._bulk_set.discard(t)
-            if t >= len(self._tracks) or self._clip_items[t] is None:
+            if t >= len(self._tracks):
+                continue
+            if self._clip_items[t] is None or t in self._rescan_set:
+                # Not read yet (or being re-read): sent once it is read.
+                self._resend_after_read.add(t)
+                self._queue_rescan(t)
                 continue
             for chunk in self._clip_column(t):
                 out.append(chunk)
@@ -570,9 +733,7 @@ class StateTracker(object):
         scenes = [r for r in self._scene_rows if r is not None]
         out.extend(self._pack({"type": "scenes"}, scenes))
         for t in range(len(self._tracks)):
-            if t not in self._bulk_set:
-                self._bulk.append(t)
-                self._bulk_set.add(t)
+            self._enqueue_bulk(t)
 
     # ------------------------------------------------------------ meters
 

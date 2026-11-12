@@ -13,12 +13,25 @@ final class RemoteServer {
     private let serverID: String
     private var serverName: String
     private var stopped = true
+    /// One approval question at a time, with a time limit and a pause after a refusal.
+    private var gate = RemoteApprovalGate()
+    private var sweeper: DispatchSourceTimer?
+    /// An approved device that sends nothing for this long is gone (it pings every 2 s).
+    static let idleLimit: Double = 8
+    /// Bytes queued to one device: above `slowLimit` meters and clip progress are skipped for it,
+    /// above `dropLimit` it is disconnected.
+    static let slowLimit = 1 << 20
+    static let dropLimit = 8 << 20
 
     // Hooks, set by AppModel. Called on `queue` unless noted.
     /// Is this device approved? (reads settings; thread-safe closure)
     var isApproved: (RemoteClientHello) -> Bool = { _ in false }
-    /// Ask the person on the main thread; call the answer closure with true to allow.
-    var askApproval: (_ name: String, _ code: String, _ answer: @escaping (Bool) -> Void) -> Void = { _, _, a in a(false) }
+    /// Ask the person on the main thread; call the answer closure with true to allow. `token`
+    /// names this question: an answer is only ever applied to the question it was shown for.
+    var askApproval: (_ token: Int, _ name: String, _ code: String, _ answer: @escaping (Bool) -> Void) -> Void = { _, _, _, a in a(false) }
+    /// The question `token` is over without an answer (time limit, or the device left): close its
+    /// alert (main thread).
+    var cancelApproval: (_ token: Int) -> Void = { _ in }
     /// Runs a command from the iPhone; `done(ok, error, backupDelivery)`.
     var runCommand: (LiveCommand, @escaping (Bool, String?, String) -> Void) -> Void = { _, d in d(false, "not ready", "notSent") }
     var pressCue: (UInt16) -> Bool = { _ in false }
@@ -38,6 +51,13 @@ final class RemoteServer {
         var code = ""
         var proven = false
         var approved = false
+        /// The approval question open for this connection.
+        var approvalToken: Int?
+        /// The iPhone's show lock (`RemoteMessage.lock`).
+        var locked = false
+        var lastHeard = ProcessInfo.processInfo.systemUptime
+        /// Bytes handed to the connection and not yet sent.
+        var inFlight = 0
         init(conn: NWConnection, session: RemoteSession) { self.conn = conn; self.session = session }
     }
 
@@ -53,12 +73,12 @@ final class RemoteServer {
             self.dropAll()
             self.listener?.cancel(); self.listener = nil
             self.stopped = pairing == nil
-            if pairing != nil { self.startListener() }
+            if pairing != nil { self.startListener(); self.startSweeper() }
         }
     }
 
     func stop() {
-        queue.sync { stopped = true; dropAll(); listener?.cancel(); listener = nil }
+        queue.sync { stopped = true; dropAll(); listener?.cancel(); listener = nil; sweeper?.cancel(); sweeper = nil }
     }
 
     /// Sends a Live change to every approved device.
@@ -83,7 +103,13 @@ final class RemoteServer {
 
     private func startListener() {
         guard !stopped else { return }
-        let p = NWParameters.tcp
+        // Keepalive: a phone that vanished (Wi-Fi gone, battery) is noticed by TCP too.
+        let tcp = NWProtocolTCP.Options()
+        tcp.enableKeepalive = true
+        tcp.keepaliveIdle = 5
+        tcp.keepaliveInterval = 2
+        tcp.keepaliveCount = 3
+        let p = NWParameters(tls: nil, tcp: tcp)
         p.includePeerToPeer = false
         guard let l = try? NWListener(using: p) else {
             queue.asyncAfter(deadline: .now() + 5) { [weak self] in self?.startListener() }
@@ -130,6 +156,7 @@ final class RemoteServer {
         client.conn.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, complete, error in
             guard let self, self.clients[key] != nil else { return }
             if let data, !data.isEmpty {
+                client.lastHeard = ProcessInfo.processInfo.systemUptime
                 do {
                     for e in try client.session.receive(Array(data)) { self.handle(e, key, client) }
                 } catch {
@@ -165,23 +192,75 @@ final class RemoteServer {
     private func decideApproval(_ key: ObjectIdentifier, _ c: Client) {
         guard let hello = c.hello else { close(key, c); return }
         if isApproved(hello) { welcome(c); return }
+        let token: Int
+        switch gate.request(deviceID: hello.deviceID, now: ProcessInfo.processInfo.systemUptime) {
+        case let .ask(t): token = t
+        case .busy:
+            // Another device is being asked about: refuse quietly (no second alert).
+            onLog?("Remote: \(hello.deviceName) refused (another device is waiting for approval)")
+            close(key, c); return
+        case .coolingDown:
+            // Refused a moment ago: no new alert.
+            close(key, c); return
+        }
+        c.approvalToken = token
         send(.waitingForApproval(code: c.code), to: c)
         onLog?("Remote: \(hello.deviceName) asks to connect (code \(c.code))")
-        let name = hello.deviceName
+        let name = hello.deviceName, code = c.code
+        queue.asyncAfter(deadline: .now() + RemoteApprovalGate.timeout) { [weak self] in
+            guard let self, self.gate.isExpired(token: token, now: ProcessInfo.processInfo.systemUptime + 0.5) else { return }
+            self.onLog?("Remote: \(name) was not allowed in time")
+            self.answered(token, key, allow: false)
+            DispatchQueue.main.async { [weak self] in self?.cancelApproval(token) }
+        }
         DispatchQueue.main.async { [weak self] in
-            self?.askApproval(name, c.code) { allow in
-                self?.queue.async {
-                    guard let self, self.clients[key] != nil else { return }
-                    if allow, let h = c.hello { self.onApproved(h); self.welcome(c) } else { self.send(.denied, to: c); self.close(key, c) }
-                }
+            self?.askApproval(token, name, code) { allow in
+                self?.queue.async { self?.answered(token, key, allow: allow) }
             }
         }
     }
 
+    /// The approval question `token` ended. Ignored unless it is still the open question.
+    private func answered(_ token: Int, _ key: ObjectIdentifier, allow: Bool) {
+        guard gate.finish(token: token, allowed: allow, now: ProcessInfo.processInfo.systemUptime) else { return }
+        guard let c = clients[key], c.approvalToken == token else { return }
+        c.approvalToken = nil
+        if allow, let h = c.hello { onApproved(h); welcome(c) } else { send(.denied, to: c); close(key, c) }
+    }
+
+    /// The connection is going away: an open question about it ends (refused) and its alert closes.
+    private func endApproval(_ c: Client) {
+        guard let token = c.approvalToken else { return }
+        c.approvalToken = nil
+        if gate.finish(token: token, allowed: false, now: ProcessInfo.processInfo.systemUptime) {
+            DispatchQueue.main.async { [weak self] in self?.cancelApproval(token) }
+        }
+    }
+
+    /// Once a second: drop approved devices that went quiet.
+    private func startSweeper() {
+        guard sweeper == nil else { return }
+        let t = DispatchSource.makeTimerSource(queue: queue)
+        t.schedule(deadline: .now() + 1, repeating: 1)
+        t.setEventHandler { [weak self] in
+            guard let self else { return }
+            let now = ProcessInfo.processInfo.systemUptime
+            for (k, c) in self.clients where c.approved && now - c.lastHeard > Self.idleLimit {
+                self.onLog?("Remote: \(c.hello?.deviceName ?? "?") stopped answering; disconnected")
+                self.close(k, c)
+            }
+        }
+        t.resume()
+        sweeper = t
+    }
+
     private func welcome(_ c: Client) {
         c.approved = true
+        c.lastHeard = ProcessInfo.processInfo.systemUptime
         send(.welcome(macName: serverName), to: c)
-        send(.update(.full(snapshot())), to: c)
+        // In pieces (one clip column per message): a big set in one message could pass the
+        // receive limit on the iPhone.
+        for u in snapshot().initialUpdates() { send(.update(u), to: c) }
         if let s = status() { send(.status(s), to: c) }
         onLog?("Remote: \(c.hello?.deviceName ?? "?") connected")
         notifyCount()
@@ -191,17 +270,28 @@ final class RemoteServer {
         switch m {
         case let .command(id, cmd):
             guard cmd.isValid else { send(.result(id: id, ok: false, error: "invalid", backup: "notSent"), to: c); return }
+            // The show lock is enforced here too, not only on the iPhone.
+            guard !c.locked || cmd.allowedWhileLocked else { send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c); return }
+            // Operation log (fader and tempo moves are too many to log one by one).
+            let who = c.hello?.deviceName ?? "?"
+            if !cmd.isContinuous { onLog?("Remote: \(who): \(cmd)") }
             runCommand(cmd) { [weak self] ok, err, backup in
+                if !ok, !cmd.isContinuous { self?.onLog?("Remote: \(who): \(cmd) not run (\(err ?? "error"))") }
                 self?.queue.async { self?.send(.result(id: id, ok: ok, error: err, backup: backup), to: c) }
             }
         case let .cue(id, keycode):
             let ok = pressCue(keycode)
+            onLog?("Remote: \(c.hello?.deviceName ?? "?"): cue key \(keycode)\(ok ? "" : " (not a cue key)")")
             send(.result(id: id, ok: ok, error: ok ? nil : "not a cue key", backup: "see status"), to: c)
         case let .allNotesOff(id):
+            onLog?("Remote: \(c.hello?.deviceName ?? "?"): All Notes Off")
             allNotesOff()
             send(.result(id: id, ok: true, error: nil, backup: "sent"), to: c)
         case let .ping(t):
             send(.pong(t), to: c)
+        case let .lock(on):
+            if c.locked != on { onLog?("Remote: \(c.hello?.deviceName ?? "?"): show lock \(on ? "on" : "off")") }
+            c.locked = on
         default:
             break
         }
@@ -209,11 +299,30 @@ final class RemoteServer {
 
     private func send(_ m: RemoteMessage, to c: Client) {
         guard let bytes = try? c.session.seal(m) else { return }
-        c.conn.send(content: Data(bytes), completion: .contentProcessed { _ in })
+        let n = bytes.count
+        c.inFlight += n
+        // Completion runs on `queue` (the connection's queue).
+        c.conn.send(content: Data(bytes), completion: .contentProcessed { _ in c.inFlight -= n })
     }
 
     private func sendAll(_ m: RemoteMessage) {
-        for c in clients.values where c.approved { send(m, to: c) }
+        var skippable = false
+        if case let .update(u) = m {
+            switch u {
+            case .meters, .progress: skippable = true
+            default: break
+            }
+        }
+        for (k, c) in clients where c.approved {
+            if c.inFlight > Self.dropLimit {
+                onLog?("Remote: \(c.hello?.deviceName ?? "?") is not keeping up; disconnected")
+                close(k, c)
+                continue
+            }
+            // A slow device skips meters and clip progress (newer ones follow) until it catches up.
+            if skippable && c.inFlight > Self.slowLimit { continue }
+            send(m, to: c)
+        }
     }
 
     private func close(_ key: ObjectIdentifier, _ c: Client) {
@@ -222,11 +331,11 @@ final class RemoteServer {
     }
 
     private func forget(_ key: ObjectIdentifier) {
-        if clients.removeValue(forKey: key) != nil { notifyCount() }
+        if let c = clients.removeValue(forKey: key) { endApproval(c); notifyCount() }
     }
 
     private func dropAll() {
-        for c in clients.values { c.conn.cancel() }
+        for c in clients.values { endApproval(c); c.conn.cancel() }
         clients.removeAll()
         notifyCount()
     }
