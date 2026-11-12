@@ -4,3 +4,4 @@ TestFlight build requests (one line per request).
 2026-11-09 build 3: cue buttons show the memo first
 2026-11-12 build 4: review fixes + 2.1 (GO, backup Live status, set check, sends)
 2026-11-12 build 5: TwinKeys Remote 1.1.0 (2.1)
+2026-11-12 build 6: TwinKeys Remote 1.2.0 (Apple Watch app, switch to the backup, connection display, sample data, privacy links) for external testers
