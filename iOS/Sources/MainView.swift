@@ -275,9 +275,11 @@ struct TopBar: View {
                     Text("BPM").font(.caption2).foregroundStyle(TK.dim)
                 }
                 .lineLimit(1)
+                .fixedSize()  // never truncate the readout: the window grows to fit it
             }
             DisplayWindow(title: "POSITION") {
                 Text(model.live.song.beat).font(TK.mono(.headline)).monospacedDigit().foregroundStyle(TK.read).lineLimit(1)
+                    .fixedSize()
             }
         }
     }

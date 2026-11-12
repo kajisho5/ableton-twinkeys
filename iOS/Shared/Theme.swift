@@ -124,6 +124,7 @@ struct DisplayWindow<Content: View>: View {
             content
         }
         .padding(.horizontal, 7).padding(.vertical, 3)
+        .fixedSize()  // a readout is never cut off ("1… B…"); the rest of the bar gives way
         .background(RoundedRectangle(cornerRadius: 4).fill(TK.bg))
         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(TK.stroke, lineWidth: TK.line))
     }
