@@ -20,6 +20,8 @@ struct ContentView: View {
                     if !state.midiPortReady || !state.problems.isEmpty { problemBanner }
                     UpdateBanner(state: state, actions: actions)
                     if state.cueKeysLeaking { cueLeakBanner }
+                    if state.mainLost && !state.claimsMain { mainLostBanner }
+                    if state.claimsMain { claimsMainBanner }
                     if let d = state.setDiff { setDiffBanner(d) }
                     if !state.cueKeys.isEmpty || state.lastCue != nil { CuePanel(state: state) }
                     peersSection
@@ -92,6 +94,47 @@ struct ContentView: View {
                             .buttonStyle(TKButtonStyle())
                     }
                 }
+            }
+            .padding(12)
+        }
+    }
+
+    /// 2.3: the main Mac stopped answering; this (receiving) Mac can take over.
+    private var mainLostBanner: some View {
+        TKGroup(border: Theme.dangerText) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 12) { mainLostText; Spacer(); becomeMainButton }
+                VStack(alignment: .leading, spacing: 8) { mainLostText; becomeMainButton }
+            }
+            .padding(12)
+        }
+    }
+
+    private var mainLostText: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(t.mainLostTitle).font(.system(size: 12, weight: .semibold))
+            Text(t.mainLostMessage).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var becomeMainButton: some View {
+        Button(t.becomeMainButton, action: actions.becomeMain).buttonStyle(TKButtonStyle(kind: .destructive))
+    }
+
+    /// 2.3: this Mac made itself the main.
+    private var claimsMainBanner: some View {
+        TKGroup(border: Theme.accent) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(t.thisMacIsMain).font(.system(size: 12, weight: .bold))
+                        .padding(.horizontal, 10).padding(.vertical, 3)
+                        .background(Capsule().fill(Theme.accent.opacity(0.2)))
+                    Text(t.thisMacIsMainDetail).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Button(t.handOverMain, action: actions.handOverMain).buttonStyle(TKButtonStyle())
             }
             .padding(12)
         }

@@ -57,6 +57,11 @@ public enum PacketBody: Equatable, Sendable {
     /// Since 2.2: what the backup's Live did with Live command `id` (0 ran, 1 Live refused it,
     /// 2 Live did not answer). Sent after the liveAck, once the backup's Live has answered.
     case liveResult(id: UInt32, code: UInt8)
+    /// Since 2.3: "I am the main Mac since this time" (wall clock, ms). Sent with each heartbeat
+    /// while it holds. The Mac with the older claim (or none) stops sending keys.
+    case roleClaim(millis: UInt64)
+    /// Since 2.3: "be the main Mac again" (sent by a Mac that hands the role back).
+    case roleHandover
 
     var typeCode: UInt8 {
         switch self {
@@ -80,6 +85,8 @@ public enum PacketBody: Equatable, Sendable {
         case .setSummary: return 0x1B
         case .setItem: return 0x1C
         case .liveResult: return 0x1D
+        case .roleClaim: return 0x1E
+        case .roleHandover: return 0x1F
         }
     }
 }
@@ -152,6 +159,10 @@ extension Packet {
             b += [kind, UInt8(index >> 8), UInt8(index & 0xFF), UInt8(n.count)] + n
         case let .liveResult(id, code):
             b.appendBE(id); b.append(code)
+        case let .roleClaim(ms):
+            b.appendBE(ms)
+        case .roleHandover:
+            break
         }
         return b
     }
@@ -230,6 +241,10 @@ extension Packet {
         case 0x1D:
             guard p.count >= 5 else { throw DecodeError.badPayload }
             body = .liveResult(id: p.readBE32(at: 0), code: p[4])
+        case 0x1E:
+            guard p.count >= 8 else { throw DecodeError.badPayload }
+            body = .roleClaim(millis: (UInt64(p.readBE32(at: 0)) << 32) | UInt64(p.readBE32(at: 4)))
+        case 0x1F: body = .roleHandover
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)

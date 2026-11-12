@@ -305,7 +305,7 @@ public final class Conductor: @unchecked Sendable {
         var f = filters[peer] ?? SequenceFilter()
         let orderFree: Bool
         switch packet.body {
-        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem, .liveResult: orderFree = true
+        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem, .liveResult, .roleClaim: orderFree = true
         case let .liveCommand(_, c): orderFree = !c.isContinuous   // a late fader value must not overwrite a newer one
         default: orderFree = false
         }
@@ -413,6 +413,17 @@ public final class Conductor: @unchecked Sendable {
         case let .liveStatus(on):
             guard link.peer == peer else { return peer }
             peerLive = on
+        case let .roleClaim(ms):
+            guard link.peer == peer, link.isConnected else { return peer }
+            let theirsNewer = ms > mainClaim || (ms == mainClaim && peer > myID)
+            if theirsNewer {
+                if sendKeys || mainClaim > 0 { becomeReceiver() }
+            } else if mainClaim > 0 {
+                sendBody(.roleClaim(millis: mainClaim), to: peer)    // ours is newer: tell them now
+            }
+        case .roleHandover:
+            guard link.peer == peer, link.isConnected else { return peer }
+            claimMainLocked()
         case let .liveResult(id, code):
             guard link.peer == peer else { return peer }
             if var p = pendingLive[id] {
@@ -795,6 +806,51 @@ public final class Conductor: @unchecked Sendable {
     private var unsentLatest: [String: LiveCommand] = [:]
     private var wasLinkedForLive = false
 
+    // MARK: Switching to the backup (2.3)
+
+    /// Wall-clock time (ms) this Mac made itself the main; 0: no claim. Compared across Macs.
+    private var mainClaim: UInt64 = 0
+    /// Seconds since 1970 (both Macs keep network time, so claims compare across Macs).
+    public var wallClock: () -> Double = { Date().timeIntervalSince1970 }
+    /// Called (with the lock held: hand the work to another queue) when this Mac becomes the
+    /// main (true) or stops being it because the other Mac claimed it (false).
+    public var onRoleChange: ((Bool) -> Void)?
+
+    public var claimsMain: Bool { lock.lock(); defer { lock.unlock() }; return mainClaim > 0 }
+
+    /// "Make this Mac the main": send keys, stop playing the other Mac's notes, and tell the
+    /// other Mac (if it comes back it stops sending keys).
+    public func claimMain() {
+        lock.lock(); defer { lock.unlock() }
+        claimMainLocked()
+    }
+
+    /// "Return to main": this Mac only receives again and asks the other Mac to be the main.
+    public func handOverMain() {
+        lock.lock(); defer { lock.unlock() }
+        becomeReceiver()
+        if link.isConnected, let p = link.peer { sendBody(.roleHandover, to: p, copies: redundancy) }
+    }
+
+    private func claimMainLocked() {
+        mainClaim = max(UInt64(max(0, wallClock()) * 1000), mainClaim + 1)
+        sendKeys = true
+        receiveNotes = false
+        for m in peerGuard.releaseAll() { midi?.send(m.bytes) }
+        if link.isConnected, let p = link.peer { sendBody(.roleClaim(millis: mainClaim), to: p, copies: redundancy) }
+        log("This Mac is now the main Mac")
+        onRoleChange?(true)
+    }
+
+    private func becomeReceiver() {
+        if sendKeys { apply(.sendingTurnedOff, peer: link.isConnected ? link.peer : nil) }
+        sendKeys = false
+        receiveNotes = true
+        mainClaim = 0
+        log("The other Mac is the main Mac now: this Mac only receives")
+        onRoleChange?(false)
+    }
+
     /// This Mac's Live set (names only) and the other Mac's as it has told us (2.1 set check).
     private var localSet: SetSummary?
     private var peerSet: PeerSet?
@@ -987,6 +1043,7 @@ public final class Conductor: @unchecked Sendable {
                 sendBody(.held(channel: engine.channel, notes: on ? engine.heldNotes : []), to: p)
                 sendBody(features(), to: p)
                 if let localLive { sendBody(.liveStatus(connected: localLive), to: p) }
+                if mainClaim > 0 { sendBody(.roleClaim(millis: mainClaim), to: p) }
                 sendSet(to: p)
                 heartbeatsSinceNames += 1
                 if heartbeatsSinceNames >= 10, link.isConnected { sendCueNames(to: p) }

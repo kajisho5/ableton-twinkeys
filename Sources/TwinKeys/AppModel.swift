@@ -136,7 +136,9 @@ final class AppModel: ObservableObject {
             connectByAddress: { [weak self] address in self?.connectByAddress(address) ?? false },
             openAccessibilitySettings: { [weak self] in self?.openAccessibilitySettings() },
             restartForUpdate: { [weak self] in self?.restartForUpdate() },
-            openReleasePage: { [weak self] in if let u = self?.updater.releasePage { NSWorkspace.shared.open(u) } }
+            openReleasePage: { [weak self] in if let u = self?.updater.releasePage { NSWorkspace.shared.open(u) } },
+            becomeMain: { [weak self] in self?.confirmBecomeMain() },
+            handOverMain: { [weak self] in self?.conductor.handOverMain(); self?.refresh() }
         )
     }
 
@@ -444,6 +446,13 @@ final class AppModel: ObservableObject {
             DispatchQueue.main.async { self?.rememberDevice(d) }
         }
         r.pressCue = { conductor.pressCue(keycode: $0) }
+        // An iPhone switched to this Mac because the main stopped answering (2.3).
+        r.becomeMain = { [weak self] in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.becomeMain() } }
+        }
+        conductor.onRoleChange = { [weak self] isMain in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.roleChanged(isMain: isMain) } }
+        }
         r.allNotesOff = { conductor.panic() }
         r.snapshot = { bridge.snapshot() }
         r.status = { [weak self] in
@@ -586,6 +595,38 @@ final class AppModel: ObservableObject {
             lastStatusBroadcast = now
             remote?.broadcastStatus()
         }
+    }
+
+    // MARK: Switching to the backup (2.3)
+
+    /// When the link to the other Mac was lost (nil while linked or never linked).
+    private var linkLostAt: Date?
+    private var wasLinked = false
+
+    /// Asks first: making this Mac the main changes which Mac sends the cues.
+    private func confirmBecomeMain() {
+        let t = state.t
+        let alert = NSAlert()
+        alert.messageText = t.becomeMainTitle
+        alert.informativeText = t.becomeMainMessage
+        alert.addButton(withTitle: t.becomeMainConfirm)
+        alert.addButton(withTitle: t.cancel)
+        alert.buttons.first?.keyEquivalent = ""          // not by pressing Return by accident
+        if alert.runModal() == .alertFirstButtonReturn { becomeMain() }
+    }
+
+    /// Also called for an iPhone that switched to this Mac.
+    func becomeMain() {
+        conductor.claimMain()
+        refresh()
+    }
+
+    /// The conductor changed this Mac's role (this Mac claimed it, or the other Mac did).
+    private func roleChanged(isMain: Bool) {
+        settings.sendKeys = isMain
+        settings.receiveNotes = !isMain
+        log.write(isMain ? "Role: this Mac is the main Mac" : "Role: the other Mac is the main Mac; this Mac only receives")
+        persistModes()
     }
 
     private func updateShowActivity(linked: Bool) {
@@ -786,6 +827,10 @@ final class AppModel: ObservableObject {
         s.appVersion = updater.currentVersion
         s.autoUpdate = settings.autoUpdate
         updateShowActivity(linked: s.linkedPeerID != nil)
+        if case .connected = s.link { wasLinked = true; linkLostAt = nil }
+        else if wasLinked, linkLostAt == nil { linkLostAt = Date() }
+        s.claimsMain = conductor.claimsMain
+        s.mainLost = !settings.sendKeys && linkLostAt.map { Date().timeIntervalSince($0) >= 3 } == true
         s.liveConnected = bridge.isConnected
         conductor.setLiveConnected(s.liveConnected)
         conductor.setLocalSet(s.liveConnected ? SetSummary(bridge.snapshot()) : nil)

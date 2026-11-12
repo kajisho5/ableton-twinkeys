@@ -111,6 +111,8 @@ public enum RemoteMessage: Codable, Equatable, Sendable {
     case go(id: Int, scene: Int, structure: Int?)
     /// 2.3: the show lock with what it stops (`LockScope.rawValue`).
     case lockScope(on: Bool, scope: UInt8)
+    /// 2.3: "make this Mac the main" (sent to the backup Mac after the main stopped answering).
+    case becomeMain(id: Int)
     case cue(id: Int, keycode: UInt16)
     case allNotesOff(id: Int)
     case ping(Double)

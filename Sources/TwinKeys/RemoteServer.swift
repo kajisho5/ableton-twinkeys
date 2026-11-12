@@ -40,6 +40,8 @@ final class RemoteServer {
     /// Number of scenes in Live as this Mac knows it.
     var currentSceneCount: () -> Int? = { nil }
     var pressCue: (UInt16) -> Bool = { _ in false }
+    /// An approved iPhone asks this Mac to become the main (2.3).
+    var becomeMain: () -> Void = {}
     var allNotesOff: () -> Void = {}
     var snapshot: () -> LiveState = { LiveState() }
     var status: () -> RemoteStatus? = { nil }
@@ -286,6 +288,10 @@ final class RemoteServer {
             if scene + 1 < (currentSceneCount() ?? Int.max) {
                 runFromPhone(-1, .selectScene(scene + 1), seen: structure ?? c.seenStructure, c, isGo: true)
             }
+        case let .becomeMain(id):
+            onLog?("Remote: \(c.hello?.deviceName ?? "?"): make this Mac the main")
+            becomeMain()
+            send(.result(id: id, ok: true, error: nil, backup: "notSent"), to: c)
         case let .cue(id, keycode):
             if c.locked, c.lockScope.contains(.cues) { send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c); return }
             let ok = pressCue(keycode)

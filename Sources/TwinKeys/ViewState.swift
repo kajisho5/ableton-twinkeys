@@ -59,6 +59,9 @@ struct ViewState: Equatable {
     var liveConnected = false
     /// Live runs an older TwinKeysBridge than the one in this app (restart Live).
     var bridgeNeedsRestart = false
+    /// 2.3: this Mac made itself the main; the other Mac (receiving only) has not answered for 3 s.
+    var claimsMain = false
+    var mainLost = false
     /// 2.1: the other Mac's Live answers (nil: not linked or not told), and how its set differs.
     var backupLiveConnected: Bool?
     var setDiff: SetDiff?
@@ -144,6 +147,9 @@ struct ViewActions {
     var openAccessibilitySettings: () -> Void = {}
     var restartForUpdate: () -> Void = {}
     var openReleasePage: () -> Void = {}
+    /// 2.3: make this Mac the main (after confirming) / give the role back.
+    var becomeMain: () -> Void = {}
+    var handOverMain: () -> Void = {}
 }
 
 enum AppSheet: Equatable { case pairing, connectByIP, help }

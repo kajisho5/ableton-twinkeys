@@ -133,6 +133,26 @@ extension Strings {
           "Live は古い TwinKeysBridge で動いています。新しい部品は入れてあるので、Live を再起動してください。")
     }
 
+    // MARK: 2.3 switching to the backup
+    var mainLostTitle: String { s("⚠ When the main Mac has stopped", "⚠ メインの Mac が止まったときは") }
+    var mainLostMessage: String {
+        s("Make this Mac the main to fire the cues from this Mac's keyboard.",
+          "この Mac をメインにすると、この Mac のキーボードでキューを出せます。")
+    }
+    var becomeMainButton: String { s("Make This Mac the Main", "この Mac をメインにする") }
+    var becomeMainTitle: String { s("Make this Mac the main Mac?", "この Mac をメインにしますか？") }
+    var becomeMainMessage: String {
+        s("This Mac's cue keys turn on and it stops playing the other Mac's notes. When the other Mac comes back, it only receives.",
+          "この Mac のキューのキーがオンになり、相手の Mac のノートは鳴らさなくなります。相手の Mac が戻ってきたら、そちらは受信だけになります。")
+    }
+    var becomeMainConfirm: String { s("Make It the Main", "メインにする") }
+    var thisMacIsMain: String { s("This Mac is the main", "この Mac がメイン") }
+    var thisMacIsMainDetail: String {
+        s("This Mac's cue keys are on. When the other Mac comes back it only receives.",
+          "この Mac のキーボードのキューがオンです。元のメインが戻ったら、受信だけにします。")
+    }
+    var handOverMain: String { s("Return to Main", "メインに戻す") }
+
     // MARK: 2.1 set check
     var peerLiveOK: String { s("Other Mac's Live ✓", "相手の Live ✓") }
     var peerLiveNo: String { s("Other Mac's Live ✗", "相手の Live ✗") }

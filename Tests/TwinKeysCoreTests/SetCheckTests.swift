@@ -125,3 +125,48 @@ final class LockScopeTests: XCTestCase {
         }
     }
 }
+
+/// 2.3: switching the main role to the backup and back.
+extension CueTests {
+    func testBackupBecomesMainAndTheOldMainOnlyReceivesWhenItComesBack() {
+        let t = self
+        var mainRoles: [Bool] = [], backupRoles: [Bool] = []
+        t.main.onRoleChange = { mainRoles.append($0) }
+        t.backup.onRoleChange = { backupRoles.append($0) }
+        t.main.wallClock = { 1_000 }; t.backup.wallClock = { 1_000 }
+        t.connect(); t.tick(1.1)
+        // The main Mac dies (no packets either way).
+        t.mainToBackupUp = false; t.backupToMainUp = false
+        t.tick(8)
+        t.backup.wallClock = { 2_000 }
+        t.backup.claimMain()
+        XCTAssertTrue(t.backup.snapshot().sendKeys)
+        XCTAssertFalse(t.backup.snapshot().receiveNotes)
+        XCTAssertEqual(backupRoles, [true])
+        // Keys pressed on the backup now play there.
+        t.backupMIDI.sent.removeAll()
+        _ = t.backup.handleKey(KeyInput(keycode: t.down, isDown: true))
+        XCTAssertFalse(t.backupMIDI.sent.isEmpty)
+        _ = t.backup.handleKey(KeyInput(keycode: t.down, isDown: false))
+        // The old main comes back: it stops sending keys by itself.
+        t.mainToBackupUp = true; t.backupToMainUp = true
+        t.main.connect(to: t.backupID.uuidString)
+        t.tick(4)
+        XCTAssertFalse(t.main.snapshot().sendKeys)
+        XCTAssertTrue(t.main.snapshot().receiveNotes)
+        XCTAssertEqual(mainRoles, [false])
+        XCTAssertTrue(t.backup.claimsMain)
+        // Return to main: the backup only receives again, the old main sends again.
+        t.backup.handOverMain(); t.pump(); t.tick(1)
+        XCTAssertFalse(t.backup.snapshot().sendKeys)
+        XCTAssertTrue(t.main.snapshot().sendKeys)
+        XCTAssertTrue(t.main.claimsMain)
+    }
+
+    func testRolePacketsRoundTrip() throws {
+        for body in [PacketBody.roleClaim(millis: 1_731_400_000_123), .roleHandover] {
+            let p = Packet(session: 1, seq: 9, body: body)
+            XCTAssertEqual(try Packet.decode(p.encode()), p)
+        }
+    }
+}
