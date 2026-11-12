@@ -82,7 +82,8 @@ struct SessionView: View {
             .frame(maxWidth: .infinity, minHeight: 44)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color.tkCell))
             .onLongPressGesture(minimumDuration: 0.5) { model.run(.stopAll) }
-            .accessibilityAction { model.run(.stopAll) }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint(L.s("Double-tap and hold to stop every clip", "ダブルタップして長押しで全クリップを停止"))
     }
 
     private func clipGrid(_ live: LiveState, cellWidth cw: CGFloat) -> some View {
@@ -184,6 +185,8 @@ struct MixerView: View {
     var sideModes = false
     enum Mode: String, CaseIterable { case volume, pan }
     @State private var mode: Mode = .volume
+    /// Fader position when the current drag started (per track).
+    @State private var dragStart: [Int: Double] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -264,10 +267,17 @@ struct MixerView: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0).onChanged { d in
-                    let v = min(1, max(0, 1 - d.location.y / h))
+                // Moves from where the fader is (never jumps to the finger), and only for an upward or
+                // downward drag, so a sideways swipe to scroll the mixer does not touch any fader.
+                .gesture(DragGesture(minimumDistance: 6).onChanged { d in
+                    if dragStart[i] == nil {
+                        guard abs(d.translation.height) > abs(d.translation.width) else { return }
+                        dragStart[i] = mode == .volume ? vol : (pan + 1) / 2
+                    }
+                    guard let start = dragStart[i] else { return }
+                    let v = min(1, max(0, start - d.translation.height / h))
                     if mode == .volume { model.run(.setVolume(track: i, value: v)) } else { model.run(.setPan(track: i, value: v * 2 - 1)) }
-                })
+                }.onEnded { _ in dragStart[i] = nil })
                 .opacity(model.locked ? 0.5 : 1)
             }
             .frame(minHeight: 120)
@@ -285,7 +295,13 @@ struct MixerView: View {
         .accessibilityLabel("\(name) \(dB(vol))")
         .accessibilityAdjustableAction { dir in
             let step = dir == .increment ? 0.02 : -0.02
-            model.run(.setVolume(track: i, value: min(1, max(0, vol + step))))
+            if mode == .pan {
+                model.run(.setPan(track: i, value: min(1, max(-1, pan + step * 2))))
+            } else {
+                // Above the 0 dB cap already (set on the Mac): "up" must not pull the fader down to the cap.
+                if step > 0, model.capAtZeroDB, vol >= RemoteModel.zeroDB { return }
+                model.run(.setVolume(track: i, value: min(1, max(0, vol + step))))
+            }
         }
     }
 
@@ -424,7 +440,8 @@ struct SettingsPane: View {
     var body: some View {
         Form {
             Section(L.s("Show safety", "本番の安全")) {
-                Toggle(L.s("Show lock", "本番ロック"), isOn: $model.locked)
+                // Turning the lock off only with the 1 s hold on the lock button.
+                Toggle(L.s("Show lock", "本番ロック"), isOn: $model.locked).disabled(model.locked)
                 Toggle(L.s("Faders stop at 0 dB", "フェーダーの上限を 0dB にする"), isOn: $model.capAtZeroDB)
                 Toggle(L.s("Follow the selection in Live", "Live の選択に追従"), isOn: $model.followSelection)
             }
@@ -432,6 +449,7 @@ struct SettingsPane: View {
                 LabeledContent(L.s("Mac", "Mac"), value: model.status?.mainName ?? "—")
                 LabeledContent(L.s("Pairing code", "合言葉"), value: model.pairingCode)
                 Button(L.s("Connect to another Mac (for example the backup)", "別の Mac につなぐ（バックアップなど）")) { model.chooseAnotherMac() }
+                    .disabled(model.locked)
             }
             Section {
                 Text(L.s("TwinKeys Remote by Shogo Kajiyama / SEVENTHWELL. Unofficial tool, not affiliated with Ableton.",

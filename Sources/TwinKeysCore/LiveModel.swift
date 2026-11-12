@@ -37,8 +37,11 @@ public enum LiveCommand: Equatable, Sendable, Codable {
     }
 
     /// The JSON command for the Live Bridge script (see LiveBridge/README.md).
-    public func bridgeJSON(id: Int) -> [String: Any] {
+    /// `structure`: Live's track/scene layout this command was aimed at; TwinKeysBridge refuses the
+    /// command ("structure_changed") when the layout has changed since, so it never hits the wrong clip.
+    public func bridgeJSON(id: Int, structure: Int? = nil) -> [String: Any] {
         var d: [String: Any] = ["id": id]
+        if let structure { d["structure"] = structure }
         switch self {
         case let .fireScene(s): d["cmd"] = "fire_scene"; d["scene"] = s
         case let .fireClip(t, s): d["cmd"] = "fire_clip"; d["track"] = t; d["scene"] = s
@@ -133,6 +136,11 @@ public struct LiveSong: Codable, Equatable, Sendable {
     public var selectedTrack = 0
     public var selectedScene = 0
     public var setName = ""
+    /// Number of tracks and scenes in Live (the iPhone drops rows and strips that no longer exist).
+    public var trackCount: Int?
+    public var sceneCount: Int?
+    /// Rises whenever Live's track or scene list changes (from TwinKeysBridge; nil from older scripts).
+    public var structure: Int?
     public init() {}
 }
 
@@ -220,12 +228,11 @@ public struct LiveState: Codable, Equatable, Sendable {
             x.selectedTrack = i("selected_track", m) ?? x.selectedTrack
             x.selectedScene = i("selected_scene", m) ?? x.selectedScene
             x.setName = s("set_name", m)
+            if let n = i("tracks", m), n >= 0, n <= 4096 { x.trackCount = n }
+            if let n = i("scenes", m), n >= 0, n <= 4096 { x.sceneCount = n }
+            if let st = i("structure", m) { x.structure = st }
             song = x
-            if let n = i("tracks", m), n >= 0, n <= 4096 {
-                if tracks.count > n { tracks.removeLast(tracks.count - n) }
-                if clips.count > n { clips.removeLast(clips.count - n) }
-            }
-            if let n = i("scenes", m), n >= 0, n <= 4096, scenes.count > n { scenes.removeLast(scenes.count - n) }
+            trim()
             return .song(x)
         case "scenes":
             guard let items = m["items"] as? [[String: Any]] else { return nil }
@@ -293,7 +300,7 @@ public struct LiveState: Codable, Equatable, Sendable {
     public mutating func apply(_ u: LiveUpdate) {
         switch u {
         case let .full(s): self = s
-        case let .song(x): song = x
+        case let .song(x): song = x; trim()
         case let .scenes(list):
             for sc in list where sc.index >= 0 && sc.index < 4096 {
                 while scenes.count <= sc.index { scenes.append(LiveScene(index: scenes.count, name: "")) }
@@ -314,6 +321,20 @@ public struct LiveState: Codable, Equatable, Sendable {
             }
         case let .meters(m, mm): meters = m; masterMeter = mm
         case let .progress(p): progress = p
+        }
+    }
+
+    /// Drops tracks, scenes, clips, meters and progress beyond Live's current counts.
+    mutating func trim() {
+        if let n = song.trackCount {
+            if tracks.count > n { tracks.removeLast(tracks.count - n) }
+            if clips.count > n { clips.removeLast(clips.count - n) }
+            meters = meters.filter { $0.key < n }
+            progress = progress.filter { $0.key < n }
+        }
+        if let n = song.sceneCount {
+            if scenes.count > n { scenes.removeLast(scenes.count - n) }
+            for t in clips.indices where clips[t].count > n { clips[t].removeLast(clips[t].count - n) }
         }
     }
 

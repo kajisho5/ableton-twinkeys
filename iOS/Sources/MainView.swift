@@ -37,6 +37,7 @@ struct MainView: View {
             let lc = LayoutClass.of(geo.size)
             VStack(spacing: 0) {
                 TopBar(compact: lc == .narrowPortrait)
+                if let r = model.lastResult { ResultBanner(error: r) }
                 switch lc {
                 case .narrowPortrait:
                     content(pane, lc).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -187,7 +188,9 @@ struct TopBar: View {
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.tkCell))
                 .onLongPressGesture(minimumDuration: 0.5) { model.run(.stop) }
                 .accessibilityLabel(L.s("Stop (long press)", "停止（長押し）"))
-                .accessibilityAction { model.run(.stop) }
+                .accessibilityAddTraits(.isButton)
+                // No one-tap accessibility action: with VoiceOver, double-tap and hold (same safety as the touch).
+                .accessibilityHint(L.s("Double-tap and hold to stop", "ダブルタップして長押しで停止"))
             Text(String(format: "%.2f", model.live.song.tempo)).font(.title3.bold()).monospacedDigit()
             Text("BPM").font(.caption).foregroundStyle(.secondary)
             Text(model.live.song.beat).font(.headline).monospacedDigit().padding(.leading, 4)
@@ -204,6 +207,28 @@ struct TopBar: View {
             .onTapGesture { if !model.locked { model.locked = true } }
             .onLongPressGesture(minimumDuration: 1) { model.locked = false }
             .accessibilityLabel(model.locked ? L.s("Show lock on (hold to unlock)", "本番ロック中（長押しで解除）") : L.s("Show lock off", "本番ロック オフ"))
-            .accessibilityAction { model.locked.toggle() }
+            .accessibilityAddTraits(.isButton)
+            // Locking is one action; unlocking needs the 1 s hold (VoiceOver: double-tap and hold).
+            .accessibilityAction { if !model.locked { model.locked = true } }
+    }
+}
+
+/// Why the last command did not run (shown for 5 s under the top bar).
+struct ResultBanner: View {
+    let error: String
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.triangle.fill")
+            .font(.footnote.weight(.semibold)).foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 30).padding(.horizontal, 12)
+            .background(Color.tkWarn)
+            .accessibilityAddTraits(.updatesFrequently)
+    }
+    private var text: String {
+        switch error {
+        case "structure_changed": return L.s("Live's tracks or scenes changed, so it was not sent. Tap again.",
+                                             "Live のトラックやシーンが変わったので、送りませんでした。もう一度押してください。")
+        case "locked": return L.s("Show lock is on.", "本番ロック中です。")
+        default: return L.s("Live did not run it (\(error)).", "Live で実行できませんでした（\(error)）。")
+        }
     }
 }
