@@ -116,6 +116,7 @@ class DiffTest(TrackerTestBase):
         self.assertTrue(msgs[0]["playing"])
         self.assertEqual(msgs[0]["selected_scene"], 3)
         self.assertEqual(msgs[0]["selected_track"], -1)
+        self.assertEqual(msgs[0]["bridge_version"], C.BRIDGE_VERSION)
 
     def test_track_change_sends_only_that_track(self):
         self.make(10, 2)

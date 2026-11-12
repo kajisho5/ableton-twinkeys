@@ -155,6 +155,8 @@ public struct LiveSong: Codable, Equatable, Sendable {
     public var sceneCount: Int?
     /// Rises whenever Live's track or scene list changes (from TwinKeysBridge; nil from older scripts).
     public var structure: Int?
+    /// Version of the TwinKeysBridge script Live is running (nil: older than 2.2).
+    public var bridgeVersion: Int?
     public init() {}
 }
 
@@ -263,6 +265,7 @@ public struct LiveState: Codable, Equatable, Sendable {
             if let n = i("tracks", m), n >= 0, n <= 4096 { x.trackCount = n }
             if let n = i("scenes", m), n >= 0, n <= 4096 { x.sceneCount = n }
             if let st = i("structure", m) { x.structure = st }
+            if let v = i("bridge_version", m) { x.bridgeVersion = v }
             song = x
             trim()
             return .song(x)

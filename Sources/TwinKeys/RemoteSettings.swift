@@ -11,8 +11,12 @@ struct RemoteSettings: View {
     var body: some View {
         Section(t.liveSection) {
             HStack(spacing: 8) {
-                StatusDot(color: model.state.liveConnected ? Theme.ok : Theme.idleDot)
+                StatusDot(color: !model.state.liveConnected ? Theme.idleDot : model.state.bridgeNeedsRestart ? Theme.warning : Theme.ok)
                 Text(model.state.liveConnected ? t.liveConnected : t.liveNotConnected)
+            }
+            if model.state.bridgeNeedsRestart {
+                Text(t.bridgeNeedsRestart).font(.system(size: Theme.caption, weight: .semibold)).foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Text(t.liveHowTo).font(.system(size: Theme.caption)).foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

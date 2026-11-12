@@ -451,6 +451,8 @@ final class AppModel: ObservableObject {
             return self.statusSnapshot
         }
         r.onClientsChanged = { [weak self] n in self?.remoteClients = n; self?.refresh() }
+        // 2.2: an older TwinKeysBridge from a previous TwinKeys is replaced with the one in this app.
+        if LiveBridgeInstaller.updateIfOutdated() { log.write("Live Bridge: installed copy updated to version \(LiveBridgeInstaller.bundledVersion)") }
         bridge.start()
     }
 
@@ -789,6 +791,8 @@ final class AppModel: ObservableObject {
         s.setDiff = conductor.setDiff
         s.backupLiveConnected = conductor.peerLiveConnected
         s.bridgeInstalled = LiveBridgeInstaller.isInstalled
+        // Live still runs an older script (it loads the new files at its next start).
+        s.bridgeNeedsRestart = s.liveConnected && (bridge.snapshot().song.bridgeVersion ?? 0) < LiveBridgeInstaller.bundledVersion
         s.approvedDevices = settings.approvedDevices
         s.remoteClients = remoteClients
         s.remoteEnabled = settings.remoteEnabled

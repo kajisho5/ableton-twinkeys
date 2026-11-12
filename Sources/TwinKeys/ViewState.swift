@@ -57,6 +57,8 @@ struct ViewState: Equatable {
     var autoUpdate = true
     /// Live on this Mac answers through the Bridge.
     var liveConnected = false
+    /// Live runs an older TwinKeysBridge than the one in this app (restart Live).
+    var bridgeNeedsRestart = false
     /// 2.1: the other Mac's Live answers (nil: not linked or not told), and how its set differs.
     var backupLiveConnected: Bool?
     var setDiff: SetDiff?

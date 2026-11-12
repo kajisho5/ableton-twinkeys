@@ -192,6 +192,25 @@ enum LiveBridgeInstaller {
 
     static var isInstalled: Bool { FileManager.default.fileExists(atPath: installed.appendingPathComponent("__init__.py").path) }
 
+    /// BRIDGE_VERSION in a copy's constants.py (0 for copies older than 2.2).
+    static func version(of folder: URL) -> Int {
+        guard let text = try? String(contentsOf: folder.appendingPathComponent("constants.py"), encoding: .utf8) else { return 0 }
+        for line in text.split(separator: "\n") where line.hasPrefix("BRIDGE_VERSION") {
+            let parts = line.split(separator: "=")
+            if parts.count == 2, let v = Int(parts[1].trimmingCharacters(in: .whitespaces)) { return v }
+        }
+        return 0
+    }
+    static var bundledVersion: Int { bundled.map(version(of:)) ?? 0 }
+
+    /// An older copy is installed: replace it with the one in this app (only if one was installed
+    /// before; nothing is installed without the user asking). Live uses it from its next start.
+    /// Returns true when it was replaced.
+    static func updateIfOutdated() -> Bool {
+        guard isInstalled, bundled != nil, version(of: installed) < bundledVersion else { return false }
+        return install() == nil
+    }
+
     /// Installs or updates the script. Returns an error message, or nil on success.
     static func install() -> String? {
         guard let src = bundled else { return "The Bridge is not included in this build." }

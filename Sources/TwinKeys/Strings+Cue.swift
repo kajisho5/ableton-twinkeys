@@ -128,6 +128,11 @@ extension Strings {
     func remoteConnected(_ n: Int) -> String { s("\(n) connected now", "いま \(n) 台が接続中") }
     var removeDevice: String { s("Remove", "取り消す") }
 
+    var bridgeNeedsRestart: String {
+        s("Live is still running an older TwinKeysBridge. The new one is installed: restart Live to use it.",
+          "Live は古い TwinKeysBridge で動いています。新しい部品は入れてあるので、Live を再起動してください。")
+    }
+
     // MARK: 2.1 set check
     var peerLiveOK: String { s("Other Mac's Live ✓", "相手の Live ✓") }
     var peerLiveNo: String { s("Other Mac's Live ✗", "相手の Live ✗") }
