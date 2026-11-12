@@ -165,6 +165,7 @@ Needs both Macs on 2.0, TwinKeysBridge chosen as a Control Surface in Live on bo
 | 10-11 | Turn Wi-Fi off and on on the iPhone. | The app shows "Connection lost. Retrying…" and reconnects without asking for approval again. | | | |
 | 10-12 | Remove the device on the Mac, reopen the app. | The Mac asks for approval again. | | | |
 | 10-13 | iPad landscape and an open iPhone Duo. | Three columns (iPad) / two columns (Duo); nothing cut off. | | | |
+| 10-14 | (iPhone 1.3) Switch the iPhone between Light and Dark, then set Settings > Accessibility > Larger Text to the largest size. | The app stays in the black A1 look (green lamps, red All Notes Off) in both; text is not cut off; VoiceOver reads the localized words (for example "いま再生中"), not the decorative "NOW PLAYING". | | | |
 
 ## 11. GO, set check, sends and catch-up (added in 2.1)
 

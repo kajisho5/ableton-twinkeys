@@ -45,27 +45,33 @@ struct GoView: View {
             .sorted { (live.secondsLeft(track: $0) ?? 0) > (live.secondsLeft(track: $1) ?? 0) }
     }
 
+    /// "03": two digits on the cards and GO (A1); VoiceOver reads the plain number.
+    private func number(_ i: Int, size: CGFloat) -> some View {
+        Text(String(format: "%02d", i + 1)).font(.system(size: size, weight: .bold, design: .monospaced)).monospacedDigit()
+            .foregroundStyle(TK.dim)
+            .accessibilityLabel("\(i + 1)")
+    }
+
     private var nowCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(L.s("Now playing", "いま再生中")).font(.caption.bold()).foregroundStyle(Color.tkOK)
+            SmallCaps("NOW PLAYING", color: TK.accent, spoken: L.s("Now playing", "いま再生中"))
             if let sc = playing {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(sc.index + 1)").font(.system(size: tight ? 24 : 30, weight: .heavy)).foregroundStyle(.secondary)
+                    number(sc.index, size: tight ? 24 : 30)
                     Text(sc.name.isEmpty ? L.s("Scene \(sc.index + 1)", "シーン \(sc.index + 1)") : sc.name)
-                        .font(.system(size: tight ? 21 : 26, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.6)
+                        .font(.system(size: tight ? 21 : 26, weight: .heavy)).foregroundStyle(TK.read)
+                        .lineLimit(1).minimumScaleFactor(0.6)
                 }
                 if let t = playingTracks.first, let left = live.secondsLeft(track: t) {
-                    HStack(spacing: 10) {
-                        Text(L.s("Left", "残り")).font(.caption).foregroundStyle(.secondary)
-                        Text(formatTimeLeft(left)).font(.subheadline.bold()).monospacedDigit().foregroundStyle(Color.tkOK)
+                    HStack(alignment: .bottom, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            SmallCaps("REMAIN", spoken: L.s("Left", "残り"))
+                            Text(formatTimeLeft(left)).font(TK.mono(tight ? .headline : .title3)).monospacedDigit().foregroundStyle(TK.accent)
+                        }
                         if let p = live.progress[t], p.count == 2, p[1] > 0 {
-                            GeometryReader { g in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(Color.tkCell)
-                                    Capsule().fill(Color.tkOK).frame(width: g.size.width * min(1, p[0] / p[1]))
-                                }
-                            }
-                            .frame(height: 6)
+                            SegmentMeter(value: p[0] / p[1], segments: 40)
+                                .frame(height: tight ? 10 : 14)
+                                .padding(.bottom, 4)
                         }
                     }
                 }
@@ -74,36 +80,41 @@ struct GoView: View {
                     let n = live.clips[t][sc.index].name
                     return n.isEmpty ? nil : n
                 }
-                if !names.isEmpty, !tight { Text(names.joined(separator: " ・ ")).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                if !names.isEmpty, !tight { Text(names.joined(separator: " ・ ")).font(.caption).foregroundStyle(TK.dim).lineLimit(1) }
             } else {
-                Text(L.s("Nothing playing", "再生中のシーンはありません")).font(.title3.bold()).foregroundStyle(.secondary)
+                Text(L.s("Nothing playing", "再生中のシーンはありません")).font(.title3.bold()).foregroundStyle(TK.dim)
             }
         }
         .padding(tight ? 10 : 16)
+        .padding(.leading, 3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.tkCard))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(playing == nil ? Color.clear : Color.tkOK, lineWidth: 1.5))
+        .tkPanel(radius: 10)
+        // A green bar at the left edge while a scene plays.
+        .overlay(alignment: .leading) {
+            if playing != nil { TK.accent.frame(width: 3).shadow(color: TK.accent.opacity(0.6), radius: 4) }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10))
         .accessibilityElement(children: .combine)
     }
 
     private var nextCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(L.s("Next", "次")).font(.caption.bold()).foregroundStyle(Color.tkAccent)
+            SmallCaps("NEXT", color: TK.accentSoft, spoken: L.s("Next", "次"))
             if let sc = next {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(sc.index + 1)").font(.system(size: tight ? 20 : 26, weight: .heavy)).foregroundStyle(.secondary)
+                    number(sc.index, size: tight ? 20 : 26)
                     Text(sc.name.isEmpty ? L.s("Scene \(sc.index + 1)", "シーン \(sc.index + 1)") : sc.name)
-                        .font(.system(size: tight ? 18 : 22, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.6)
+                        .font(.system(size: tight ? 18 : 22, weight: .heavy)).foregroundStyle(TK.read)
+                        .lineLimit(1).minimumScaleFactor(0.6)
                 }
-                if !tight { Text(L.s("The scene selected in Live", "Live で選んでいるシーン")).font(.caption).foregroundStyle(.secondary) }
+                if !tight { Text(L.s("The scene selected in Live", "Live で選んでいるシーン")).font(.caption).foregroundStyle(TK.dim) }
             } else {
-                Text(L.s("End of the scene list", "シーンの最後です")).font(.title3.bold()).foregroundStyle(.secondary)
+                Text(L.s("End of the scene list", "シーンの最後です")).font(.title3.bold()).foregroundStyle(TK.dim)
             }
         }
         .padding(tight ? 10 : 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.tkCard))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.secondary.opacity(0.3)))
+        .tkPanel(radius: 10)
         .accessibilityElement(children: .combine)
     }
 
@@ -111,7 +122,7 @@ struct GoView: View {
         HStack(spacing: 8) {
             chooseButton(L.s("◀ Back", "◀ 前へ"), to: nextIndex - 1)
             chooseButton(L.s("Next ▶", "次へ ▶"), to: nextIndex + 1)
-            Text(L.s("Only chooses (does not play)", "選ぶだけ（鳴らさない）")).font(.caption).foregroundStyle(.secondary)
+            Text(L.s("Only chooses (does not play)", "選ぶだけ（鳴らさない）")).font(.caption).foregroundStyle(TK.dim)
                 .lineLimit(2).minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -120,25 +131,35 @@ struct GoView: View {
     private func chooseButton(_ title: String, to i: Int) -> some View {
         Button { model.run(.selectScene(i)) } label: {
             Text(title).font(.headline).frame(maxWidth: 160, minHeight: tight ? 44 : 56)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCell))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TKButtonStyle(radius: 10, minHeight: tight ? 44 : 56))
         .disabled(i < 0 || i >= live.scenes.count)
     }
 
     private var goButton: some View {
-        Button(action: go) {
+        let on = next != nil
+        return Button(action: go) {
             VStack(spacing: 10) {
-                Text("GO").font(.system(size: 64, weight: .black))
-                Text(L.s("Play the next scene", "次のシーンを再生")).font(.subheadline.bold())
-                if let sc = next { Text("\(sc.index + 1)  \(sc.name)").font(.headline).lineLimit(1).minimumScaleFactor(0.6) }
+                Text("GO").font(.system(size: 88, weight: .heavy, design: .monospaced))
+                    .lineLimit(1).minimumScaleFactor(0.5)
+                    .foregroundStyle(on ? TK.accent : TK.dim)
+                    .shadow(color: on ? TK.accent.opacity(0.5) : .clear, radius: 12)
+                Text(L.s("Play the next scene", "次のシーンを再生")).font(.subheadline.bold()).foregroundStyle(TK.accentSoft)
+                if let sc = next {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("NEXT ▸").font(TK.mono(.caption)).accessibilityHidden(true)
+                        Text("\(String(format: "%02d", sc.index + 1))  \(sc.name)").font(.headline)
+                    }
+                    .foregroundStyle(TK.accent)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                }
                 Spacer(minLength: 0)
-                Text(L.s("Works with the show lock on", "本番ロック中も使えます")).font(.caption.bold())
+                Text(L.s("Works with the show lock on", "本番ロック中も使えます")).font(TK.mono(.caption2)).tracking(1)
+                    .foregroundStyle(TK.dim).multilineTextAlignment(.center)
             }
             .padding(.top, 40).padding(.bottom, 16).padding(.horizontal, 12)
-            .foregroundStyle(Color(red: 0.04, green: 0.14, blue: 0.06))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 20).fill(next == nil ? Color.secondary : Color.tkOK))
+            .background(GoKeyBackground(enabled: on, radius: 18))
         }
         .buttonStyle(.plain)
         .disabled(next == nil)

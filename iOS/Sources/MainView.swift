@@ -113,17 +113,19 @@ struct MainView: View {
             ForEach(panes) { p in
                 Button { pane = p } label: {
                     VStack(spacing: 3) {
-                        Image(systemName: p.symbol).font(.system(size: 20))
+                        LED(on: pane == p, size: 5)
+                        Image(systemName: p.symbol).font(.system(size: 18))
                         Text(p.title).font(.caption2.weight(pane == p ? .bold : .regular))
                     }
                     .frame(maxWidth: .infinity, minHeight: 50)
-                    .foregroundStyle(pane == p ? Color.tkAccent : .secondary)
+                    .foregroundStyle(pane == p ? TK.accent : TK.dim)
                 }
                 .accessibilityAddTraits(pane == p ? .isSelected : [])
             }
         }
-        .background(Color.tkBar.ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) { Divider() }
+        .padding(.top, 4)
+        .background(TK.top.ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) { TK.stroke.frame(height: TK.line) }
     }
 
     /// Landscape iPhone: the pane switcher on the right edge, where the right thumb is.
@@ -132,21 +134,23 @@ struct MainView: View {
         VStack(spacing: 4) {
             ForEach(Pane.allCases) { p in
                 Button { pane = p } label: {
-                    VStack(spacing: 2) {
-                        Image(systemName: p.symbol).font(.system(size: 19))
-                        Text(p.title).font(.system(size: 10, weight: pane == p ? .bold : .regular)).lineLimit(1).minimumScaleFactor(0.7)
+                    VStack(spacing: 3) {
+                        LED(on: pane == p, size: 5)
+                        Image(systemName: p.symbol).font(.system(size: 16))
+                        Text(p.title).font(.system(size: 10, weight: pane == p ? .bold : .regular, design: .monospaced))
+                            .lineLimit(1).minimumScaleFactor(0.7)
                     }
                     .frame(width: 60).frame(minHeight: 44, maxHeight: 56)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(pane == p ? Color.tkCell : .clear))
-                    .foregroundStyle(pane == p ? Color.tkAccent : .secondary)
+                    .foregroundStyle(pane == p ? TK.accent : TK.dim)
                 }
+                .accessibilityAddTraits(pane == p ? .isSelected : [])
             }
             Spacer(minLength: 0)
         }
         .padding(.vertical, 6)
         .frame(width: 68)
-        .background(Color.tkBar.ignoresSafeArea(edges: .trailing))
-        .overlay(alignment: .leading) { Divider() }
+        .background(TK.top.ignoresSafeArea(edges: .trailing))
+        .overlay(alignment: .leading) { TK.stroke.frame(width: TK.line) }
     }
 }
 
@@ -166,9 +170,9 @@ struct TopBar: View {
                 if !compact { transport }
                 Spacer(minLength: 4)
                 Button(action: model.allNotesOff) {
-                    Text(L.s("All Notes Off", "全ノートオフ")).font(.subheadline.bold()).foregroundStyle(.white)
-                        .padding(.horizontal, 12).frame(minHeight: 40)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.tkDanger))
+                    Text(L.s("All Notes Off", "全ノートオフ")).font(.subheadline.bold()).foregroundStyle(TK.red)
+                        .padding(.horizontal, 14).frame(minHeight: 40)
+                        .background(NotesOffBackground(radius: 8))
                 }
                 .accessibilityHint(L.s("Stops every note on both Macs", "2台の Mac の音をすべて止めます"))
                 lockButton
@@ -176,8 +180,8 @@ struct TopBar: View {
             if compact { HStack { transport; Spacer() } }
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
-        .background(Color.tkBar.ignoresSafeArea(edges: .top))
-        .overlay(alignment: .bottom) { Divider() }
+        .background(TK.top.ignoresSafeArea(edges: .top))
+        .overlay(alignment: .bottom) { TK.stroke.frame(height: TK.line) }
     }
 
     private var statusText: some View {
@@ -193,18 +197,41 @@ struct TopBar: View {
             let live = backupLive ? L.s("Live ✓", "Live ✓") : L.s("Live ✗ no answer", "Live ✗ 応答なし")
             return L.s("Backup ✓", "バックアップ ✓") + " · " + live + (backupLive ? (st?.latencyMs.map { " · \(Int($0.rounded())) ms" } ?? "") : "")
         }()
-        return HStack(spacing: 8) {
-            Circle().fill(!connected ? Color.tkDanger : allOK ? Color.tkOK : Color.tkWarn).frame(width: 9, height: 9)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
-                    Text((st?.mainName ?? "TwinKeys") + (model.trialMode ? L.s(" · Sample", " · サンプル") : "")).font(.subheadline.bold()).lineLimit(1)
-                    watchMark
+        // A1: three lamps (decoration: VoiceOver reads the name and the line below, as before).
+        let mainLamp = !connected ? TK.red : allOK ? TK.accent : TK.yellow
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 12) {
+                // All three when they fit; otherwise the MAIN lamp only (the line below says the rest).
+                if compact {
+                    lamp("MAIN", mainLamp, on: true)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 12) {
+                            lamp("MAIN", mainLamp, on: true)
+                            lamp("BACKUP", backupOK ? TK.accent : TK.yellow, on: connected)
+                            lamp("LIVE", allOK ? TK.accent : TK.yellow, on: connected)
+                        }
+                        lamp("MAIN", mainLamp, on: true)
+                    }
                 }
-                Text(line).font(.caption).foregroundStyle(!connected ? Color.tkDanger : backupLive ? Color.secondary : Color.tkWarn).lineLimit(1)
+                watchMark
+            }
+            HStack(spacing: 6) {
+                Text((st?.mainName ?? "TwinKeys") + (model.trialMode ? L.s(" · Sample", " · サンプル") : ""))
+                    .font(TK.mono(.caption)).foregroundStyle(TK.read).lineLimit(1)
+                Text(line).font(.caption).foregroundStyle(!connected ? TK.red : backupLive ? TK.dim : TK.yellow).lineLimit(1)
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAction(named: L.s("Connection settings", "接続の設定")) { openConnection() }
+    }
+
+    private func lamp(_ name: String, _ color: Color, on: Bool) -> some View {
+        HStack(spacing: 5) {
+            LED(color: color, on: on, size: 7)
+            Text(name).font(TK.mono(.caption)).tracking(1.5).foregroundStyle(on ? TK.read : TK.dim).lineLimit(1)
+        }
+        .accessibilityHidden(true)
     }
 
     /// Connection display: the Apple Watch next to the Mac's name (green: reachable, yellow: not
@@ -214,7 +241,7 @@ struct TopBar: View {
         if level != .absent {
             Image(systemName: "applewatch")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(level == .reachable ? Color.tkOK : Color.tkWarn)
+                .foregroundStyle(level == .reachable ? TK.accent : TK.yellow)
                 .frame(width: 26, height: 22)
                 .contentShape(Rectangle())
                 .onTapGesture { openConnection() }
@@ -226,23 +253,34 @@ struct TopBar: View {
     private var transport: some View {
         HStack(spacing: 8) {
             Button { model.run(.play) } label: {
-                Image(systemName: "play.fill").font(.title3).foregroundStyle(.white)
+                let on = model.live.song.playing
+                Image(systemName: "play.fill").font(.title3).foregroundStyle(on ? TK.accent : TK.read)
+                    .shadow(color: on ? TK.accent.opacity(0.6) : .clear, radius: 4)
                     .frame(width: 54, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(model.live.song.playing ? Color.tkOK : Color.secondary))
+                    .tkPanel(radius: 8, fill: on ? TK.keyTop : TK.panel, stroke: on ? TK.accent : TK.stroke)
             }
             .accessibilityLabel(L.s("Play", "再生"))
             // Stop needs a long press (a touch by accident does not stop the show).
-            Image(systemName: "stop.fill").font(.title3)
+            Image(systemName: "stop.fill").font(.title3).foregroundStyle(TK.read)
                 .frame(width: 54, height: 40)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.tkCell))
+                .tkPanel(radius: 8)
                 .onLongPressGesture(minimumDuration: 0.5) { model.run(.stop) }
                 .accessibilityLabel(L.s("Stop (long press)", "停止（長押し）"))
                 .accessibilityAddTraits(.isButton)
                 // No one-tap accessibility action: with VoiceOver, double-tap and hold (same safety as the touch).
                 .accessibilityHint(L.s("Double-tap and hold to stop", "ダブルタップして長押しで停止"))
-            Text(String(format: "%.2f", model.live.song.tempo)).font(.title3.bold()).monospacedDigit()
-            Text("BPM").font(.caption).foregroundStyle(.secondary)
-            Text(model.live.song.beat).font(.headline).monospacedDigit().padding(.leading, 4)
+            DisplayWindow(title: "TEMPO") {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(String(format: "%.2f", model.live.song.tempo)).font(TK.mono(.headline)).monospacedDigit().foregroundStyle(TK.read)
+                    Text("BPM").font(.caption2).foregroundStyle(TK.dim)
+                }
+                .lineLimit(1)
+                .fixedSize()  // never truncate the readout: the window grows to fit it
+            }
+            DisplayWindow(title: "POSITION") {
+                Text(model.live.song.beat).font(TK.mono(.headline)).monospacedDigit().foregroundStyle(TK.read).lineLimit(1)
+                    .fixedSize()
+            }
         }
     }
 
@@ -250,8 +288,8 @@ struct TopBar: View {
         Image(systemName: model.locked ? "lock.fill" : "lock.open")
             .font(.title3)
             .frame(width: 44, height: 44)
-            .background(RoundedRectangle(cornerRadius: 10).fill(model.locked ? Color.tkAccent.opacity(0.2) : Color.tkCell))
-            .foregroundStyle(model.locked ? Color.tkAccent : .secondary)
+            .tkPanel(radius: 8, fill: model.locked ? TK.keyTop : TK.panel, stroke: model.locked ? TK.accent : TK.stroke)
+            .foregroundStyle(model.locked ? TK.accent : TK.dim)
             // Locking is a tap; unlocking needs a 1 s press.
             .onTapGesture { if !model.locked { model.locked = true } }
             .onLongPressGesture(minimumDuration: 1) { model.locked = false }
@@ -267,9 +305,10 @@ struct ResultBanner: View {
     let error: String
     var body: some View {
         Label(text, systemImage: "exclamationmark.triangle.fill")
-            .font(.footnote.weight(.semibold)).foregroundStyle(.white)
+            .font(.footnote.weight(.semibold)).foregroundStyle(TK.yellow)
             .frame(maxWidth: .infinity, minHeight: 30).padding(.horizontal, 12)
-            .background(Color.tkWarn)
+            .background(TK.yellowGround)
+            .overlay(alignment: .bottom) { TK.yellow.opacity(0.6).frame(height: TK.line) }
             .accessibilityAddTraits(.updatesFrequently)
     }
     private var text: String {
@@ -306,9 +345,10 @@ struct SetDiffBanner: View {
                 Text(L.s("Details ›", "詳しく ›"))
             }
             .font(.footnote.weight(.bold))
-            .foregroundStyle(Color(red: 1, green: 0.89, blue: 0.65))
+            .foregroundStyle(TK.yellow)
             .padding(.horizontal, 12).frame(maxWidth: .infinity, minHeight: 34)
-            .background(Color(red: 0.35, green: 0.24, blue: 0.04))
+            .background(TK.yellowGround)
+            .overlay(alignment: .bottom) { TK.yellow.opacity(0.6).frame(height: TK.line) }
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showing) { SetDiffSheet(diff: diff) }
@@ -336,6 +376,8 @@ struct SetDiffSheet: View {
                                "セットのファイルを2台で同じにすると消えます。本番中は確かめるだけで、自動で直すことはしません。"))
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(TK.bg)
             .navigationTitle(L.s("Main and backup sets", "メインとバックアップの Live のセット"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button(L.s("Done", "閉じる")) { dismiss() } } }
@@ -352,9 +394,10 @@ struct SetDiffSheet: View {
         HStack {
             Text(item).frame(maxWidth: .infinity, alignment: .leading)
             Text(main).bold().frame(maxWidth: .infinity, alignment: .leading)
-            Text(backup).bold().foregroundStyle(main == backup ? Color.primary : Color.tkWarn).frame(maxWidth: .infinity, alignment: .leading)
+            Text(backup).bold().foregroundStyle(main == backup ? TK.read : TK.yellow).frame(maxWidth: .infinity, alignment: .leading)
         }
         .lineLimit(2).font(.subheadline)
+        .listRowBackground(TK.panel)
     }
 }
 
@@ -368,15 +411,15 @@ struct MainLostBanner: View {
             let secs = model.lostAt.map { Int(ctx.date.timeIntervalSince($0)) } ?? 0
             if secs >= 3 {
                 HStack(spacing: 10) {
-                    Label(L.s("The main Mac is not answering (\(secs) s)", "メインの Mac が応答しません（\(secs) 秒）"),
-                          systemImage: "exclamationmark.triangle.fill")
+                    LED(color: TK.red, size: 7)
+                    Text(L.s("The main Mac is not answering (\(secs) s)", "メインの Mac が応答しません（\(secs) 秒）"))
                         .font(.subheadline.weight(.heavy)).lineLimit(1).minimumScaleFactor(0.7)
                     Spacer(minLength: 8)
                     if model.backupMac != nil, model.canSwitchToBackup {
                         Button { confirming = true } label: {
                             Text(L.s("Switch to the backup", "バックアップに切り替える")).font(.subheadline.bold())
                                 .foregroundStyle(.white).padding(.horizontal, 14).frame(minHeight: 34)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.tkDanger))
+                                .background(RoundedRectangle(cornerRadius: 8).fill(TK.redFill))
                         }
                         .buttonStyle(.plain)
                     } else if model.backupMac != nil {
@@ -386,9 +429,10 @@ struct MainLostBanner: View {
                         Text(L.s("Backup Mac not found", "バックアップの Mac が見つかりません")).font(.caption.bold())
                     }
                 }
-                .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.8))
+                .foregroundStyle(TK.redSoft)
                 .padding(.horizontal, 12).frame(maxWidth: .infinity, minHeight: 42)
-                .background(Color(red: 0.29, green: 0.08, blue: 0.06))
+                .background(TK.redGround)
+                .overlay(alignment: .bottom) { TK.red.frame(height: TK.line) }
             }
         }
         .sheet(isPresented: $confirming) { SwitchConfirmSheet().presentationDetents([.medium]) }
@@ -403,16 +447,16 @@ struct SwitchConfirmSheet: View {
         let name = model.backupMacName ?? L.s("the backup Mac", "バックアップの Mac")
         VStack(spacing: 14) {
             Text(L.s("Switch to the backup?", "バックアップに切り替えますか？")).font(.title3.bold())
-            Text(L.s("\(name) becomes the main.", "\(name) がメインになります。")).foregroundStyle(.secondary)
+            Text(L.s("\(name) becomes the main.", "\(name) がメインになります。")).foregroundStyle(TK.dim)
             VStack(alignment: .leading, spacing: 4) {
                 Text(L.s("· The iPhone connects to \(name)", "・iPhone は \(name) につなぎ直します"))
                 Text(L.s("· \(name)'s keyboard fires the cues", "・\(name) のキーボードでキューを出せるようになります"))
             }
-            .font(.footnote).foregroundStyle(.secondary)
+            .font(.footnote).foregroundStyle(TK.dim)
             HStack(spacing: 12) {
                 Button { dismiss() } label: {
-                    Text(L.s("Cancel", "やめる")).font(.headline).frame(maxWidth: .infinity, minHeight: 52)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCell))
+                    Text(L.s("Cancel", "やめる")).font(.headline).foregroundStyle(TK.read).frame(maxWidth: .infinity, minHeight: 52)
+                        .tkPanel(radius: 10)
                 }
                 .buttonStyle(.plain)
                 VStack(spacing: 2) {
@@ -420,13 +464,14 @@ struct SwitchConfirmSheet: View {
                     Text(L.s("1 s", "1 秒")).font(.caption.bold())
                 }
                 .foregroundStyle(.white).frame(maxWidth: .infinity, minHeight: 52)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkDanger))
+                .background(RoundedRectangle(cornerRadius: 10).fill(TK.redFill))
                 .onLongPressGesture(minimumDuration: 1) { model.switchToBackup(); dismiss() }
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint(L.s("Double-tap and hold to switch", "ダブルタップして長押しで切り替え"))
             }
         }
         .padding(20)
+        .presentationBackground(TK.bg)
     }
 }
 
@@ -436,9 +481,10 @@ struct SwitchedBanner: View {
     var body: some View {
         Text(L.s("Switched to the backup: \(model.status?.mainName ?? "this Mac") is the main. To go back, use Return to Main on the Mac.",
                  "バックアップに切り替え中：\(model.status?.mainName ?? "この Mac") がメインです。元に戻すときは Mac の画面で「メインに戻す」"))
-            .font(.footnote.weight(.bold)).foregroundStyle(Color(red: 0.75, green: 0.87, blue: 1))
+            .font(.footnote.weight(.bold)).foregroundStyle(TK.blue)
             .lineLimit(2).minimumScaleFactor(0.8)
             .padding(.horizontal, 12).frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
-            .background(Color(red: 0.12, green: 0.16, blue: 0.23))
+            .background(TK.blueGround)
+            .overlay(alignment: .bottom) { TK.blue.opacity(0.6).frame(height: TK.line) }
     }
 }

@@ -17,17 +17,23 @@ struct SessionView: View {
             ScrollView([.vertical]) {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text(L.s("Scenes", "シーン")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        SmallCaps("SCENES", spoken: L.s("Scenes", "シーン"))
                         Spacer()
                         TextField(L.s("Jump (number or name)", "ジャンプ（番号か名前）"), text: $jump)
-                            .textFieldStyle(.roundedBorder).frame(maxWidth: 200)
+                            .textFieldStyle(.plain).foregroundStyle(TK.read)
+                            .padding(.horizontal, 10).frame(minHeight: 34)
+                            .tkPanel(radius: 6, fill: TK.bg)
+                            .frame(maxWidth: 200)
                             .onSubmit { if let i = jumpTarget() { withAnimation { proxy.scrollTo("scene-\(i)", anchor: .center) } } }
-                        Toggle(L.s("Follow", "追従"), isOn: $model.followSelection).toggleStyle(.button).font(.footnote)
+                        Toggle(isOn: $model.followSelection) {
+                            Text(L.s("Follow", "追従")).font(TK.mono(.footnote)).tracking(1)
+                        }
+                        .toggleStyle(TKToggleKeyStyle())
                     }
                     if !showSceneColumn {
                         ForEach(live.scenes) { sc in sceneRow(sc).id("scene-\(sc.index)") }
                         stopAllButton
-                        Text(L.s("Clips", "クリップ")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 6)
+                        SmallCaps("CLIPS", spoken: L.s("Clips", "クリップ")).padding(.top, 6)
                     }
                     clipGrid(live, cellWidth: cellWidth(geo.size.width, tracks: live.tracks.count))
                     if showSceneColumn { stopAllButton }
@@ -60,16 +66,20 @@ struct SessionView: View {
     private func sceneRow(_ sc: LiveScene) -> some View {
         Button { model.run(.fireScene(sc.index)) } label: {
             HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 3).fill(Color(hex: sc.color)).frame(width: 6)
-                Text("\(sc.index + 1)  \(sc.name)").font(.body.weight(sc.playing ? .bold : .regular)).lineLimit(1)
+                Rectangle().fill(Color(hex: sc.color)).frame(width: 4)
+                Text("\(sc.index + 1)").font(TK.mono(.body)).monospacedDigit().foregroundStyle(TK.dim)
+                Text(sc.name).font(.body.weight(sc.playing ? .bold : .regular)).foregroundStyle(TK.read).lineLimit(1)
                 Spacer()
-                if sc.playing { Text(L.s("Playing", "再生中")).font(.caption.bold()).foregroundStyle(Color.tkOK) }
-                Image(systemName: "play.fill").foregroundStyle(sc.playing ? Color.tkOK : .secondary)
+                if sc.playing { Text(L.s("Playing", "再生中")).font(.caption.bold()).foregroundStyle(TK.accent) }
+                if sc.playing { LED(size: 6) }
+                Image(systemName: "play.fill").foregroundStyle(sc.playing ? TK.accent : TK.read)
             }
             .padding(.trailing, 14)
             .frame(minHeight: 48)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.tkCard))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(sc.playing || sc.index == model.live.song.selectedScene ? Color.tkAccent : .clear, lineWidth: 1.5))
+            .background(sc.playing ? TK.keyTop : TK.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(sc.playing ? TK.accent : sc.index == model.live.song.selectedScene ? TK.blue : TK.stroke,
+                                                                     lineWidth: sc.playing || sc.index == model.live.song.selectedScene ? 1.5 : TK.line))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(L.s("Scene \(sc.index + 1) \(sc.name)", "シーン \(sc.index + 1) \(sc.name)"))
@@ -78,9 +88,9 @@ struct SessionView: View {
     /// Stops every clip; long press only.
     private var stopAllButton: some View {
         Label(L.s("Stop all clips (hold)", "全クリップ停止（長押し）"), systemImage: "stop.circle")
-            .font(.footnote.bold())
+            .font(.footnote.bold()).foregroundStyle(TK.read)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.tkCell))
+            .tkPanel(radius: 8)
             .onLongPressGesture(minimumDuration: 0.5) { model.run(.stopAll) }
             .accessibilityAddTraits(.isButton)
             .accessibilityHint(L.s("Double-tap and hold to stop every clip", "ダブルタップして長押しで全クリップを停止"))
@@ -92,24 +102,35 @@ struct SessionView: View {
                 HStack(spacing: 6) {
                     if showSceneColumn { Color.clear.frame(width: Self.rowNumberWidth, height: 1) }
                     ForEach(live.tracks) { t in
-                        Text(t.name).font(.caption.bold()).foregroundStyle(.white).lineLimit(1)
-                            .padding(.horizontal, 6).frame(width: cw, height: 22, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: t.color)))
+                        // A1: the track's colour as a thin frame and a bar at the left, name in spaced capitals.
+                        Text(t.name.uppercased()).font(TK.mono(.caption)).tracking(1).foregroundStyle(TK.read).lineLimit(1)
+                            .padding(.leading, 9).padding(.trailing, 4).frame(width: cw, alignment: .leading).frame(minHeight: 22)
+                            .tkPanel(radius: 4, fill: Color(tkRGB: 0x0A0A0A), stroke: Color(hex: t.color))
+                            .overlay(alignment: .leading) { Color(hex: t.color).frame(width: 3) }
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .accessibilityLabel(t.name)
                     }
-                    if showSceneColumn { Text(L.s("Scene", "シーン")).font(.caption.bold()).foregroundStyle(.secondary).frame(width: Self.sceneColumnWidth) }
+                    if showSceneColumn {
+                        Text(L.s("Scene", "シーン")).font(TK.mono(.caption2)).tracking(1).foregroundStyle(TK.dim)
+                            .lineLimit(1).minimumScaleFactor(0.7).frame(width: Self.sceneColumnWidth)
+                    }
                 }
                 ForEach(live.scenes) { sc in
                     HStack(spacing: 6) {
                         if showSceneColumn {
-                            Text("\(sc.index + 1)").font(.caption.bold()).monospacedDigit().foregroundStyle(.secondary)
+                            Text(String(format: "%02d", sc.index + 1)).font(TK.mono(.caption)).monospacedDigit().foregroundStyle(TK.dim)
+                                .lineLimit(1).minimumScaleFactor(0.6)
                                 .frame(width: Self.rowNumberWidth)
+                                .accessibilityLabel("\(sc.index + 1)")
                         }
                         ForEach(live.tracks) { t in clipCell(live, t.index, sc.index, width: cw) }
                         if showSceneColumn {
                             Button { model.run(.fireScene(sc.index)) } label: {
-                                Image(systemName: "play.fill").foregroundStyle(sc.playing ? .white : .primary)
+                                Image(systemName: "play.fill").foregroundStyle(sc.playing ? TK.accent : TK.read)
                                     .frame(width: Self.sceneColumnWidth, height: 46)
-                                    .background(RoundedRectangle(cornerRadius: 8).fill(sc.playing ? Color.tkOK : Color.tkCard))
+                                    .tkPanel(radius: 8, fill: sc.playing ? TK.keyTop : TK.panel, stroke: sc.playing ? TK.accent : TK.stroke,
+                                             lineWidth: sc.playing ? 1.5 : TK.line)
+                                    .overlay(alignment: .topTrailing) { if sc.playing { LED(size: 4).padding(5) } }
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(L.s("Scene \(sc.index + 1)", "シーン \(sc.index + 1)"))
@@ -121,8 +142,8 @@ struct SessionView: View {
                     if showSceneColumn { Color.clear.frame(width: Self.rowNumberWidth, height: 1) }
                     ForEach(live.tracks) { t in
                         Button { model.run(.stopTrack(t.index)) } label: {
-                            Image(systemName: "square.fill").font(.caption).frame(width: cw, height: 32)
-                                .background(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.secondary.opacity(0.4)))
+                            Image(systemName: "square.fill").font(.caption).foregroundStyle(TK.dim).frame(width: cw, height: 32)
+                                .tkPanel(radius: 6, fill: TK.bg)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(L.s("Stop \(t.name)", "\(t.name) を停止"))
@@ -138,37 +159,32 @@ struct SessionView: View {
             model.run(c.hasClip ? .fireClip(track: t, scene: s) : .stopTrack(t))
         } label: {
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8).fill(c.hasClip ? Color.tkCard : Color.tkBG)
+                RoundedRectangle(cornerRadius: 8).fill(c.hasClip ? TK.panel : TK.bg)
                 if c.hasClip {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(c.name).font(.caption.bold()).lineLimit(1)
+                            Text(c.name).font(.caption.bold()).foregroundStyle(TK.read).lineLimit(1)
                             Spacer(minLength: 2)
                             if c.isPlaying, let left = live.secondsLeft(track: t) {
-                                Text(formatTimeLeft(left)).font(.caption2.bold()).monospacedDigit().foregroundStyle(Color.tkOK)
+                                Text(formatTimeLeft(left)).font(TK.mono(.caption2)).monospacedDigit().foregroundStyle(TK.accent)
                             }
                         }
                         if c.isPlaying, let p = live.progress[t], p.count == 2, p[1] > 0 {
-                            GeometryReader { g in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(Color.tkCell)
-                                    Capsule().fill(Color.tkOK).frame(width: g.size.width * min(1, p[0] / p[1]))
-                                }
-                            }
-                            .frame(height: 4)
+                            SegmentMeter(value: p[0] / p[1], segments: 10).frame(height: 6)
                         }
                         Spacer(minLength: 0)
                     }
                     .padding(6)
                     Rectangle().fill(Color(hex: c.color)).frame(height: 4).frame(maxHeight: .infinity, alignment: .bottom)
                 } else {
-                    RoundedRectangle(cornerRadius: 1).fill(Color.secondary.opacity(0.6)).frame(width: 9, height: 9)
+                    RoundedRectangle(cornerRadius: 1).fill(TK.stroke).frame(width: 9, height: 9)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .frame(width: cw, height: 46)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(c.isPlaying ? Color.tkOK : (c.isTriggered ? Color.tkWarn : Color.secondary.opacity(c.hasClip ? 0 : 0.3)), lineWidth: c.isPlaying || c.isTriggered ? 2 : 1))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(c.isPlaying ? TK.accent : (c.isTriggered ? TK.yellow : (c.hasClip ? TK.stroke : Color(tkRGB: 0x1C1C1C))),
+                                                                     lineWidth: c.isPlaying || c.isTriggered ? 2 : TK.line))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(c.hasClip ? "\(c.name)\(c.isPlaying ? L.s(", playing", "、再生中") : "")" : L.s("Empty slot, stops the track", "空のスロット（トラックを停止）"))
@@ -233,7 +249,7 @@ struct MixerView: View {
             }
             if model.mixerLocked {
                 Label(L.s("Show lock: the mixer cannot be changed", "本番ロック中はミキサーを変えられません"), systemImage: "lock.fill")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(TK.dim)
             }
             HStack(alignment: .top, spacing: 10) {
                 GeometryReader { g in
@@ -263,7 +279,7 @@ struct MixerView: View {
     }
 
     private var mixerTitle: some View {
-        Text(L.s("Mixer", "ミキサー")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+        SmallCaps("MIXER", spoken: L.s("Mixer", "ミキサー"))
     }
 
     private var modePicker: some View {
@@ -275,11 +291,9 @@ struct MixerView: View {
 
     private func modeButton(_ m: Mode) -> some View {
         Button { mode = m } label: {
-            Text(m.title).font(.subheadline.bold()).lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: .infinity, minHeight: 48)
-                .foregroundStyle(mode == m ? .white : .primary)
-                .background(RoundedRectangle(cornerRadius: 10).fill(mode == m ? Color.tkAccent : Color.tkCell))
+            Text(m.title).font(TK.mono(.subheadline)).lineLimit(1).minimumScaleFactor(0.6).frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TKButtonStyle(kind: mode == m ? .green : .plain, radius: 8, minHeight: 48))
         .accessibilityAddTraits(mode == m ? .isSelected : [])
     }
 
@@ -327,19 +341,27 @@ struct MixerView: View {
 
     private func strip(_ i: Int, _ name: String, _ color: String, _ vol: Double, _ pan: Double, _ sends: [Double], _ mute: Bool, _ solo: Bool, _ meter: [Double]?, width: CGFloat) -> some View {
         VStack(spacing: 6) {
-            Text(valueText(vol, pan, sends)).font(.caption.bold()).monospacedDigit()
+            Text(valueText(vol, pan, sends)).font(TK.mono(.caption)).monospacedDigit().foregroundStyle(TK.read)
+                .lineLimit(1).minimumScaleFactor(0.7)
             GeometryReader { g in
                 let h = g.size.height
                 let value = position(vol, pan, sends)
+                // A1: a console fader (track, scale, cap) and a green-yellow-red LED meter at the right.
                 ZStack(alignment: .bottom) {
-                    RoundedRectangle(cornerRadius: 8).fill(Color.tkCard)
-                    RoundedRectangle(cornerRadius: 8).fill(i == -1 ? Color.secondary : Color.tkAccent)
-                        .frame(height: h * (value ?? 0)).padding(.trailing, 8)
-                    // meter
-                    HStack { Spacer(); Capsule().fill(Color.tkOK).frame(width: 4, height: h * (meter?.max() ?? 0)) }
+                    HStack(alignment: .bottom, spacing: 4) {
+                        ZStack(alignment: .bottom) {
+                            faderScale.frame(width: 30)
+                            Capsule().fill(Color(tkRGB: 0x141414)).frame(width: 6)
+                            faderCap.frame(width: 30, height: Self.capHeight)
+                                .offset(y: -(h - Self.capHeight) * min(1, max(0, value ?? 0)))
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        SegmentMeter(value: meter?.max() ?? 0, segments: 24, vertical: true, vu: true, spacing: 2)
+                            .frame(width: 9)
+                    }
                     if mode == .volume {
-                        Rectangle().stroke(style: StrokeStyle(lineWidth: 1, dash: [3, 3])).foregroundStyle(.secondary)
-                            .frame(height: 1).offset(y: -h * RemoteModel.zeroDB)
+                        Rectangle().stroke(style: StrokeStyle(lineWidth: 1, dash: [3, 3])).foregroundStyle(TK.dim)
+                            .frame(height: 1).offset(y: -((h - Self.capHeight) * RemoteModel.zeroDB + Self.capHeight / 2))
                     }
                 }
                 .contentShape(Rectangle())
@@ -359,14 +381,19 @@ struct MixerView: View {
             .frame(minHeight: 120)
             if i >= 0 {
                 HStack(spacing: 4) {
-                    toggle("M", mute, Color.tkWarn) { model.run(.setMute(track: i, on: !mute)) }
-                    toggle("S", solo, Color.tkAccent) { model.run(.setSolo(track: i, on: !solo)) }
+                    toggle("M", mute, TK.yellow) { model.run(.setMute(track: i, on: !mute)) }
+                    toggle("S", solo, TK.blue) { model.run(.setSolo(track: i, on: !solo)) }
                 }
             }
-            Text(name).font(.caption2.bold()).foregroundStyle(.white).lineLimit(1)
-                .frame(maxWidth: .infinity, minHeight: 20).background(RoundedRectangle(cornerRadius: 4).fill(Color(hex: color)))
+            // The track's colour as the frame of the name plate.
+            Text(name.uppercased()).font(TK.mono(.caption2)).tracking(1).foregroundStyle(TK.read).lineLimit(1).minimumScaleFactor(0.7)
+                .padding(.horizontal, 4)
+                .frame(maxWidth: .infinity, minHeight: 20)
+                .tkPanel(radius: 4, fill: TK.bg, stroke: Color(hex: color), lineWidth: 1.5)
         }
+        .padding(5)
         .frame(width: width)
+        .tkPanel(radius: 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(name) \(mode.title) \(valueText(vol, pan, sends))")
         .accessibilityAdjustableAction { dir in
@@ -385,11 +412,37 @@ struct MixerView: View {
         }
     }
 
+    private static let capHeight: CGFloat = 20
+
+    /// Scale marks beside the fader track (decoration).
+    private var faderScale: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<11, id: \.self) { k in
+                if k > 0 { Spacer(minLength: 0) }
+                HStack(spacing: 0) {
+                    Rectangle().frame(width: 6, height: 1)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(.vertical, Self.capHeight / 2)
+        .foregroundStyle(Color(tkRGB: 0x333333))
+        .accessibilityHidden(true)
+    }
+
+    /// The fader cap: dark key with a white line.
+    private var faderCap: some View {
+        RoundedRectangle(cornerRadius: 4).fill(TK.cap)
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(TK.capLine, lineWidth: TK.line))
+            .overlay(Rectangle().fill(TK.read).frame(height: 2).padding(.horizontal, 4))
+            .accessibilityHidden(true)
+    }
+
     private func toggle(_ label: String, _ on: Bool, _ color: Color, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(label).font(.subheadline.bold()).frame(maxWidth: .infinity, minHeight: 34)
-                .foregroundStyle(on ? .white : .primary)
-                .background(RoundedRectangle(cornerRadius: 7).fill(on ? color : Color.tkCell))
+            Text(label).font(TK.mono(.subheadline)).frame(maxWidth: .infinity, minHeight: 34)
+                .foregroundStyle(on ? color : TK.read)
+                .tkPanel(radius: 6, fill: on ? color.opacity(0.18) : TK.panel, stroke: on ? color : TK.stroke, lineWidth: on ? 1.5 : TK.line)
         }
         .buttonStyle(.plain)
         .disabled(model.mixerLocked)
@@ -408,7 +461,7 @@ struct CuesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 lastCue
-                Text(L.s("Cue keys", "キューのキー")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                SmallCaps("CUE KEYS", spoken: L.s("Cue keys", "キューのキー"))
                 let keys = model.status?.cueKeys ?? []
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: cols), spacing: 8) {
                     ForEach(keys) { k in
@@ -429,13 +482,23 @@ struct CuesView: View {
                                      "押すと、Mac でそのキーを押したのと同じ。何が動くかは Live の MIDI マップで決まります。"))
                         }
                     }
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(TK.dim)
                 }
                 if !compact {
                     Button(action: model.allNotesOff) {
-                        Text(L.s("All Notes Off (both Macs)", "オールノートオフ（2台とも）")).font(.headline).foregroundStyle(.white)
-                            .frame(maxWidth: .infinity, minHeight: 52).background(RoundedRectangle(cornerRadius: 12).fill(Color.tkDanger))
+                        VStack(spacing: 4) {
+                            Text("ALL NOTES OFF").font(.system(.title2, design: .monospaced, weight: .heavy)).tracking(3)
+                                .foregroundStyle(TK.red).lineLimit(1).minimumScaleFactor(0.5)
+                                .accessibilityHidden(true)
+                            Text(L.s("All Notes Off (both Macs)", "オールノートオフ（2台とも）")).font(.headline).foregroundStyle(TK.redSoft)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, minHeight: 88)
+                        .background(NotesOffBackground(radius: 12, lineWidth: 2))
                     }
+                    .buttonStyle(.plain)
+                    SmallCaps("MACS")
                     macs
                 }
             }
@@ -448,46 +511,46 @@ struct CuesView: View {
     @ViewBuilder private func cueButton(_ k: RemoteStatus.CueKeySummary) -> some View {
         VStack(alignment: k.memo.isEmpty ? .center : .leading, spacing: 5) {
             if k.memo.isEmpty {
-                Text(k.label).font(.title2.bold()).lineLimit(1).minimumScaleFactor(0.6)
-                if !compact { Text(L.s("No memo", "メモなし")).font(.caption2).foregroundStyle(.secondary) }
+                Text(k.label).font(TK.mono(.title2)).foregroundStyle(TK.read).lineLimit(1).minimumScaleFactor(0.6)
+                if !compact { Text(L.s("No memo", "メモなし")).font(.caption2).foregroundStyle(TK.dim) }
             } else {
-                Text(k.memo).font(compact ? .subheadline.bold() : .headline).lineLimit(2).minimumScaleFactor(0.7)
+                Text(k.memo).font(compact ? .subheadline.bold() : .headline).foregroundStyle(TK.read).lineLimit(2).minimumScaleFactor(0.7)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 6) {
-                    Text(k.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(k.label).font(TK.mono(.caption)).foregroundStyle(TK.dim).lineLimit(1)
                         .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(RoundedRectangle(cornerRadius: 5).fill(Color.tkCell))
-                    if !compact { Text(L.s("key", "キー")).font(.caption2).foregroundStyle(.secondary) }
+                        .tkPanel(radius: 4, fill: TK.bg)
+                    if !compact { Text(L.s("key", "キー")).font(.caption2).foregroundStyle(TK.dim) }
                 }
             }
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, minHeight: compact ? 52 : 68, alignment: k.memo.isEmpty ? .center : .leading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCard))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.3)))
+        .tkPanel(radius: 8)
     }
 
     private var lastCue: some View {
         let c = model.status?.lastCue
         return HStack(spacing: 12) {
-            Text(c?.label ?? "–").font(.title.bold()).frame(width: 60, height: 50)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.tkCell))
+            Text(c?.label ?? "–").font(TK.mono(.title)).foregroundStyle(TK.read).lineLimit(1).minimumScaleFactor(0.5)
+                .frame(width: 60, height: 50)
+                .tkPanel(radius: 8, fill: TK.bg)
             VStack(alignment: .leading, spacing: 2) {
-                Text(L.s("Last cue", "直前のキュー")).font(.caption.bold()).foregroundStyle(.secondary)
-                Text(c.map { $0.memo.isEmpty ? $0.label : $0.memo } ?? L.s("No cue yet", "まだありません")).font(.headline).lineLimit(1)
-                if let c { Text(L.s("\(c.label) key · cue \(c.count) since connecting", "\(c.label) キー ・ 接続してから \(c.count) 回目")).font(.caption).foregroundStyle(.secondary) }
+                SmallCaps("LAST CUE", spoken: L.s("Last cue", "直前のキュー"))
+                Text(c.map { $0.memo.isEmpty ? $0.label : $0.memo } ?? L.s("No cue yet", "まだありません")).font(.headline).foregroundStyle(TK.read).lineLimit(1)
+                if let c { Text(L.s("\(c.label) key · cue \(c.count) since connecting", "\(c.label) キー ・ 接続してから \(c.count) 回目")).font(.caption).foregroundStyle(TK.dim) }
             }
             Spacer()
             if let d = c?.delivery {
                 Image(systemName: d == "delivered" ? "checkmark.circle.fill" : d == "missing" ? "exclamationmark.circle.fill" : "circle.dotted")
-                    .font(.title2).foregroundStyle(d == "delivered" ? Color.tkOK : d == "missing" ? Color.tkDanger : .secondary)
+                    .font(.title2).foregroundStyle(d == "delivered" ? TK.accent : d == "missing" ? TK.red : TK.dim)
+                    .shadow(color: d == "delivered" ? TK.accent.opacity(0.5) : .clear, radius: 4)
                     .accessibilityLabel(d == "delivered" ? L.s("Reached the backup", "バックアップに届きました")
                                         : d == "missing" ? L.s("No confirmation", "届いた確認がありません") : d)
             }
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCard))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(c?.delivery == "missing" ? Color.tkDanger : .clear, lineWidth: 1.5))
+        .tkPanel(radius: 10, stroke: c?.delivery == "missing" ? TK.red : TK.stroke, lineWidth: c?.delivery == "missing" ? 1.5 : TK.line)
     }
 
     private var macs: some View {
@@ -500,15 +563,16 @@ struct CuesView: View {
                 st?.backupLinked == true && st?.backupLiveConnected == true)
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCard))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tkPanel(radius: 10)
     }
 
     private func row(_ title: String, _ name: String, _ detail: String, _ ok: Bool) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Circle().fill(ok ? Color.tkOK : Color.tkWarn).frame(width: 9, height: 9).padding(.top, 5)
+            LED(color: ok ? TK.accent : TK.yellow, size: 8).padding(.top, 5)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.subheadline.bold())
-                Text("\(name) · \(detail)").font(.caption).foregroundStyle(.secondary)
+                Text(title).font(TK.mono(.subheadline)).foregroundStyle(TK.read)
+                Text("\(name) · \(detail)").font(.caption).foregroundStyle(TK.dim)
             }
         }
         .accessibilityElement(children: .combine)
@@ -547,6 +611,7 @@ struct SettingsPane: View {
                 } footer: {
                     Text(L.s("You are looking at made-up data. Nothing is sent to a Mac.", "架空のデータを表示しています。Mac には何も送っていません。"))
                 }
+                .listRowBackground(TK.panel)
             }
             Section(L.s("Show safety", "本番の安全")) {
                 // Turning the lock off only with the 1 s hold on the lock button.
@@ -554,6 +619,7 @@ struct SettingsPane: View {
                 Toggle(L.s("Faders stop at 0 dB", "フェーダーの上限を 0dB にする"), isOn: $model.capAtZeroDB)
                 Toggle(L.s("Follow the selection in Live", "Live の選択に追従"), isOn: $model.followSelection)
             }
+            .listRowBackground(TK.panel)
             Section {
                 lockToggle(.tempo, L.s("Tempo", "テンポ"))
                 lockToggle(.mixer, L.s("Mixer (volume, pan, sends, M/S)", "ミキサー（音量・パン・センド・M/S）"))
@@ -567,15 +633,20 @@ struct SettingsPane: View {
                 Text(L.s("All Notes Off and unlocking (1 s hold) are never stopped. Change these while the lock is off.",
                          "全ノートオフと「ロックの解除（1 秒長押し）」は止めません。ロック中は変えられません。"))
             }
+            .listRowBackground(TK.panel)
             connectionSection
             Section(L.s("About", "このアプリについて")) {
                 Link(L.s("Privacy policy", "プライバシーポリシー"), destination: Self.site(L.ja ? "ja/privacy/" : "privacy/"))
                 Link(L.s("Help and support", "使い方・サポート"), destination: Self.site(L.ja ? "ja/support/" : "support/"))
                 Text(L.s("TwinKeys Remote by Shogo Kajiyama / SEVENTHWELL. Unofficial tool, not affiliated with Ableton.",
                          "TwinKeys Remote（制作 Shogo Kajiyama / SEVENTHWELL）。非公式のツールで、Ableton 社とは関係ありません。"))
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(TK.dim)
             }
+            .listRowBackground(TK.panel)
         }
+        // A1: black behind the rows, near-black rows (as the other panes).
+        .scrollContentBackground(.hidden)
+        .background(TK.bg)
     }
 
     // MARK: Connection (docs/design-links.md)
@@ -590,6 +661,7 @@ struct SettingsPane: View {
             Button(L.s("Connect to another Mac (for example the backup)", "別の Mac につなぐ（バックアップなど）")) { model.chooseAnotherMac() }
                 .disabled(model.locked)
         }
+        .listRowBackground(TK.panel)
     }
 
     private typealias LinkState = (text: String, color: Color)
@@ -611,9 +683,9 @@ struct SettingsPane: View {
     }
 
     private var watchState: LinkState {
-        guard let w = model.watch, w.paired else { return (text: L.s("Not paired", "ペアリングされていません"), color: Color.secondary) }
+        guard let w = model.watch, w.paired else { return (text: L.s("Not paired", "ペアリングされていません"), color: TK.dim) }
         guard w.appInstalled else {
-            return (text: L.s("Not installed (install it from the Watch app)", "入っていません（Watch の App で入れられます）"), color: Color.secondary)
+            return (text: L.s("Not installed (install it from the Watch app)", "入っていません（Watch の App で入れられます）"), color: TK.dim)
         }
         guard w.reachable else {
             return (text: L.s("Not reachable (open TwinKeys on the watch)", "届きません（Watch で TwinKeys を開いてください）"), color: Color.tkWarn)
@@ -625,12 +697,12 @@ struct SettingsPane: View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
                 .font(.title3)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TK.dim)
                 .frame(width: 30)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.bold())
-                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(title).font(.subheadline.bold()).foregroundStyle(TK.read)
+                Text(detail).font(.caption).foregroundStyle(TK.dim).lineLimit(1)
             }
             Spacer(minLength: 8)
             if let state {
@@ -652,7 +724,7 @@ struct SettingsPane: View {
                              set: { on in if on { model.lockScope.insert(part) } else { model.lockScope.remove(part) } })) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                if let note { Text(note).font(.caption).foregroundStyle(.secondary) }
+                if let note { Text(note).font(.caption).foregroundStyle(TK.dim) }
             }
         }
         .disabled(model.locked)
