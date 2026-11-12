@@ -108,7 +108,7 @@ TwinKeys Remote controls both Lives from an iPhone or iPad: scenes and clips, pl
 
 ### What you need
 
-- TwinKeys 2.0 or later on both Macs
+- TwinKeys 2.0 or later on both Macs (GO, the set check and sends need 2.1)
 - An iPhone or iPad with iOS 17 or later (TestFlight for now)
 - The iPhone or iPad on the same network as the Macs
 

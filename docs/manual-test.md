@@ -165,3 +165,19 @@ Needs both Macs on 2.0, TwinKeysBridge chosen as a Control Surface in Live on bo
 | 10-11 | Turn Wi-Fi off and on on the iPhone. | The app shows "Connection lost. Retrying…" and reconnects without asking for approval again. | | | |
 | 10-12 | Remove the device on the Mac, reopen the app. | The Mac asks for approval again. | | | |
 | 10-13 | iPad landscape and an open iPhone Duo. | Three columns (iPad) / two columns (Duo); nothing cut off. | | | |
+
+## 11. GO, set check, sends and catch-up (added in 2.1)
+
+Same setup as chapter 10, with a test set that has two return tracks (fictional names only).
+
+| # | Step | Expected | Live 11 | Live 12 | Notes |
+|---|---|---|---|---|---|
+| 11-1 | iPhone GO screen: select scene 2 in Live, tap GO. | Scene 2 launches on both Macs; "Next" becomes scene 3. A second tap within 0.5 s does nothing. | | | |
+| 11-2 | Back / Next on the GO screen. | Only the selection moves (on both Macs); nothing plays. | | | |
+| 11-3 | Show lock on; GO, Back, Next. | They still work; tempo and mixer stay locked. | | | |
+| 11-4 | Quit Live on the backup Mac. | iPhone top bar: "Backup ✓ · Live ✗ no answer" in yellow within a few seconds; Mac status line shows the other Mac's Live ✗. | | | |
+| 11-5 | Rename one scene and delete one track on the backup only. | Yellow warning on both Macs and the iPhone; Details lists the renamed scene and the missing track. Undo: the warning goes away. | | | |
+| 11-6 | Mixer Send A / Send B on the iPhone. | The send of that track's first / second return moves on both Macs; with no return tracks the buttons are hidden. | | | |
+| 11-7 | Pull the network cable between the Macs; move a fader and the tempo on the iPhone; launch a clip; plug the cable back in. | After relinking, the backup gets the newest fader and tempo values; the clip is not launched late on the backup. | | | |
+| 11-8 | MIDI Map: keys mapped to clips still work after TwinKeysBridge is installed. | Cue keys launch the same clips on both Macs as before. | | | |
+| 11-9 | Insert a track at the start during playback, then tap a clip on the iPhone right away. | Either the right clip plays, or the iPhone says the layout changed and asks to tap again; never a different clip. | | | |

@@ -108,7 +108,7 @@ TwinKeys Remote は、iPhone・iPad から2台の Live をまとめて操作す�
 
 ### 用意するもの
 
-- TwinKeys 2.0 以降を、両方の Mac に
+- TwinKeys 2.0 以降を、両方の Mac に（GO・セットの見比べ・センドは 2.1 以降）
 - iOS 17 以降の iPhone・iPad（いまは TestFlight で配布中）
 - iPhone・iPad と Mac が同じネットワークにつながっていること
 
