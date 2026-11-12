@@ -181,3 +181,22 @@ Same setup as chapter 10, with a test set that has two return tracks (fictional 
 | 11-7 | Pull the network cable between the Macs; move a fader and the tempo on the iPhone; launch a clip; plug the cable back in. | After relinking, the backup gets the newest fader and tempo values; the clip is not launched late on the backup. | | | |
 | 11-8 | MIDI Map: keys mapped to clips still work after TwinKeysBridge is installed. | Cue keys launch the same clips on both Macs as before. | | | |
 | 11-9 | Insert a track at the start during playback, then tap a clip on the iPhone right away. | Either the right clip plays, or the iPhone says the layout changed and asks to tap again; never a different clip. | | | |
+
+## 12. Backup confirmation, lock options, switching to the backup, Apple Watch (added in 2.2)
+
+Same setup as chapter 10. On the backup Mac also turn on **Allow TwinKeys Remote to connect** and allow the iPhone there once. Apple Watch with watchOS 10 or later, paired with the iPhone.
+
+| # | Step | Expected | Live 11 | Live 12 | Notes |
+|---|---|---|---|---|---|
+| 12-1 | Install an older TwinKeysBridge into Live, then start the new TwinKeys. | TwinKeys replaces the bridge by itself and asks to restart Live; after the restart the note goes away. | | | |
+| 12-2 | On the backup, turn TwinKeysBridge off in Live's Control Surface list; launch a clip from the iPhone. | Plays on the main; the iPhone says the backup's Live did not answer. | | | |
+| 12-3 | Settings > What the show lock stops: also turn on "Clip and scene launches"; lock; tap a clip, then GO. | The clip is refused ("Show lock is on"); GO still plays. The toggles are greyed out while locked. | | | |
+| 12-4 | Quit TwinKeys on the main Mac during playback. | After about 3 s the iPhone shows "The main Mac is not answering"; the screens stay. | | | |
+| 12-5 | Tap "Switch to the backup", then hold "Hold to switch" for 1 s. | The iPhone connects to the backup Mac; that Mac shows "This Mac is the main" and its cue keys work. A short tap does not switch. | | | |
+| 12-6 | Start TwinKeys on the old main Mac again. | It only receives; a key pressed there does not fire on both. "Return to Main" on the current main hands it back. | | | |
+| 12-7 | On the backup Mac alone (no iPhone): unplug the main Mac's cable, click "Make This Mac the Main". | After the confirmation this Mac sends the cues; the other Mac, when back, only receives. | | | |
+| 12-8 | Apple Watch: open TwinKeys; GO page, turn the Digital Crown, tap GO. | The crown chooses Next (nothing plays); GO plays it on both Macs; a double tap within 0.5 s plays once. | | | |
+| 12-9 | Apple Watch: scene list, tap a scene; All Notes Off page. | The tapped scene becomes Next (does not play); All Notes Off stops both Macs. | | | |
+| 12-10 | Close TwinKeys Remote on the iPhone; tap GO on the watch. | Nothing plays; the watch says the iPhone app must be open. | | | |
+| 12-11 | Pairing screen: "Try with sample data"; then Settings > "End the sample and connect to a Mac". | Sample screens with "· Sample" in the top bar; nothing reaches the Macs. Ending returns to the pairing screen and reconnects with the saved code. | | | |
+| 12-12 | Settings: Privacy policy and Help and support. | Open the site's privacy and support pages in the iPhone's language. | | | |
