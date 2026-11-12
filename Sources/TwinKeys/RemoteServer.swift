@@ -258,7 +258,9 @@ final class RemoteServer {
         c.approved = true
         c.lastHeard = ProcessInfo.processInfo.systemUptime
         send(.welcome(macName: serverName), to: c)
-        send(.update(.full(snapshot())), to: c)
+        // In pieces (one clip column per message): a big set in one message could pass the
+        // receive limit on the iPhone.
+        for u in snapshot().initialUpdates() { send(.update(u), to: c) }
         if let s = status() { send(.status(s), to: c) }
         onLog?("Remote: \(c.hello?.deviceName ?? "?") connected")
         notifyCount()

@@ -48,6 +48,8 @@ public enum PacketBody: Equatable, Sendable {
     case liveCommand(id: UInt32, LiveCommand)
     /// Since 2.0: the backup ran (or already had run) the Live command with this id.
     case liveAck(id: UInt32)
+    /// Since 2.0.1: whether the sender's Live answers (TwinKeysBridge). Sent with each heartbeat.
+    case liveStatus(connected: Bool)
 
     var typeCode: UInt8 {
         switch self {
@@ -67,6 +69,7 @@ public enum PacketBody: Equatable, Sendable {
         case .cueCount: return 0x17
         case .liveCommand: return 0x18
         case .liveAck: return 0x19
+        case .liveStatus: return 0x1A
         }
     }
 }
@@ -129,6 +132,8 @@ extension Packet {
             b.appendBE(id); b += c.encoded()
         case let .liveAck(id):
             b.appendBE(id)
+        case let .liveStatus(on):
+            b.append(on ? 1 : 0)
         }
         return b
     }
@@ -193,6 +198,9 @@ extension Packet {
         case 0x19:
             guard p.count >= 4 else { throw DecodeError.badPayload }
             body = .liveAck(id: p.readBE32(at: 0))
+        case 0x1A:
+            guard p.count >= 1 else { throw DecodeError.badPayload }
+            body = .liveStatus(connected: p[0] != 0)
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)

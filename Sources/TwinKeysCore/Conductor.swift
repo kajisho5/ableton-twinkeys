@@ -305,7 +305,7 @@ public final class Conductor: @unchecked Sendable {
         var f = filters[peer] ?? SequenceFilter()
         let orderFree: Bool
         switch packet.body {
-        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck: orderFree = true
+        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus: orderFree = true
         case let .liveCommand(_, c): orderFree = !c.isContinuous   // a late fader value must not overwrite a newer one
         default: orderFree = false
         }
@@ -402,6 +402,9 @@ public final class Conductor: @unchecked Sendable {
         case let .liveAck(id):
             guard link.peer == peer else { return peer }
             if var p = pendingLive[id] { p.delivery = "delivered"; pendingLive[id] = p }
+        case let .liveStatus(on):
+            guard link.peer == peer else { return peer }
+            peerLive = on
         case let .cueCount(cueSeq, count):
             guard link.peer == peer else { return peer }
             applyPeerCount(session: packet.session, seq: cueSeq, count: Int(count))
@@ -748,12 +751,54 @@ public final class Conductor: @unchecked Sendable {
     private var pendingLive: [UInt32: PendingLive] = [:]
     private var liveCommandID: UInt32 = 0
 
+    /// Whether this Mac's Live answers (TwinKeysBridge); told to the other Mac with each heartbeat.
+    private var localLive: Bool?
+    /// Whether the other Mac's Live answers, as it last told us (nil: unknown or not linked).
+    private var peerLive: Bool?
+    /// Fader, pan, tempo, mute and solo values set while the backup was not linked: the newest one
+    /// per control is sent when the link is back, so the two Lives do not stay apart. Clip and scene
+    /// launches are never sent late.
+    private var unsentLatest: [String: LiveCommand] = [:]
+    private var wasLinkedForLive = false
+
+    public func setLiveConnected(_ on: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        localLive = on
+    }
+
+    public var peerLiveConnected: Bool? {
+        lock.lock(); defer { lock.unlock() }
+        return link.isConnected ? peerLive : nil
+    }
+
+    /// The control a "latest value counts" command sets, or nil for one-shot commands.
+    static func latestKey(_ cmd: LiveCommand) -> String? {
+        switch cmd {
+        case let .setVolume(t, _): return "v\(t)"
+        case let .setPan(t, _): return "p\(t)"
+        case .setTempo: return "tempo"
+        case let .setMute(t, _): return "m\(t)"
+        case let .setSolo(t, _): return "s\(t)"
+        default: return nil
+        }
+    }
+
     /// Main Mac: forwards a Live command to the backup (same resend rules as cues).
     /// Returns its id, or nil when not linked.
     @discardableResult
     public func forwardLive(_ cmd: LiveCommand) -> UInt32? {
         lock.lock(); defer { lock.unlock() }
-        guard cmd.isValid, link.isConnected, let p = link.peer else { return nil }
+        guard cmd.isValid else { return nil }
+        guard link.isConnected, let p = link.peer else {
+            if let k = Self.latestKey(cmd), unsentLatest.count < 512 || unsentLatest[k] != nil { unsentLatest[k] = cmd }
+            return nil
+        }
+        // A newer value replaces one still waiting to catch up (the rest go out on the next tick).
+        if let k = Self.latestKey(cmd) { unsentLatest[k] = nil }
+        return sendLive(cmd, to: p)
+    }
+
+    private func sendLive(_ cmd: LiveCommand, to p: String) -> UInt32 {
         liveCommandID &+= 1
         let id = liveCommandID
         // Only the newest value of a fader counts: drop older ones still waiting.
@@ -781,7 +826,17 @@ public final class Conductor: @unchecked Sendable {
     private func checkLive(_ now: Double) {
         guard let p = link.peer, link.isConnected else {
             for k in pendingLive.keys where pendingLive[k]!.delivery == "waiting" { pendingLive[k]!.delivery = "missing" }
+            wasLinkedForLive = false
+            peerLive = nil
             return
+        }
+        if !wasLinkedForLive {
+            wasLinkedForLive = true
+            // Back in touch: bring the backup's faders, tempo, mute and solo up to date.
+            let catchUp = unsentLatest.sorted { $0.key < $1.key }.map(\.value)
+            unsentLatest.removeAll()
+            if !catchUp.isEmpty { log("Remote: sending \(catchUp.count) mixer/tempo change(s) made while the backup was not linked") }
+            for c in catchUp { _ = sendLive(c, to: p) }
         }
         for (id, var c) in pendingLive where c.delivery == "waiting" {
             let age = now - c.sentAt
@@ -853,6 +908,7 @@ public final class Conductor: @unchecked Sendable {
                 let on = sendKeys && keyCapture
                 sendBody(.held(channel: engine.channel, notes: on ? engine.heldNotes : []), to: p)
                 sendBody(features(), to: p)
+                if let localLive { sendBody(.liveStatus(connected: localLive), to: p) }
                 heartbeatsSinceNames += 1
                 if heartbeatsSinceNames >= 10, link.isConnected { sendCueNames(to: p) }
             case let .sendHeartbeatAck(p, t):

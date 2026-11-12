@@ -324,6 +324,14 @@ public struct LiveState: Codable, Equatable, Sendable {
         }
     }
 
+    /// The whole state for an iPhone that just connected, as several updates: everything but the
+    /// clips first, then one clip column per update (applying them in order rebuilds this state).
+    public func initialUpdates() -> [LiveUpdate] {
+        var head = self
+        head.clips = []
+        return [.full(head)] + clips.enumerated().map { .clips(track: $0.offset, $0.element) }
+    }
+
     /// Drops tracks, scenes, clips, meters and progress beyond Live's current counts.
     mutating func trim() {
         if let n = song.trackCount {

@@ -65,7 +65,7 @@ final class LiveBridgeClient {
             if let done {
                 self.pending[id] = done
                 self.queue.asyncAfter(deadline: .now() + 1) { [weak self] in
-                    if let d = self?.pending.removeValue(forKey: id) { d(false, "Live did not answer") }
+                    if let d = self?.pending.removeValue(forKey: id) { d(false, "no_answer") }
                 }
             }
             self.send(cmd.bridgeJSON(id: id, structure: checkStructure ? self.state.song.structure : nil))

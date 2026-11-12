@@ -564,7 +564,8 @@ final class AppModel: ObservableObject {
             return .init(label: c.label, memo: c.memo, count: c.count, delivery: d)
         }
         let st = RemoteStatus(mainName: Host.current().localizedName ?? "Mac", mainLiveConnected: s.liveConnected,
-                              backupName: peerName, backupLinked: peerName != nil, backupLiveConnected: false,
+                              backupName: peerName, backupLinked: peerName != nil,
+                              backupLiveConnected: peerName != nil && conductor.peerLiveConnected == true,
                               latencyMs: { if case let .connected(_, ms) = s.link { return ms }; return nil }(),
                               lastCue: cue, cueKeys: settings.cueKeys.map { .init(keycode: $0.keycode, label: $0.label, memo: $0.memo) })
         remoteLock.lock()
@@ -777,6 +778,7 @@ final class AppModel: ObservableObject {
         s.autoUpdate = settings.autoUpdate
         updateShowActivity(linked: s.linkedPeerID != nil)
         s.liveConnected = bridge.isConnected
+        conductor.setLiveConnected(s.liveConnected)
         s.bridgeInstalled = LiveBridgeInstaller.isInstalled
         s.approvedDevices = settings.approvedDevices
         s.remoteClients = remoteClients
