@@ -48,6 +48,8 @@ final class RemoteServer {
     var onLog: ((String) -> Void)?
     /// Number of connected, approved devices changed (main thread).
     var onClientsChanged: ((Int) -> Void)?
+    /// Connection display: the Apple Watch as the connected iPhones report it, combined (main thread).
+    var onWatchChanged: ((WatchLevel) -> Void)?
     /// A device was allowed on this Mac: remember it (called on `queue`).
     var onApproved: (RemoteClientHello) -> Void = { _ in }
 
@@ -68,6 +70,8 @@ final class RemoteServer {
         var inFlight = 0
         /// The layout (`LiveSong.structure`) of the last state sent to this iPhone.
         var seenStructure: Int?
+        /// Its Apple Watch, as it last reported (nil: not told; iPhones before the connection display).
+        var watch: RemoteWatchState?
         init(conn: NWConnection, session: RemoteSession) { self.conn = conn; self.session = session }
     }
 
@@ -301,8 +305,13 @@ final class RemoteServer {
             onLog?("Remote: \(c.hello?.deviceName ?? "?"): All Notes Off")
             allNotesOff()
             send(.result(id: id, ok: true, error: nil, backup: "sent"), to: c)
-        case let .ping(t):
+        case let .ping(t, watch):
             send(.pong(t), to: c)
+            // Connection display: the iPhone's Apple Watch comes with its pings.
+            if let watch, watch != c.watch {
+                c.watch = watch
+                notifyCount()
+            }
         case let .lock(on):
             if c.locked != on { onLog?("Remote: \(c.hello?.deviceName ?? "?"): show lock \(on ? "on" : "off")") }
             c.locked = on
@@ -397,8 +406,13 @@ final class RemoteServer {
     }
 
     private func notifyCount() {
-        let n = clients.values.filter(\.approved).count
-        DispatchQueue.main.async { [weak self] in self?.onClientsChanged?(n) }
+        let approved = clients.values.filter(\.approved)
+        let n = approved.count
+        let watch = WatchLevel.combined(approved.map(\.watch))
+        DispatchQueue.main.async { [weak self] in
+            self?.onClientsChanged?(n)
+            self?.onWatchChanged?(watch)
+        }
     }
 }
 #endif

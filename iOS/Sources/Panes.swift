@@ -519,8 +519,27 @@ struct CuesView: View {
 
 struct SettingsPane: View {
     @EnvironmentObject var model: RemoteModel
+    /// Set by the Apple Watch mark in the top bar: scroll to "Connection" (once).
+    var showConnection: Binding<Bool> = .constant(false)
 
     var body: some View {
+        ScrollViewReader { proxy in
+            form
+                .onAppear { scrollToConnection(proxy) }
+                .onChange(of: showConnection.wrappedValue) { _, _ in scrollToConnection(proxy) }
+        }
+    }
+
+    private func scrollToConnection(_ proxy: ScrollViewProxy) {
+        guard showConnection.wrappedValue else { return }
+        showConnection.wrappedValue = false
+        // On the next turn: the form has its rows by then.
+        DispatchQueue.main.async { withAnimation { proxy.scrollTo(Self.connectionID, anchor: .top) } }
+    }
+
+    private static let connectionID = "connection"
+
+    private var form: some View {
         Form {
             if model.trialMode {
                 Section {
@@ -548,12 +567,7 @@ struct SettingsPane: View {
                 Text(L.s("All Notes Off and unlocking (1 s hold) are never stopped. Change these while the lock is off.",
                          "全ノートオフと「ロックの解除（1 秒長押し）」は止めません。ロック中は変えられません。"))
             }
-            Section(L.s("Connection", "接続")) {
-                LabeledContent(L.s("Mac", "Mac"), value: model.status?.mainName ?? "—")
-                LabeledContent(L.s("Pairing code", "合言葉"), value: model.pairingCode)
-                Button(L.s("Connect to another Mac (for example the backup)", "別の Mac につなぐ（バックアップなど）")) { model.chooseAnotherMac() }
-                    .disabled(model.locked)
-            }
+            connectionSection
             Section(L.s("About", "このアプリについて")) {
                 Link(L.s("Privacy policy", "プライバシーポリシー"), destination: Self.site(L.ja ? "ja/privacy/" : "privacy/"))
                 Link(L.s("Help and support", "使い方・サポート"), destination: Self.site(L.ja ? "ja/support/" : "support/"))
@@ -562,6 +576,71 @@ struct SettingsPane: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+    }
+
+    // MARK: Connection (docs/design-links.md)
+
+    private var connectionSection: some View {
+        Section(L.s("Connection", "接続")) {
+            linkRow("desktopcomputer", L.s("Mac (main)", "Mac（メイン）"), model.status?.mainName ?? "—", mainState)
+                .id(Self.connectionID)
+            linkRow("desktopcomputer", L.s("Backup", "バックアップ"), model.status?.backupName ?? model.backupMacName ?? "—", backupState)
+            linkRow("applewatch", "Apple Watch", L.s("TwinKeys (Watch)", "TwinKeys（Watch）"), watchState)
+            linkRow("iphone", L.s("Pairing code", "合言葉"), model.pairingCode, nil)
+            Button(L.s("Connect to another Mac (for example the backup)", "別の Mac につなぐ（バックアップなど）")) { model.chooseAnotherMac() }
+                .disabled(model.locked)
+        }
+    }
+
+    private typealias LinkState = (text: String, color: Color)
+
+    private var connectedText: String { "✓ " + L.s("Connected", "つながっています") }
+
+    private var mainState: LinkState {
+        if model.isConnected { return (text: connectedText, color: Color.tkOK) }
+        return (text: L.s("Not connected", "つながっていません"), color: Color.tkDanger)
+    }
+
+    /// As the top bar: the backup's link and its own Live.
+    private var backupState: LinkState? {
+        guard model.isConnected, let st = model.status else { return nil }
+        guard st.backupLinked else { return (text: L.s("Backup not linked", "バックアップ未接続"), color: Color.tkWarn) }
+        guard st.backupLiveConnected else { return (text: L.s("Live ✗ no answer", "Live ✗ 応答なし"), color: Color.tkWarn) }
+        let ms = st.latencyMs.map { " · \(Int($0.rounded())) ms" } ?? ""
+        return (text: "✓ Live ✓" + ms, color: Color.tkOK)
+    }
+
+    private var watchState: LinkState {
+        guard let w = model.watch, w.paired else { return (text: L.s("Not paired", "ペアリングされていません"), color: Color.secondary) }
+        guard w.appInstalled else {
+            return (text: L.s("Not installed (install it from the Watch app)", "入っていません（Watch の App で入れられます）"), color: Color.secondary)
+        }
+        guard w.reachable else {
+            return (text: L.s("Not reachable (open TwinKeys on the watch)", "届きません（Watch で TwinKeys を開いてください）"), color: Color.tkWarn)
+        }
+        return (text: connectedText, color: Color.tkOK)
+    }
+
+    private func linkRow(_ symbol: String, _ title: String, _ detail: String, _ state: LinkState?) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .frame(width: 30)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.bold())
+                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if let state {
+                Text(state.text)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(state.color)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private static func site(_ path: String) -> URL {

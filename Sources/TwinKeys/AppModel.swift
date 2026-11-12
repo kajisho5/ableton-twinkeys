@@ -55,6 +55,8 @@ final class AppModel: ObservableObject {
         var alert: NSAlert?
     }
     private var remoteClients = 0
+    /// Connection display: the Apple Watch as this Mac's iPhones report it.
+    private var remoteWatch: WatchLevel = .absent
     private var lastStatusBroadcast = 0.0
     private var hasAccessibility = KeyMonitor.hasAccessibility
     /// "Restart Now" was clicked: open the new version after the swap.
@@ -138,7 +140,12 @@ final class AppModel: ObservableObject {
             restartForUpdate: { [weak self] in self?.restartForUpdate() },
             openReleasePage: { [weak self] in if let u = self?.updater.releasePage { NSWorkspace.shared.open(u) } },
             becomeMain: { [weak self] in self?.confirmBecomeMain() },
-            handOverMain: { [weak self] in self?.conductor.handOverMain(); self?.refresh() }
+            handOverMain: { [weak self] in self?.conductor.handOverMain(); self?.refresh() },
+            // macOS 13 (from 14 on the window uses SettingsLink, as the menu bar menu does).
+            openSettings: {
+                NSApp.activate(ignoringOtherApps: true)
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
         )
     }
 
@@ -461,6 +468,7 @@ final class AppModel: ObservableObject {
             return self.statusSnapshot
         }
         r.onClientsChanged = { [weak self] n in self?.remoteClients = n; self?.refresh() }
+        r.onWatchChanged = { [weak self] w in self?.remoteWatch = w; self?.refresh() }
         // 2.2: an older TwinKeysBridge from a previous TwinKeys is replaced with the one in this app.
         if LiveBridgeInstaller.updateIfOutdated() { log.write("Live Bridge: installed copy updated to version \(LiveBridgeInstaller.bundledVersion)") }
         bridge.start()
@@ -842,6 +850,11 @@ final class AppModel: ObservableObject {
         s.approvedDevices = settings.approvedDevices
         s.remoteClients = remoteClients
         s.remoteEnabled = settings.remoteEnabled
+        s.remoteWatch = remoteWatch
+        // Connection display: the other Mac learns this Mac's iPhones (the backup shows the line),
+        // and this Mac the other's.
+        conductor.setRemoteSummary(RemoteSummary(phones: remoteClients, watch: remoteWatch))
+        s.peerRemote = conductor.peerRemoteSummary
         updateRemoteStatus(s, snap)
         if s != state { state = s }
     }

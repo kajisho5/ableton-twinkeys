@@ -153,6 +153,23 @@ extension Strings {
     }
     var handOverMain: String { s("Return to Main", "メインに戻す") }
 
+    // MARK: Connection row (docs/design-links.md)
+    var linkSection: String { s("Connections", "つながり") }
+    var linkOtherMac: String { s("Other Mac", "相手の Mac") }
+    var linkLiveOK: String { s("Live ✓", "Live ✓") }
+    var linkLiveNo: String { s("Live ✗", "Live ✗") }
+    func linkPhones(_ n: Int) -> String { s("iPhone (\(n))", "iPhone（\(n)台）") }
+    func linkPhonesOnMain(_ n: Int) -> String { s("iPhone connected to the main Mac (\(n))", "iPhone はメインの Mac に接続中（\(n)台）") }
+    var linkNoPhone: String { s("No iPhone", "iPhone なし") }
+    var linkAccepting: String { s("(accepting)", "（受け付けはオン）") }
+    var linkViaPhone: String { s("via iPhone", "iPhone 経由") }
+    var linkWatchNotReachable: String { s("Not reachable", "届きません") }
+    var linkOpensSettings: String { s("Opens Settings (allowed devices)", "「設定」の「許可した端末」を開きます") }
+    func linkAccessibility(_ chips: [LinkChip]) -> String {
+        let items = chips.map { "\($0.title), \($0.detail)" }
+        return s("Connections: ", "つながり：") + items.joined(separator: s(". ", "。"))
+    }
+
     // MARK: 2.1 set check
     var peerLiveOK: String { s("Other Mac's Live ✓", "相手の Live ✓") }
     var peerLiveNo: String { s("Other Mac's Live ✗", "相手の Live ✗") }

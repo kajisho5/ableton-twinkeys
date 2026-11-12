@@ -24,6 +24,9 @@ enum Snapshot {
         connected.heldNotes = [64, 67, 72]
         connected.isPaired = true
         connected.pairingCode = "K7MQ2-WX9TP"
+        // Connection row: one iPhone with its Apple Watch.
+        connected.remoteClients = 1
+        connected.remoteWatch = .reachable
 
         // Pairing set, one visible Mac uses another code.
         var mismatch = connected
@@ -37,6 +40,8 @@ enum Snapshot {
         unpaired.isPaired = false
         unpaired.pairingCode = nil
         unpaired.mismatchedPeers = []
+        unpaired.remoteClients = 0           // no iPhone can connect without a pairing code
+        unpaired.remoteWatch = .absent
 
         var empty = ViewState()
         empty.inputMonitoring = .denied
@@ -58,6 +63,10 @@ enum Snapshot {
         cueBackup.peers = [PeerInfo(id: "m", name: "Main Stage Mac", sends: true, receives: false)]
         cueBackup.linkedPeerID = "m"
         cueBackup.lastCue = CueStatus(label: "↓", memo: "Next scene", note: 37, count: 12, delivery: .received, peerName: "Main Stage Mac")
+        // The backup shows the main Mac's iPhone (it told it with the heartbeat).
+        cueBackup.remoteClients = 0
+        cueBackup.remoteWatch = .absent
+        cueBackup.peerRemote = RemoteSummary(phones: 1, watch: .reachable)
         var updateReady = cue
         updateReady.link = .notConnected; updateReady.linkedPeerID = nil; updateReady.lastCue = nil
         updateReady.update = .ready(version: "1.0.1")

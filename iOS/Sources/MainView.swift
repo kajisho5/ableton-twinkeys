@@ -33,12 +33,14 @@ struct MainView: View {
         if let i = a.firstIndex(of: "-pane"), i + 1 < a.count, let p = Pane(rawValue: a[i + 1]) { return p }
         return .session
     }()
+    /// The Apple Watch mark in the top bar asks Settings to scroll to "Connection".
+    @State private var showConnection = false
 
     var body: some View {
         GeometryReader { geo in
             let lc = LayoutClass.of(geo.size)
             VStack(spacing: 0) {
-                TopBar(compact: lc == .narrowPortrait)
+                TopBar(compact: lc == .narrowPortrait, openConnection: openConnection)
                 if !model.isConnected && model.wasConnected { MainLostBanner() }
                 if model.switchedToBackup && model.isConnected { SwitchedBanner() }
                 if model.isConnected, let d = model.status?.setDiff { SetDiffBanner(diff: d) }
@@ -67,7 +69,7 @@ struct MainView: View {
                     tabBar(panes: [.session, .mixer, .go, .settings])
                 case .wide:
                     if pane == .settings {
-                        SettingsPane().frame(maxWidth: 640)
+                        SettingsPane(showConnection: $showConnection).frame(maxWidth: 640)
                     } else if pane == .go {
                         GoView().frame(maxWidth: 1000, maxHeight: .infinity)
                     } else {
@@ -94,8 +96,14 @@ struct MainView: View {
         case .mixer: MixerView(sideModes: lc == .narrowLandscape)
         case .cues: CuesView()
         case .go: GoView()
-        case .settings: SettingsPane()
+        case .settings: SettingsPane(showConnection: $showConnection)
         }
+    }
+
+    /// Settings, at "Connection".
+    private func openConnection() {
+        pane = .settings
+        showConnection = true
     }
 
     private var allTabs: some View { tabBar(panes: Pane.allCases) }
@@ -146,6 +154,8 @@ struct MainView: View {
 struct TopBar: View {
     @EnvironmentObject var model: RemoteModel
     var compact: Bool
+    /// Opens Settings at "Connection" (the Apple Watch mark).
+    var openConnection: () -> Void = {}
     @State private var unlockProgress = false
 
     var body: some View {
@@ -186,11 +196,31 @@ struct TopBar: View {
         return HStack(spacing: 8) {
             Circle().fill(!connected ? Color.tkDanger : allOK ? Color.tkOK : Color.tkWarn).frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 1) {
-                Text((st?.mainName ?? "TwinKeys") + (model.trialMode ? L.s(" · Sample", " · サンプル") : "")).font(.subheadline.bold()).lineLimit(1)
+                HStack(spacing: 4) {
+                    Text((st?.mainName ?? "TwinKeys") + (model.trialMode ? L.s(" · Sample", " · サンプル") : "")).font(.subheadline.bold()).lineLimit(1)
+                    watchMark
+                }
                 Text(line).font(.caption).foregroundStyle(!connected ? Color.tkDanger : backupLive ? Color.secondary : Color.tkWarn).lineLimit(1)
             }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityAction(named: L.s("Connection settings", "接続の設定")) { openConnection() }
+    }
+
+    /// Connection display: the Apple Watch next to the Mac's name (green: reachable, yellow: not
+    /// reachable). Not shown without a watch with TwinKeys. Tap: Settings > Connection.
+    @ViewBuilder private var watchMark: some View {
+        let level = model.watch?.level ?? .absent
+        if level != .absent {
+            Image(systemName: "applewatch")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(level == .reachable ? Color.tkOK : Color.tkWarn)
+                .frame(width: 26, height: 22)
+                .contentShape(Rectangle())
+                .onTapGesture { openConnection() }
+                .accessibilityLabel(level == .reachable ? L.s("Apple Watch connected", "Apple Watch つながっています")
+                                                        : L.s("Apple Watch not reachable", "Apple Watch 届きません"))
+        }
     }
 
     private var transport: some View {

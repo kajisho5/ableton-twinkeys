@@ -69,6 +69,10 @@ struct ViewState: Equatable {
     var approvedDevices: [ApprovedDevice] = []
     var remoteClients = 0
     var remoteEnabled = true
+    /// Connection display: the Apple Watch as this Mac's iPhones report it.
+    var remoteWatch: WatchLevel = .absent
+    /// The other Mac's iPhones as it told us (nil: not linked, or an older version).
+    var peerRemote: RemoteSummary?
     /// Name of the device waiting for Allow / Don't Allow on this Mac.
     var approvalRequest: String?
 
@@ -124,6 +128,67 @@ struct ViewState: Equatable {
         guard let ms else { return t.measuring }
         return ms < 1 ? "<1 ms" : "\(Int(ms.rounded())) ms"
     }
+
+    // MARK: Connection row (docs/design-links.md)
+
+    /// The row under the header: the other Mac, the iPhones and their Apple Watch.
+    var linkChips: [LinkChip] {
+        var chips = [macChip]
+        if let p = phoneChip { chips.append(p) }
+        if let w = watchChip { chips.append(w) }
+        return chips
+    }
+
+    private var macChip: LinkChip {
+        switch link {
+        case let .connected(name, ms):
+            let live = backupLiveConnected.map { $0 ? t.linkLiveOK : t.linkLiveNo }
+            let detail = [live, latencyText(ms)].compactMap { $0 }.joined(separator: " · ")
+            return LinkChip(kind: .mac, title: name, detail: detail, tone: backupLiveConnected == false ? .warning : .ok)
+        case let .connecting(name, _):
+            return LinkChip(kind: .mac, title: name, detail: t.connectingShort, tone: .warning)
+        case .notConnected:
+            return LinkChip(kind: .mac, title: t.linkOtherMac, detail: t.notConnected, tone: .idle)
+        }
+    }
+
+    /// The backup (receiving) Mac shows the main Mac's iPhones when it has none of its own.
+    private var mainMacPhones: RemoteSummary? {
+        guard remoteClients == 0, !sendKeys, let p = peerRemote, p.phones > 0 else { return nil }
+        return p
+    }
+
+    private var phoneChip: LinkChip? {
+        if remoteClients > 0 {
+            return LinkChip(kind: .phone, title: t.linkPhones(remoteClients), detail: "TwinKeys Remote", tone: .ok)
+        }
+        if let p = mainMacPhones {
+            return LinkChip(kind: .phone, title: t.linkPhonesOnMain(p.phones), detail: "TwinKeys Remote", tone: .ok)
+        }
+        // Remote access off (or no pairing code, so nothing can connect): no iPhone chip at all.
+        guard remoteEnabled, isPaired else { return nil }
+        return LinkChip(kind: .phone, title: t.linkNoPhone, detail: t.linkAccepting, tone: .idle)
+    }
+
+    private var watchChip: LinkChip? {
+        let level = remoteClients > 0 ? remoteWatch : (mainMacPhones?.watch ?? .absent)
+        switch level {
+        case .absent: return nil
+        case .reachable: return LinkChip(kind: .watch, title: "Apple Watch", detail: t.linkViaPhone, tone: .ok)
+        case .notReachable: return LinkChip(kind: .watch, title: "Apple Watch", detail: t.linkWatchNotReachable, tone: .warning)
+        }
+    }
+}
+
+/// One item of the connection row.
+struct LinkChip: Equatable, Identifiable {
+    enum Kind { case mac, phone, watch }
+    enum Tone { case ok, warning, idle }
+    var kind: Kind
+    var title: String
+    var detail: String
+    var tone: Tone
+    var id: Kind { kind }
 }
 
 /// What the window can ask the app to do.
@@ -150,6 +215,8 @@ struct ViewActions {
     /// 2.3: make this Mac the main (after confirming) / give the role back.
     var becomeMain: () -> Void = {}
     var handOverMain: () -> Void = {}
+    /// Opens the Settings window (macOS 13; from macOS 14 the window uses SettingsLink).
+    var openSettings: () -> Void = {}
 }
 
 enum AppSheet: Equatable { case pairing, connectByIP, help }

@@ -43,6 +43,26 @@ final class WatchLink: NSObject {
         return s.isPaired && s.isWatchAppInstalled
     }
 
+    /// Connection display: the watch as WatchConnectivity sees it, for the top bar, Settings and the
+    /// Mac (RemoteModel sends it with its pings). nil until the session is active.
+    private func updateWatchStatus() {
+        guard let m = model else { return }
+        // `-demo` (screenshots) keeps its sample watch.
+        if m.demo && !m.trialMode { return }
+        var st: RemoteWatchState?
+        if let s = session, s.activationState == .activated {
+            let installed = s.isPaired && s.isWatchAppInstalled
+            st = RemoteWatchState(paired: s.isPaired, appInstalled: installed, reachable: installed && s.isReachable)
+        }
+        if m.watch != st { m.watch = st }
+    }
+
+    /// WatchConnectivity told something changed: the watch's state, and what the watch shows.
+    private func sessionChanged() {
+        updateWatchStatus()
+        push(force: true)
+    }
+
     private func stateMayChange() {
         guard !checkQueued, watchReady else { return }
         checkQueued = true
@@ -149,10 +169,12 @@ extension WatchLink: WCSessionDelegate {
     // WatchConnectivity calls these on its own queue: hop to the main queue (in order) for the model.
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        DispatchQueue.main.async { MainActor.assumeIsolated { self.push(force: true) } }
+        DispatchQueue.main.async { MainActor.assumeIsolated { self.sessionChanged() } }
     }
 
-    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
+    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {
+        DispatchQueue.main.async { MainActor.assumeIsolated { self.updateWatchStatus() } }
+    }
 
     /// The iPhone switched to another watch: activate again for the new one.
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
@@ -160,11 +182,11 @@ extension WatchLink: WCSessionDelegate {
     }
 
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
-        DispatchQueue.main.async { MainActor.assumeIsolated { self.push(force: true) } }
+        DispatchQueue.main.async { MainActor.assumeIsolated { self.sessionChanged() } }
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
-        DispatchQueue.main.async { MainActor.assumeIsolated { self.push(force: true) } }
+        DispatchQueue.main.async { MainActor.assumeIsolated { self.sessionChanged() } }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {

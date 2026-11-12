@@ -142,6 +142,8 @@ When you update TwinKeys, TwinKeysBridge is updated too (2.2 or later). If you a
 
 ### Checking both Macs
 
+- The Connections row at the top of the Mac window shows the other Mac (Live ✓ and latency), how many iPhones are connected, and their Apple Watch. On the backup Mac it says the iPhone is connected to the main Mac. Click it to open Settings.
+- On the iPhone, an Apple Watch mark appears next to the Mac's name in the top bar (green: connected, yellow: not reachable). Tap it to open Settings > Connection.
 - "Backup ✓ · Live ✓" in the top bar means the backup Mac and its Live both answer. With "Live ✗ no answer", check Live and TwinKeysBridge on the backup Mac.
 - When the two Macs have different sets open, a yellow bar "Backup's set differs" appears (on the Mac too). Tap it for the tracks and scenes that differ. Only track and scene counts and names are compared, and nothing is changed automatically.
 - Fader, pan, tempo, mute and solo changes made while the link to the backup was down are sent when it is back. Clip and scene launches are not sent late, because a late launch is dangerous.

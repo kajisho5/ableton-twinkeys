@@ -58,6 +58,11 @@ final class RemoteModel: ObservableObject {
     @Published var switchedToBackup = false
     /// The backup Mac's name as the main Mac told it (kept for switching when the main is gone).
     @Published var backupMacName: String? = UserDefaults.standard.string(forKey: "backupMac")
+    /// Connection display: the Apple Watch as WatchConnectivity reports it (set by WatchLink; nil
+    /// without WatchConnectivity). The Mac learns it with every ping, and at once when it changes.
+    @Published var watch: RemoteWatchState? = nil {
+        didSet { if watch != oldValue { sendWatch() } }
+    }
     private var becomeMainOnWelcome = false
 
     static let zeroDB = 0.85
@@ -132,7 +137,7 @@ final class RemoteModel: ObservableObject {
         guard !demo else { return }
         startBrowsing()
         switch phase {
-        case .connected: send(.ping(Date().timeIntervalSince1970))
+        case .connected: ping()
         case .searching: autoConnect()
         default: break
         }
@@ -261,12 +266,13 @@ final class RemoteModel: ObservableObject {
                 UIApplication.shared.isIdleTimerDisabled = true    // keep the screen on during a show
                 pingTimer?.invalidate()
                 sendLock()
+                sendWatch()
                 pingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
                     Task { @MainActor in
                         guard let self else { return }
                         // Nothing heard for 7 s (pings are answered every 2 s): the link is gone.
                         if Date().timeIntervalSince(self.lastHeard) > 7 { self.fail("timeout"); return }
-                        self.send(.ping(Date().timeIntervalSince1970))
+                        self.ping()
                     }
                 }
             case .denied: phase = .denied; disconnect()
@@ -300,6 +306,17 @@ final class RemoteModel: ObservableObject {
     private func send(_ m: RemoteMessage) {
         guard let s = session, let c = connection, let bytes = try? s.seal(m) else { return }
         c.send(content: Data(bytes), completion: .contentProcessed { _ in })
+    }
+
+    /// Pings carry the Apple Watch's state (older Macs read a plain ping).
+    private func ping() {
+        send(.ping(Date().timeIntervalSince1970, watch: watch))
+    }
+
+    /// Tells the Mac about the Apple Watch now (it shows it in its connection row).
+    private func sendWatch() {
+        guard case .connected = phase, !demo else { return }
+        ping()
     }
 
     // MARK: Actions (respect the show lock)
@@ -440,6 +457,9 @@ final class RemoteModel: ObservableObject {
     private func loadDemo() {
         pairingCode = "K7MQ2-WX9TP"
         phase = .connected("Main Stage Mac")
+        // `-demo` (screenshots): the Apple Watch mark shows as connected. Trying it with sample data
+        // keeps the real watch state (WatchLink sets it).
+        if !trialMode { watch = RemoteWatchState(paired: true, appInstalled: true, reachable: true) }
         var s = LiveState()
         s.song.tempo = 124; s.song.playing = true; s.song.beat = "17.3.1"; s.song.selectedScene = 3
         let names = ["オープニング", "SE 拍手", "M1 イントロ", "M1 本編", "暗転", "M2 イントロ", "M2 本編", "エンディング"]

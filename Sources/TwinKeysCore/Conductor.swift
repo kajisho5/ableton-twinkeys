@@ -305,7 +305,7 @@ public final class Conductor: @unchecked Sendable {
         var f = filters[peer] ?? SequenceFilter()
         let orderFree: Bool
         switch packet.body {
-        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem, .liveResult, .roleClaim: orderFree = true
+        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem, .liveResult, .roleClaim, .remoteSummary: orderFree = true
         case let .liveCommand(_, c): orderFree = !c.isContinuous   // a late fader value must not overwrite a newer one
         default: orderFree = false
         }
@@ -413,6 +413,9 @@ public final class Conductor: @unchecked Sendable {
         case let .liveStatus(on):
             guard link.peer == peer else { return peer }
             peerLive = on
+        case let .remoteSummary(phones, watch):
+            guard link.peer == peer else { return peer }
+            peerRemote = RemoteSummary(phones: Int(phones), watch: WatchLevel(rawValue: watch) ?? .absent)
         case let .roleClaim(ms):
             guard link.peer == peer, link.isConnected else { return peer }
             let theirsNewer = ms > mainClaim || (ms == mainClaim && peer > myID)
@@ -901,6 +904,32 @@ public final class Conductor: @unchecked Sendable {
         return link.isConnected ? peerLive : nil
     }
 
+    // MARK: Connection display (docs/design-links.md)
+
+    /// This Mac's iPhones and their Apple Watch; told to the other Mac with each heartbeat.
+    private var localRemote: RemoteSummary?
+    /// The other Mac's, as it last told us (nil: not linked, or a version without it).
+    private var peerRemote: RemoteSummary?
+
+    /// The approved iPhones connected to this Mac and their watch. A change is sent at once.
+    public func setRemoteSummary(_ s: RemoteSummary) {
+        lock.lock(); defer { lock.unlock() }
+        guard s != localRemote else { return }
+        localRemote = s
+        if link.isConnected, let p = link.peer { sendRemoteSummary(to: p) }
+    }
+
+    /// The other Mac's iPhones (the backup shows "iPhone connected to the main Mac").
+    public var peerRemoteSummary: RemoteSummary? {
+        lock.lock(); defer { lock.unlock() }
+        return link.isConnected ? peerRemote : nil
+    }
+
+    private func sendRemoteSummary(to p: String) {
+        guard let s = localRemote else { return }
+        sendBody(.remoteSummary(phones: UInt8(clamping: s.phones), watch: s.watch.rawValue), to: p)
+    }
+
     /// The control a "latest value counts" command sets, or nil for one-shot commands.
     static func latestKey(_ cmd: LiveCommand) -> String? {
         switch cmd {
@@ -962,6 +991,7 @@ public final class Conductor: @unchecked Sendable {
             wasLinkedForLive = false
             peerLive = nil
             peerSet = nil
+            peerRemote = nil
             return
         }
         if !wasLinkedForLive {
@@ -1043,6 +1073,7 @@ public final class Conductor: @unchecked Sendable {
                 sendBody(.held(channel: engine.channel, notes: on ? engine.heldNotes : []), to: p)
                 sendBody(features(), to: p)
                 if let localLive { sendBody(.liveStatus(connected: localLive), to: p) }
+                sendRemoteSummary(to: p)
                 if mainClaim > 0 { sendBody(.roleClaim(millis: mainClaim), to: p) }
                 sendSet(to: p)
                 heartbeatsSinceNames += 1

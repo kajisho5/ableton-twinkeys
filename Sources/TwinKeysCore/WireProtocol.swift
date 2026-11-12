@@ -62,6 +62,11 @@ public enum PacketBody: Equatable, Sendable {
     case roleClaim(millis: UInt64)
     /// Since 2.3: "be the main Mac again" (sent by a Mac that hands the role back).
     case roleHandover
+    /// Connection display (docs/design-links.md): the sender's TwinKeys Remote side in short, the
+    /// approved iPhones connected to it and their Apple Watch (`WatchLevel.rawValue`). Sent with
+    /// each heartbeat and when it changes, so the backup Mac can show the iPhone line. Type 0x21
+    /// (0x20 is allNotesOff); older versions drop the unknown type.
+    case remoteSummary(phones: UInt8, watch: UInt8)
 
     var typeCode: UInt8 {
         switch self {
@@ -87,6 +92,7 @@ public enum PacketBody: Equatable, Sendable {
         case .liveResult: return 0x1D
         case .roleClaim: return 0x1E
         case .roleHandover: return 0x1F
+        case .remoteSummary: return 0x21
         }
     }
 }
@@ -163,6 +169,8 @@ extension Packet {
             b.appendBE(ms)
         case .roleHandover:
             break
+        case let .remoteSummary(phones, watch):
+            b += [phones, watch]
         }
         return b
     }
@@ -245,6 +253,9 @@ extension Packet {
             guard p.count >= 8 else { throw DecodeError.badPayload }
             body = .roleClaim(millis: (UInt64(p.readBE32(at: 0)) << 32) | UInt64(p.readBE32(at: 4)))
         case 0x1F: body = .roleHandover
+        case 0x21:
+            guard p.count >= 2 else { throw DecodeError.badPayload }
+            body = .remoteSummary(phones: p[0], watch: p[1])
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)
