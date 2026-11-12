@@ -272,18 +272,25 @@ final class RemoteServer {
             guard cmd.isValid else { send(.result(id: id, ok: false, error: "invalid", backup: "notSent"), to: c); return }
             // The show lock is enforced here too, not only on the iPhone.
             guard !c.locked || cmd.allowedWhileLocked else { send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c); return }
+            // Operation log (fader and tempo moves are too many to log one by one).
+            let who = c.hello?.deviceName ?? "?"
+            if !cmd.isContinuous { onLog?("Remote: \(who): \(cmd)") }
             runCommand(cmd) { [weak self] ok, err, backup in
+                if !ok, !cmd.isContinuous { self?.onLog?("Remote: \(who): \(cmd) not run (\(err ?? "error"))") }
                 self?.queue.async { self?.send(.result(id: id, ok: ok, error: err, backup: backup), to: c) }
             }
         case let .cue(id, keycode):
             let ok = pressCue(keycode)
+            onLog?("Remote: \(c.hello?.deviceName ?? "?"): cue key \(keycode)\(ok ? "" : " (not a cue key)")")
             send(.result(id: id, ok: ok, error: ok ? nil : "not a cue key", backup: "see status"), to: c)
         case let .allNotesOff(id):
+            onLog?("Remote: \(c.hello?.deviceName ?? "?"): All Notes Off")
             allNotesOff()
             send(.result(id: id, ok: true, error: nil, backup: "sent"), to: c)
         case let .ping(t):
             send(.pong(t), to: c)
         case let .lock(on):
+            if c.locked != on { onLog?("Remote: \(c.hello?.deviceName ?? "?"): show lock \(on ? "on" : "off")") }
             c.locked = on
         default:
             break
