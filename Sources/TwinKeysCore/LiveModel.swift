@@ -22,6 +22,14 @@ public enum LiveCommand: Equatable, Sendable, Codable {
     case setSolo(track: Int, on: Bool)
     case selectScene(Int)
 
+    /// Aimed at a track or scene by its position (so it must not run after Live's layout changed).
+    public var targetsLayout: Bool {
+        switch self {
+        case .play, .stop, .continuePlaying, .setTempo, .stopAll: return false
+        default: return true
+        }
+    }
+
     /// Continuous controls: only the latest value matters (no resend of old values).
     public var isContinuous: Bool {
         switch self {

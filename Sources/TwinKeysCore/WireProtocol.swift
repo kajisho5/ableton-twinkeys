@@ -54,6 +54,9 @@ public enum PacketBody: Equatable, Sendable {
     case setSummary(tracks: UInt16, scenes: UInt16, hash: UInt32)
     /// Since 2.1: one track or scene name of the sender's set (sent a few at a time).
     case setItem(kind: UInt8, index: UInt16, name: String)
+    /// Since 2.2: what the backup's Live did with Live command `id` (0 ran, 1 Live refused it,
+    /// 2 Live did not answer). Sent after the liveAck, once the backup's Live has answered.
+    case liveResult(id: UInt32, code: UInt8)
 
     var typeCode: UInt8 {
         switch self {
@@ -76,6 +79,7 @@ public enum PacketBody: Equatable, Sendable {
         case .liveStatus: return 0x1A
         case .setSummary: return 0x1B
         case .setItem: return 0x1C
+        case .liveResult: return 0x1D
         }
     }
 }
@@ -146,6 +150,8 @@ extension Packet {
         case let .setItem(kind, index, name):
             let n = Array(truncatedUTF8(name, max: SetSummary.maxNameBytes))
             b += [kind, UInt8(index >> 8), UInt8(index & 0xFF), UInt8(n.count)] + n
+        case let .liveResult(id, code):
+            b.appendBE(id); b.append(code)
         }
         return b
     }
@@ -221,6 +227,9 @@ extension Packet {
             let len = Int(p[3])
             guard len <= SetSummary.maxNameBytes, p.count >= 4 + len else { throw DecodeError.badPayload }
             body = .setItem(kind: p[0], index: UInt16(p[1]) << 8 | UInt16(p[2]), name: String(decoding: p[4..<(4 + len)], as: UTF8.self))
+        case 0x1D:
+            guard p.count >= 5 else { throw DecodeError.badPayload }
+            body = .liveResult(id: p.readBE32(at: 0), code: p[4])
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)

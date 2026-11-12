@@ -393,7 +393,10 @@ final class AppModel: ObservableObject {
         let conductor = self.conductor, bridge = self.bridge, log = self.log
         bridge.onLog = { log.write($0) }
         // Backup: Live commands forwarded by the main Mac run on this Mac's Live.
-        conductor.onLiveCommand = { cmd in bridge.run(cmd) }
+        // Backup: run it and tell the main Mac what Live did (2.2).
+        conductor.onLiveCommandRun = { cmd, answer in
+            bridge.run(cmd) { ok, err in answer(ok ? .ran : err == "no_answer" ? .noAnswer : .refused) }
+        }
         let r = RemoteServer(serverID: settings.instanceID.uuidString, serverName: name)
         remote = r
         bridge.onUpdate = { [weak r] u in r?.broadcast(u) }
@@ -421,15 +424,17 @@ final class AppModel: ObservableObject {
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.showApprovalAlertSoon() }
         }
-        r.runCommand = { cmd, done in
+        r.currentStructure = { bridge.snapshot().song.structure }
+        r.runCommand = { cmd, done, late in
             // Both Macs: forward to the backup and run here at the same moment. Only this Mac's
             // command carries the layout it was aimed at (the backup's layout is its own).
             let id = conductor.forwardLive(cmd)
-            bridge.run(cmd, checkStructure: true) { ok, err in
-                bridge.queue.asyncAfter(deadline: .now() + Conductor.cueAnswerTimeout + 0.05) {
+            bridge.run(cmd, checkStructure: true, done: { ok, err in
+                // Wait for the backup's own Live to answer too (it has up to 1 s, like this one).
+                bridge.queue.asyncAfter(deadline: .now() + 1.2) {
                     done(ok, err, id.map { conductor.liveDelivery($0) } ?? "notLinked")
                 }
-            }
+            }, late: { ok, _ in late(ok) })
         }
         r.onApproved = { [weak self] h in
             let d = ApprovedDevice(id: h.deviceID, name: h.deviceName, publicKey: h.devicePublicKey)

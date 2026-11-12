@@ -25,6 +25,8 @@ final class LiveBridgeClient {
     var onUpdate: ((LiveUpdate) -> Void)?
     var onLog: ((String) -> Void)?
     private var pending: [Int: (Bool, String?) -> Void] = [:]
+    /// Commands that timed out but may still be answered (Live was slow): kept 10 s.
+    private var latePending: [Int: (Bool, String?) -> Void] = [:]
 
     /// Live answered within the last 6 s.
     var isConnected: Bool { queue.sync { Date().timeIntervalSince(lastHeard) < 6 } }
@@ -57,7 +59,9 @@ final class LiveBridgeClient {
     /// (or ok: false after 1 s without one).
     /// `checkStructure`: send the track/scene layout this Mac knows, so the script refuses the
     /// command ("structure_changed") if Live's layout changed since (commands from an iPhone).
-    func run(_ cmd: LiveCommand, checkStructure: Bool = false, done: ((Bool, String?) -> Void)? = nil) {
+    /// `late`: called if the script answers after `done` already reported "no_answer".
+    func run(_ cmd: LiveCommand, checkStructure: Bool = false, done: ((Bool, String?) -> Void)? = nil,
+             late: ((Bool, String?) -> Void)? = nil) {
         queue.async { [weak self] in
             guard let self else { return }
             guard cmd.isValid else { done?(false, "invalid"); return }
@@ -65,7 +69,12 @@ final class LiveBridgeClient {
             if let done {
                 self.pending[id] = done
                 self.queue.asyncAfter(deadline: .now() + 1) { [weak self] in
-                    if let d = self?.pending.removeValue(forKey: id) { d(false, "no_answer") }
+                    guard let self, let d = self.pending.removeValue(forKey: id) else { return }
+                    d(false, "no_answer")
+                    if let late {
+                        self.latePending[id] = late
+                        self.queue.asyncAfter(deadline: .now() + 10) { [weak self] in self?.latePending.removeValue(forKey: id) }
+                    }
                 }
             }
             self.send(cmd.bridgeJSON(id: id, structure: checkStructure ? self.state.song.structure : nil))
@@ -156,8 +165,13 @@ final class LiveBridgeClient {
         lastHeard = Date()
         if !wasConnected { onLog?("Live Bridge connected") }
         if m["type"] as? String == "ack" {
-            if let id = (m["id"] as? NSNumber)?.intValue, let done = pending.removeValue(forKey: id) {
-                done((m["ok"] as? NSNumber)?.boolValue ?? false, m["error"] as? String)
+            if let id = (m["id"] as? NSNumber)?.intValue {
+                let ok = (m["ok"] as? NSNumber)?.boolValue ?? false
+                if let done = pending.removeValue(forKey: id) {
+                    done(ok, m["error"] as? String)
+                } else if let late = latePending.removeValue(forKey: id) {
+                    late(ok, m["error"] as? String)
+                }
             }
             return
         }

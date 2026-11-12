@@ -243,6 +243,10 @@ struct ResultBanner: View {
         case "structure_changed": return L.s("Live's tracks or scenes changed, so it was not sent. Tap again.",
                                              "Live のトラックやシーンが変わったので、送りませんでした。もう一度押してください。")
         case "locked": return L.s("Show lock is on.", "本番ロック中です。")
+        case "late": return L.s("Live ran it after all (late). Do not tap again.", "Live で遅れて動きました。押し直さないでください。")
+        case "backup_failedLive": return L.s("Ran on the main Mac, but the backup's Live refused it.", "メインでは動きましたが、バックアップの Live では動きませんでした。")
+        case "backup_noLive": return L.s("Ran on the main Mac; the backup's Live did not answer.", "メインでは動きましたが、バックアップの Live から返事がありません。")
+        case "backup_missing": return L.s("Ran on the main Mac; no answer from the backup Mac.", "メインでは動きましたが、バックアップの Mac から返事がありません。")
         // Live may still have run it late: check Live's screen before tapping again (no double launch).
         case "no_answer": return L.s("No answer from Live. Check Live before tapping again.",
                                      "Live から返事がありません。Live の画面で動いたか確かめてから押し直してください。")

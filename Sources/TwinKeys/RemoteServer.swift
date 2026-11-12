@@ -33,7 +33,10 @@ final class RemoteServer {
     /// alert (main thread).
     var cancelApproval: (_ token: Int) -> Void = { _ in }
     /// Runs a command from the iPhone; `done(ok, error, backupDelivery)`.
-    var runCommand: (LiveCommand, @escaping (Bool, String?, String) -> Void) -> Void = { _, d in d(false, "not ready", "notSent") }
+    /// `late(ok)`: Live answered after the 1 s limit (the iPhone was told "no answer").
+    var runCommand: (LiveCommand, @escaping (Bool, String?, String) -> Void, @escaping (Bool) -> Void) -> Void = { _, d, _ in d(false, "not ready", "notSent") }
+    /// Live's track/scene layout as this Mac knows it now (`LiveSong.structure`).
+    var currentStructure: () -> Int? = { nil }
     var pressCue: (UInt16) -> Bool = { _ in false }
     var allNotesOff: () -> Void = {}
     var snapshot: () -> LiveState = { LiveState() }
@@ -58,6 +61,8 @@ final class RemoteServer {
         var lastHeard = ProcessInfo.processInfo.systemUptime
         /// Bytes handed to the connection and not yet sent.
         var inFlight = 0
+        /// The layout (`LiveSong.structure`) of the last state sent to this iPhone.
+        var seenStructure: Int?
         init(conn: NWConnection, session: RemoteSession) { self.conn = conn; self.session = session }
     }
 
@@ -269,16 +274,9 @@ final class RemoteServer {
     private func handleMessage(_ m: RemoteMessage, _ c: Client) {
         switch m {
         case let .command(id, cmd):
-            guard cmd.isValid else { send(.result(id: id, ok: false, error: "invalid", backup: "notSent"), to: c); return }
-            // The show lock is enforced here too, not only on the iPhone.
-            guard !c.locked || cmd.allowedWhileLocked else { send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c); return }
-            // Operation log (fader and tempo moves are too many to log one by one).
-            let who = c.hello?.deviceName ?? "?"
-            if !cmd.isContinuous { onLog?("Remote: \(who): \(cmd)") }
-            runCommand(cmd) { [weak self] ok, err, backup in
-                if !ok, !cmd.isContinuous { self?.onLog?("Remote: \(who): \(cmd) not run (\(err ?? "error"))") }
-                self?.queue.async { self?.send(.result(id: id, ok: ok, error: err, backup: backup), to: c) }
-            }
+            runFromPhone(id, cmd, seen: c.seenStructure, c)
+        case let .commandAt(id, cmd, structure):
+            runFromPhone(id, cmd, seen: structure ?? c.seenStructure, c)
         case let .cue(id, keycode):
             let ok = pressCue(keycode)
             onLog?("Remote: \(c.hello?.deviceName ?? "?"): cue key \(keycode)\(ok ? "" : " (not a cue key)")")
@@ -297,8 +295,41 @@ final class RemoteServer {
         }
     }
 
+    /// A Live command from an iPhone. `seen`: the Live layout the iPhone was showing.
+    private func runFromPhone(_ id: Int, _ cmd: LiveCommand, seen: Int?, _ c: Client) {
+        guard cmd.isValid else { send(.result(id: id, ok: false, error: "invalid", backup: "notSent"), to: c); return }
+        // The show lock is enforced here too, not only on the iPhone.
+        guard !c.locked || cmd.allowedWhileLocked else { send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c); return }
+        // Operation log (fader and tempo moves are too many to log one by one).
+        let who = c.hello?.deviceName ?? "?"
+        if !cmd.isContinuous { onLog?("Remote: \(who): \(cmd)") }
+        // The iPhone was showing an older layout than Live has now: refuse before anything is
+        // sent to either Live (the backup would otherwise run it while this Mac refuses it).
+        if cmd.targetsLayout, let seen, let now = currentStructure(), seen != now {
+            onLog?("Remote: \(who): \(cmd) not run (Live's layout changed)")
+            send(.result(id: id, ok: false, error: "structure_changed", backup: "notSent"), to: c)
+            return
+        }
+        runCommand(cmd, { [weak self] ok, err, backup in
+            if !ok, !cmd.isContinuous { self?.onLog?("Remote: \(who): \(cmd) not run (\(err ?? "error"))") }
+            self?.queue.async { self?.send(.result(id: id, ok: ok, error: err, backup: backup), to: c) }
+        }, { [weak self] ok in
+            guard ok else { return }
+            // Live ran it after all: the iPhone must not think it failed (no second tap).
+            self?.onLog?("Remote: \(who): \(cmd) ran late")
+            self?.queue.async { self?.send(.result(id: id, ok: true, error: "late", backup: "unknown"), to: c) }
+        })
+    }
+
     private func send(_ m: RemoteMessage, to c: Client) {
         guard let bytes = try? c.session.seal(m) else { return }
+        if case let .update(u) = m {
+            switch u {
+            case let .song(x): c.seenStructure = x.structure
+            case let .full(s): c.seenStructure = s.song.structure
+            default: break
+            }
+        }
         let n = bytes.count
         c.inFlight += n
         // Completion runs on `queue` (the connection's queue).

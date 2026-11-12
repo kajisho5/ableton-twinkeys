@@ -59,6 +59,8 @@ final class RemoteModel: ObservableObject {
     /// Continuous controls (faders, tempo): the last value sent and when, plus the newest one waiting.
     private var lastContinuous: [String: (value: Double, at: Date)] = [:]
     private var pendingContinuous: [String: LiveCommand] = [:]
+    /// Ids of fader / tempo commands (their backup results are not shown one by one).
+    private var continuousIDs: Set<Int> = []
     private let queue = DispatchQueue(label: "TwinKeysRemote.net")
     let demo: Bool
 
@@ -243,9 +245,19 @@ final class RemoteModel: ObservableObject {
             case let .update(u):
                 live.apply(u)
             case let .status(st): status = st
-            case let .result(_, ok, err, backup):
-                lastResult = ok ? nil : (err ?? "error")
+            case let .result(rid, ok, err, backup):
                 lastBackup = backup
+                // Fader and tempo moves: no banner per step (the top bar shows the backup's Live).
+                if continuousIDs.remove(rid) != nil, ok { break }
+                if !ok {
+                    lastResult = err ?? "error"
+                } else if err == "late" {
+                    lastResult = "late"          // ran after "no answer": do not tap again
+                } else if ["failedLive", "noLive", "missing"].contains(backup) {
+                    lastResult = "backup_" + backup   // ran here, but not on the backup's Live
+                } else if lastResult == "no_answer" {
+                    lastResult = nil
+                }
             default: break
             }
         }
@@ -285,13 +297,15 @@ final class RemoteModel: ObservableObject {
         }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         nextID += 1
-        send(.command(id: nextID, cmd))
+        send(.commandAt(id: nextID, cmd, structure: live.song.structure))
     }
 
     private func sendContinuous(_ cmd: LiveCommand, _ key: String, value: Double) {
         lastContinuous[key] = (value, Date())
         nextID += 1
-        send(.command(id: nextID, cmd))
+        continuousIDs.insert(nextID)
+        if continuousIDs.count > 200 { continuousIDs.removeAll() }
+        send(.commandAt(id: nextID, cmd, structure: live.song.structure))
     }
 
     private static func continuousKey(_ cmd: LiveCommand) -> (String, Double)? {

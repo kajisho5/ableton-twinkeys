@@ -103,6 +103,9 @@ public struct RemoteStatus: Codable, Equatable, Sendable {
 public enum RemoteMessage: Codable, Equatable, Sendable {
     // iPhone → Mac
     case command(id: Int, LiveCommand)
+    /// 2.2: a command plus the Live layout (`LiveSong.structure`) the iPhone was showing when it
+    /// was tapped; the Mac refuses it if Live's layout has changed since.
+    case commandAt(id: Int, LiveCommand, structure: Int?)
     case cue(id: Int, keycode: UInt16)
     case allNotesOff(id: Int)
     case ping(Double)

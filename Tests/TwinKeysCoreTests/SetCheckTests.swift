@@ -70,3 +70,31 @@ extension CueTests {
         XCTAssertNil(t.main.setDiff)
     }
 }
+
+/// 2.2: the backup tells what its Live did with a forwarded command.
+extension CueTests {
+    func testBackupReportsWhatItsLiveDid() throws {
+        let t = self
+        var answers: [(LiveCommand, (Conductor.LiveRun) -> Void)] = []
+        t.backup.onLiveCommandRun = { cmd, answer in answers.append((cmd, answer)) }
+        t.connect(); t.tick(1.1)
+        let a = try XCTUnwrap(t.main.forwardLive(.fireScene(1)))
+        let b = try XCTUnwrap(t.main.forwardLive(.fireScene(2)))
+        t.pump(); t.tick(0.05)
+        XCTAssertEqual(answers.count, 2)
+        XCTAssertEqual(t.main.liveDelivery(a), "delivered")
+        answers[0].1(.ran); answers[1].1(.noAnswer)
+        // The answers are sent from another queue: wait for them, then deliver.
+        let deadline = Date().addingTimeInterval(2)
+        while (t.main.liveDelivery(a) != "ran" || t.main.liveDelivery(b) != "noLive") && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.02); t.pump()
+        }
+        XCTAssertEqual(t.main.liveDelivery(a), "ran")
+        XCTAssertEqual(t.main.liveDelivery(b), "noLive")
+    }
+
+    func testLiveResultPacketRoundTrip() throws {
+        let p = Packet(session: 3, seq: 4, body: .liveResult(id: 77, code: 2))
+        XCTAssertEqual(try Packet.decode(p.encode()), p)
+    }
+}
