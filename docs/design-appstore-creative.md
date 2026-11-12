@@ -60,7 +60,17 @@ App Store Connect API でこのアセットを送れるかは、**確認でき�
 3. 右上の言語を「日本語」に変えて、日本語版も同じように入れる。
 4. 「Preview」で、iPhone・iPad での見え方を確かめる。
 
-## 7. 決めてほしいこと・わからないこと
+## 7. 決まったこと（2026-11-12）
 
-- **審査に出すタイミング**：(A) アプリの審査を先に出して、アセットはあとから Asset Library で単独で出す（おすすめ。アプリの審査を待たせない）／(B) アセットを入れてから一緒に出す。
-- **わからないこと**：Apple のテンプレートにある「セーフエリア」（切れない範囲）の正確な数字。テンプレートは Figma などのファイルで、ここでは開けていない。なので大事なものを真ん中寄りに置き、App Store Connect の「Preview」で確かめる。
+- このデザインで作る（承認：「それでいいよ」）。完成品：`deliverables/appstore-creative/`
+  - `header-{ja,en}-3840x1646-15s.mp4`（H.264 High・30 fps・15.0 秒・無音のステレオ AAC）
+  - `search-results-{ja,en}-3840x2560.png`（透明なし）、`header-poster-{ja,en}-3840x1646.png`（動画の最初のコマ）
+- 出す順番は「アプリを先に、アセットはあとから単独で」を選んだ。ただし Apple の説明では、**承認されたバージョンがまだないアプリは、最初のバージョンと同じ提出に入れる**必要がある（「If your app doesn't yet have an approved version, include the asset in the same submission as your first app version.」）。TwinKeys Remote は 1.2.1 が最初の App Store 版なので：
+  - まだ審査に出していないなら → 1.2.1 の版のページで入れて、一緒に出す。
+  - もう出したなら → 1.2.1 が承認されたあと、Asset Library から単独で出す（アプリの更新は要らない）。
+  出典：<https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-assets-from-asset-library>
+
+## 8. わからないこと
+
+
+- Apple のテンプレートにある「セーフエリア」（切れない範囲）の正確な数字。テンプレートは Figma などのファイルで、ここでは開けていない。なので大事なものを真ん中寄りに置き、App Store Connect の「Preview」で確かめる。

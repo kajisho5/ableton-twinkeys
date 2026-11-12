@@ -460,13 +460,15 @@ def final():
         render(search_svg(lang), os.path.join(out, f"search-results-{lang}-3840x2560.png"))
         render(header_frame(0.0, lang), os.path.join(out, f"header-poster-{lang}-3840x1646.png"))
         with tempfile.TemporaryDirectory() as tmp:
-            for i in range(fps * seconds):
-                render(header_frame(i / fps, lang), os.path.join(tmp, f"f{i:04d}.png"))
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
+                list(pool.map(lambda i: render(header_frame(i / fps, lang), os.path.join(tmp, f"f{i:04d}.png")),
+                              range(fps * seconds)))
             mp4 = os.path.join(out, f"header-{lang}-3840x1646-15s.mp4")
             subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(fps), "-i", os.path.join(tmp, "f%04d.png"),
                             "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
                             "-map", "0:v", "-map", "1:a", "-shortest", "-c:v", "libx264", "-profile:v", "high",
-                            "-pix_fmt", "yuv420p", "-b:v", "12M", "-maxrate", "14M", "-bufsize", "24M", "-r", str(fps),
+                            "-pix_fmt", "yuv420p", "-crf", "16", "-maxrate", "20M", "-bufsize", "40M", "-r", str(fps),
                             "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart", mp4], check=True)
         print(f"{lang}: written")
     # flatten PNGs (no alpha) as Apple asks
