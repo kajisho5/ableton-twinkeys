@@ -12,6 +12,8 @@ final class LiveBridgeClient {
     let queue = DispatchQueue(label: "TwinKeys.bridge", qos: .userInitiated)
     private var listener: NWListener?
     private var sender: NWConnection?
+    /// The script's socket we hear from (one at a time; a new source replaces the old one).
+    private var receiver: NWConnection?
     private var nextID = 0
     private var lastHeard = Date.distantPast
     private var timer: DispatchSourceTimer?
@@ -31,10 +33,7 @@ final class LiveBridgeClient {
         queue.async { [weak self] in
             guard let self else { return }
             self.startListener()
-            let host = NWEndpoint.Host("127.0.0.1")
-            let c = NWConnection(host: host, port: NWEndpoint.Port(rawValue: Self.commandPort)!, using: .udp)
-            c.start(queue: self.queue)
-            self.sender = c
+            self.startSender()
             // Say hello every 2 s until Live answers (Live may start after TwinKeys), then every 5 s.
             let t = DispatchSource.makeTimerSource(queue: self.queue)
             t.schedule(deadline: .now() + 0.2, repeating: 2)
@@ -50,13 +49,15 @@ final class LiveBridgeClient {
     func stop() {
         queue.sync {
             stopped = true
-            timer?.cancel(); listener?.cancel(); sender?.cancel()
+            timer?.cancel(); listener?.cancel(); sender?.cancel(); receiver?.cancel()
         }
     }
 
     /// Runs a command on this Mac's Live. `done` is called on `queue` with the script's answer
     /// (or ok: false after 1 s without one).
-    func run(_ cmd: LiveCommand, done: ((Bool, String?) -> Void)? = nil) {
+    /// `checkStructure`: send the track/scene layout this Mac knows, so the script refuses the
+    /// command ("structure_changed") if Live's layout changed since (commands from an iPhone).
+    func run(_ cmd: LiveCommand, checkStructure: Bool = false, done: ((Bool, String?) -> Void)? = nil) {
         queue.async { [weak self] in
             guard let self else { return }
             guard cmd.isValid else { done?(false, "invalid"); return }
@@ -67,7 +68,7 @@ final class LiveBridgeClient {
                     if let d = self?.pending.removeValue(forKey: id) { d(false, "Live did not answer") }
                 }
             }
-            self.send(cmd.bridgeJSON(id: id))
+            self.send(cmd.bridgeJSON(id: id, structure: checkStructure ? self.state.song.structure : nil))
         }
     }
 
@@ -83,6 +84,29 @@ final class LiveBridgeClient {
         sender?.send(content: data, completion: .idempotent)
     }
 
+    /// The command socket. UDP to a port nobody listens on yet (Live not started) can fail; then
+    /// it is built again, so commands work as soon as Live is there.
+    private func startSender() {
+        guard !stopped else { return }
+        let c = NWConnection(host: NWEndpoint.Host("127.0.0.1"), port: NWEndpoint.Port(rawValue: Self.commandPort)!, using: .udp)
+        c.stateUpdateHandler = { [weak self, weak c] s in
+            guard let self, let c, self.sender === c else { return }
+            switch s {
+            case .failed, .waiting:
+                c.cancel()
+            case .cancelled:
+                self.sender = nil
+                self.queue.asyncAfter(deadline: .now() + 1) { [weak self] in
+                    guard let self, self.sender == nil else { return }
+                    self.startSender()
+                }
+            default: break
+            }
+        }
+        c.start(queue: queue)
+        sender = c
+    }
+
     private func startListener() {
         guard !stopped else { return }
         let p = NWParameters.udp
@@ -96,6 +120,9 @@ final class LiveBridgeClient {
         }
         l.newConnectionHandler = { [weak self] c in
             guard let self else { return }
+            // The script sends from one socket; a new one (Live restarted) replaces the old.
+            if let old = self.receiver, old !== c { old.cancel() }
+            self.receiver = c
             c.start(queue: self.queue)
             self.receive(on: c)
         }
@@ -116,7 +143,11 @@ final class LiveBridgeClient {
                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 self.handle(obj)
             }
-            if error == nil, let c { self.receive(on: c) }
+            guard let c else { return }
+            if error == nil { self.receive(on: c) } else {
+                c.cancel()
+                if self.receiver === c { self.receiver = nil }
+            }
         }
     }
 

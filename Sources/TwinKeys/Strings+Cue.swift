@@ -106,6 +106,7 @@ extension Strings {
     }
     var approveAllow: String { s("Allow", "許可") }
     var approveDeny: String { s("Don’t Allow", "許可しない") }
+    func approveMenu(_ name: String) -> String { s("“\(name)” asks to connect…", "「\(name)」が接続を求めています…") }
     var liveSection: String { s("Live", "Live との連携") }
     var liveConnected: String { s("Live: Connected", "Live: 接続済み") }
     var liveNotConnected: String { s("Live: Not connected", "Live: 未接続") }

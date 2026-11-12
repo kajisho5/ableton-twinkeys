@@ -61,6 +61,8 @@ struct ViewState: Equatable {
     var approvedDevices: [ApprovedDevice] = []
     var remoteClients = 0
     var remoteEnabled = true
+    /// Name of the device waiting for Allow / Don't Allow on this Mac.
+    var approvalRequest: String?
 
     var t: Strings { Strings(language) }
 
@@ -138,5 +140,5 @@ struct ViewActions {
     var openReleasePage: () -> Void = {}
 }
 
-enum AppSheet: Equatable { case pairing, connectByIP, help, approveDevice(name: String, code: String) }
+enum AppSheet: Equatable { case pairing, connectByIP, help }
 #endif
