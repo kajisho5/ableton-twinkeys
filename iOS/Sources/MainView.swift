@@ -117,22 +117,23 @@ struct MainView: View {
     }
 
     /// Landscape iPhone: the pane switcher on the right edge, where the right thumb is.
+    /// Five buttons share the height (a warning bar under the top bar takes some of it).
     private var rail: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             ForEach(Pane.allCases) { p in
                 Button { pane = p } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: p.symbol).font(.system(size: 20))
-                        Text(p.title).font(.system(size: 10, weight: pane == p ? .bold : .regular))
+                    VStack(spacing: 2) {
+                        Image(systemName: p.symbol).font(.system(size: 19))
+                        Text(p.title).font(.system(size: 10, weight: pane == p ? .bold : .regular)).lineLimit(1).minimumScaleFactor(0.7)
                     }
-                    .frame(width: 60, height: 60)
+                    .frame(width: 60).frame(minHeight: 44, maxHeight: 56)
                     .background(RoundedRectangle(cornerRadius: 10).fill(pane == p ? Color.tkCell : .clear))
                     .foregroundStyle(pane == p ? Color.tkAccent : .secondary)
                 }
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .frame(width: 68)
         .background(Color.tkBar.ignoresSafeArea(edges: .trailing))
         .overlay(alignment: .leading) { Divider() }

@@ -7,6 +7,8 @@ import TwinKeysCore
 struct GoView: View {
     @EnvironmentObject var model: RemoteModel
     @State private var lastGo = Date.distantPast
+    /// Landscape iPhone: little height, so smaller cards.
+    @State private var tight = false
     /// A second GO within this time is ignored (a double tap must not skip a cue).
     static let goGuard: TimeInterval = 0.5
 
@@ -16,14 +18,16 @@ struct GoView: View {
             Group {
                 if wide {
                     HStack(alignment: .top, spacing: 16) {
-                        VStack(spacing: 12) { nowCard; nextCard; chooseRow }
+                        VStack(spacing: tight ? 8 : 12) { nowCard; nextCard; Spacer(minLength: 0); chooseRow }
                         goButton.frame(width: min(300, geo.size.width * 0.36))
                     }
                 } else {
                     VStack(spacing: 12) { nowCard; nextCard; goButton.frame(maxHeight: 260); chooseRow }
                 }
             }
-            .padding(12)
+            .padding(tight ? 8 : 12)
+            .onAppear { tight = geo.size.height < 340 }
+            .onChange(of: geo.size) { sz in tight = sz.height < 340 }
         }
     }
 
@@ -46,9 +50,9 @@ struct GoView: View {
             Text(L.s("Now playing", "いま再生中")).font(.caption.bold()).foregroundStyle(Color.tkOK)
             if let sc = playing {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(sc.index + 1)").font(.system(size: 30, weight: .heavy)).foregroundStyle(.secondary)
+                    Text("\(sc.index + 1)").font(.system(size: tight ? 24 : 30, weight: .heavy)).foregroundStyle(.secondary)
                     Text(sc.name.isEmpty ? L.s("Scene \(sc.index + 1)", "シーン \(sc.index + 1)") : sc.name)
-                        .font(.system(size: 26, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.6)
+                        .font(.system(size: tight ? 21 : 26, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.6)
                 }
                 if let t = playingTracks.first, let left = live.secondsLeft(track: t) {
                     HStack(spacing: 10) {
@@ -70,12 +74,12 @@ struct GoView: View {
                     let n = live.clips[t][sc.index].name
                     return n.isEmpty ? nil : n
                 }
-                if !names.isEmpty { Text(names.joined(separator: " ・ ")).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                if !names.isEmpty, !tight { Text(names.joined(separator: " ・ ")).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
             } else {
                 Text(L.s("Nothing playing", "再生中のシーンはありません")).font(.title3.bold()).foregroundStyle(.secondary)
             }
         }
-        .padding(16)
+        .padding(tight ? 10 : 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.tkCard))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(playing == nil ? Color.clear : Color.tkOK, lineWidth: 1.5))
@@ -87,16 +91,16 @@ struct GoView: View {
             Text(L.s("Next", "次")).font(.caption.bold()).foregroundStyle(Color.tkAccent)
             if let sc = next {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("\(sc.index + 1)").font(.system(size: 26, weight: .heavy)).foregroundStyle(.secondary)
+                    Text("\(sc.index + 1)").font(.system(size: tight ? 20 : 26, weight: .heavy)).foregroundStyle(.secondary)
                     Text(sc.name.isEmpty ? L.s("Scene \(sc.index + 1)", "シーン \(sc.index + 1)") : sc.name)
-                        .font(.system(size: 22, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.6)
+                        .font(.system(size: tight ? 18 : 22, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.6)
                 }
-                Text(L.s("The scene selected in Live", "Live で選んでいるシーン")).font(.caption).foregroundStyle(.secondary)
+                if !tight { Text(L.s("The scene selected in Live", "Live で選んでいるシーン")).font(.caption).foregroundStyle(.secondary) }
             } else {
                 Text(L.s("End of the scene list", "シーンの最後です")).font(.title3.bold()).foregroundStyle(.secondary)
             }
         }
-        .padding(16)
+        .padding(tight ? 10 : 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.tkCard))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.secondary.opacity(0.3)))
@@ -108,13 +112,14 @@ struct GoView: View {
             chooseButton(L.s("◀ Back", "◀ 前へ"), to: nextIndex - 1)
             chooseButton(L.s("Next ▶", "次へ ▶"), to: nextIndex + 1)
             Text(L.s("Only chooses (does not play)", "選ぶだけ（鳴らさない）")).font(.caption).foregroundStyle(.secondary)
+                .lineLimit(2).minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private func chooseButton(_ title: String, to i: Int) -> some View {
         Button { model.run(.selectScene(i)) } label: {
-            Text(title).font(.headline).frame(maxWidth: 160, minHeight: 56)
+            Text(title).font(.headline).frame(maxWidth: 160, minHeight: tight ? 44 : 56)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCell))
         }
         .buttonStyle(.plain)

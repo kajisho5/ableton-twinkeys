@@ -341,7 +341,7 @@ final class RemoteModel: ObservableObject {
         pairingCode = "K7MQ2-WX9TP"
         phase = .connected("Main Stage Mac")
         var s = LiveState()
-        s.song.tempo = 124; s.song.playing = true; s.song.beat = "17.3.1"; s.song.selectedScene = 2
+        s.song.tempo = 124; s.song.playing = true; s.song.beat = "17.3.1"; s.song.selectedScene = 3
         let names = ["オープニング", "SE 拍手", "M1 イントロ", "M1 本編", "暗転", "M2 イントロ", "M2 本編", "エンディング"]
         let colors = ["#E0533D", "#F0A030", "#3FA34D", "#2F7FD8", "#8E5CD6", "#D64F9A", "#E0533D", "#F0A030"]
         s.scenes = names.enumerated().map { LiveScene(index: $0.offset, name: $0.element, color: colors[$0.offset], playing: $0.offset == 2) }

@@ -2,3 +2,4 @@ TestFlight build requests (one line per request).
 2026-11-09 first build of TwinKeys Remote 1.0.0
 2026-11-09 build 2: landscape-first iPhone layout
 2026-11-09 build 3: cue buttons show the memo first
+2026-11-12 build 4: review fixes + 2.1 (GO, backup Live status, set check, sends)
