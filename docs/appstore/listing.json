@@ -23,6 +23,18 @@
     "customerPrice": "1000",
     "currency": "JPY"
   },
+  "availability": {
+    "_about": [
+      "Every App Store country or region except the 27 EU member states (decided 2026-11-12: not distributed on the App Store in the EU).",
+      "Apple: someone who distributes 'on the App Store only outside the EU' is 'not acting as a trader on the App Store';",
+      "the trader status still has to be declared once ('This is not a trader account').",
+      "https://developer.apple.com/help/app-store-connect/manage-compliance-information/manage-european-union-digital-services-act-trader-requirements",
+      "EU member states: https://european-union.europa.eu/principles-countries-history/eu-countries_en"
+    ],
+    "availableInNewTerritories": true,
+    "excludeTerritories": ["AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC", "HUN",
+                           "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE"]
+  },
   "categories": {
     "primary": "MUSIC",
     "secondary": "UTILITIES"

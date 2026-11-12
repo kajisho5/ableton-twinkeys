@@ -33,7 +33,7 @@ iPhone の Safari で、App Store Connect（アップストア コネクト。Ap
 | 3 | バージョンの文面 | 日本語・英語の説明、キーワード、プロモーション用テキスト、サポート URL、マーケティング URL。「このバージョンの新機能」は、App Store に前のバージョンがあるときだけ（1.2.1 は最初なので送らない） |
 | 4 | 主な言語・コンテンツ配信権 | 主な言語を English (U.S.) に。コンテンツ配信権は「ほかの人の作品を使わない」 |
 | 5 | 価格 | 基準の国を日本にして 1,000円（API で日本の 1,000円の価格ポイントを探す）。有料アプリの契約（Paid Apps Agreement）がまだだと Apple に断られる → skipped と出て、ほかの項目は続ける |
-| 6 | 配信する国 | まだ決まっていないときだけ、全部の国（あとで増える国も）。決まっていれば変えない |
+| 6 | 配信する国 | EU の27か国を除く全部の国（あとで増える国も）。もう決まっていれば、EU の国だけ止める（ほかの国は変えない） |
 | 7 | App Review に関する情報 | 審査用メモ（下の 6-5 の英文）、サインイン不要。連絡先（名前・電話・メール）は、App Store 側が空のときだけ、TestFlight の「Beta App Review Information」から写す。どちらも空なら、足りない欄を表示（作って入れることはしない） |
 | 8 | スクリーンショット | iPhone 6.3インチ・6.9インチ・iPad 13インチ（リポジトリの画像）と Apple Watch（CI の画像）を、日本語・英語の両方に。前の画像は消してから入れ直す（同じ画像がもう入っていれば、そのまま） |
 | 9 | ビルド | 1.2.1 のビルド 7 を、Apple の処理が終わる（VALID）まで最大30分待って、バージョンに付ける |
@@ -46,9 +46,9 @@ Apple Watch の画像：CI（`.github/workflows/ci.yml` の「ios」）が撮っ
 
 1. **App のプライバシー**（下の 5）：「Get Started」→「No, we do not collect data from this app」→「Save」→「Publish」。「Data Not Collected」と出れば完了。（API がありません）
 2. **有料アプリの契約・税・口座**（下の 2）：<https://appstoreconnect.apple.com/business>。Account Holder（アカウントの持ち主）だけができます。
-3. **EU の「トレーダー」の申告**（下の 2）。
+3. **EU の「トレーダー」の申告**（下の 2）：EU では配らないので「This is not a trader account」。
 4. **Digital Goods and Services の質問**（App 情報に出ているときだけ。下の 3）。
-5. **配る国**：一部の国をはずしたいときだけ（下の 4）。
+5. **配る国**：EU の27か国のほかにも、はずしたい国があるときだけ（下の 4）。
 6. 自動化が skipped や failed と出したもの（例：価格、連絡先、Apple Watch の画像）。
 7. 最後に、バージョンのページで「**Add for Review**」→「**Submit for Review**」（下の 7）。
 
@@ -121,9 +121,9 @@ GitHub で `docs/appstore/metadata-ja.md` と `metadata-en.md` を開いてお�
    - 契約がまだのうちは、自動化（A）の価格の項目が「skipped」になり、ほかの項目は入ります。契約が終わったら、もう一度動かすか、下の 4 で手で入れてください。
    出典：[Set a price](https://developer.apple.com/help/app-store-connect/manage-app-pricing/set-a-price) / [Sign and update agreements](https://developer.apple.com/help/app-store-connect/manage-agreements/sign-and-update-agreements) / [Provide tax information](https://developer.apple.com/help/app-store-connect/manage-tax-information/provide-tax-information) / [Enter banking information](https://developer.apple.com/help/app-store-connect/manage-banking-information/enter-banking-information)
 3. 「Agreements（契約）」タブを下へ。「Compliance（コンプライアンス）」の「**Digital Services Act**」で「Complete Compliance Requirements」を押します。これは EU の法律（デジタルサービス法）の申告で、**EU で配らなくても全員が申告します**。
-   - 仕事として（会社や屋号の事業として）配るなら「This is a trader account（トレーダー）」。住所・電話・メールの確認があり、その連絡先は EU の App Store のページに**公開されます**。
-   - 仕事ではなく個人として配るなら「This is not a trader account（トレーダーではない）」。連絡先は要りません。
-   - どちらに当たるかは、自分で決めることです（Apple は「自分で判断してください」と書いています）。Apple が考える材料にあげているものに「**アプリで収入があるか（有料のアプリ、アプリ内課金、広告など）**」「VAT（付加価値税）の登録」「仕事として作っているか」があります。**1,000円の有料アプリにするので、トレーダーに当たる可能性は高くなります。** SEVENTHWELL を事業として出すなら、なおさらです。迷ったら専門家に聞いてください。
+   - **TwinKeys Remote は EU の27か国では配りません**（2026-11-12 に決定。配信する国は下の 4 の 6）。Apple：「App Store で EU の外だけで配っているなら、App Store ではトレーダーとして活動していない」。
+   - なので「**This is not a trader account（トレーダーではない）**」→「**Done**」。連絡先は要らず、どこにも公開されません。
+   - あとで EU でも売るときは、その前に申告をやり直します。有料のアプリはトレーダーに当たる可能性が高く（Apple が考える材料に「アプリで収入があるか」があります）、トレーダーの住所・電話・メールは EU の App Store のページに**公開されます**。
    出典：[Manage EU Digital Services Act trader requirements](https://developer.apple.com/help/app-store-connect/manage-compliance-information/manage-european-union-digital-services-act-trader-requirements)
 
 ---
@@ -154,14 +154,14 @@ GitHub で `docs/appstore/metadata-ja.md` と `metadata-en.md` を開いてお�
 
 サイドバーの「Monetization」→「**Pricing and Availability（価格および配信状況）**」。URL の目安：`https://appstoreconnect.apple.com/apps/6832469018/distribution/pricing`
 
-自動化（A）を使ったときは、価格（有料アプリの契約が終わっていれば）と配信する国は入っています。手で入れるときは：
+自動化（A）を使ったときは、価格と配信する国（EU の27か国を除く）は入っています。手で入れるときは：
 
 1. 「Price Schedule（価格表）」の「**Add Pricing（価格を追加）**」を押します。
 2. 基準の国（base country or region）に **Japan（日本）** を選びます。日本の値段は、Apple が為替や税で変えることはありません。
 3. 価格で **¥1,000** を選び、「Next」。最初は25個だけ並びます。見つからないときは、いちばん下の「See Additional Prices」。
 4. ほかの国の価格の画面は、そのまま「Next」（変えなければ、Apple が為替と税に合わせて自動で直してくれます）。
 5. 確かめて「**Confirm（確定）**」。
-6. 「App Availability（配信状況）」：まだなら「**Set Up Availability**」→「All Countries or Regions」→「Next」→「Confirm」。Apple：「審査に出す前に、配信する国を決める必要がある」。一部の国をはずしたいときは「Manage」→「Manage Availability」→ チェックをはずす →「Next」→ 確定。
+6. 「App Availability（配信状況）」：まだなら「**Set Up Availability**」→「All Countries or Regions」→「Next」→「Confirm」。Apple：「審査に出す前に、配信する国を決める必要がある」。そのあと「Manage」→「Manage Availability」→ **EU の27か国**（オーストリア、ベルギー、ブルガリア、クロアチア、キプロス、チェコ、デンマーク、エストニア、フィンランド、フランス、ドイツ、ギリシャ、ハンガリー、アイルランド、イタリア、ラトビア、リトアニア、ルクセンブルク、マルタ、オランダ、ポーランド、ポルトガル、ルーマニア、スロバキア、スロベニア、スペイン、スウェーデン）のチェックをはずす →「Next」→ 確定。
    - 中国本土は、ICP の届出番号が要るアプリがあります（Apple の [App information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information) の「Availability in China mainland」）。
    出典：[Set a price](https://developer.apple.com/help/app-store-connect/manage-app-pricing/set-a-price) / [Manage availability for your app on the App Store](https://developer.apple.com/help/app-store-connect/manage-your-apps-availability/manage-availability-for-your-app-on-the-app-store)
 

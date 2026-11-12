@@ -1008,30 +1008,63 @@ def step_price(c):
 
 
 def step_availability(c):
+    """Every territory except listing.json availability.excludeTerritories (the 27 EU member states).
+    An existing setup is changed only where it differs from that: excluded territories are switched off with
+    PATCH /v1/territoryAvailabilities/{id}; other territories that are off are reported, not switched on."""
     step = "Availability"
+    cfg = c.listing.get("availability") or {}
+    exclude = set(cfg.get("excludeTerritories") or [])
+    new_territories = bool(cfg.get("availableInNewTerritories", True))
+    territories, _ = c.api.get_all("/v1/territories", {"limit": "200"}, "territories")
+    known = {t["id"] for t in territories}
+    unknown = sorted(exclude - known)
+    if unknown:
+        print(f"  not App Store territories (ignored): {', '.join(unknown)}")
+    exclude &= known
+    summary = (f"{len(known) - len(exclude)} of {len(known)} territories; not in {len(exclude)} "
+               f"({', '.join(sorted(exclude)) or 'none'}); new territories: {new_territories}")
+
     status, body, raw = c.api.get(f"/v1/apps/{c.app_id}/appAvailabilityV2")
     if status == 200 and (body or {}).get("data"):
-        a = body["data"].get("attributes") or {}
-        c.report.ok(step, "already set up (not changed); availableInNewTerritories="
-                          f"{a.get('availableInNewTerritories')}")
+        avail_id = body["data"]["id"]
+        tas, included = c.api.get_all(f"/v2/appAvailabilities/{avail_id}/territoryAvailabilities",
+                                      {"include": "territory", "limit": "200"}, "territory availabilities")
+        changed, failed, off_elsewhere = [], [], []
+        for ta in tas:
+            terr = (((ta.get("relationships") or {}).get("territory") or {}).get("data") or {}).get("id")
+            available = bool((ta.get("attributes") or {}).get("available"))
+            if terr in exclude and available:
+                ok, st, _, err = c.api.write("PATCH", f"/v1/territoryAvailabilities/{ta['id']}", {
+                    "data": {"type": "territoryAvailabilities", "id": ta["id"], "attributes": {"available": False}}})
+                (changed if ok else failed).append(terr if ok else f"{terr} (HTTP {st} {err})")
+            elif terr and terr not in exclude and not available:
+                off_elsewhere.append(terr)
+        if off_elsewhere:
+            print(f"  also off, left as they are: {', '.join(sorted(off_elsewhere))}")
+        if failed:
+            c.report.failed(step, "switching off failed for " + "; ".join(failed))
+        elif changed:
+            c.report.ok(step, f"switched off {len(changed)} territories ({', '.join(sorted(changed))}); {summary}")
+        else:
+            c.report.ok(step, f"already as wanted (not changed): {summary}")
         return
     if status not in (200, 404):
         c.report.failed(step, f"reading it failed: HTTP {status} {error_summary(raw)}")
         return
-    territories, _ = c.api.get_all("/v1/territories", {"limit": "200"}, "territories")
     refs, included = [], []
     for t in territories:
         local = "${ta-" + t["id"] + "}"
         refs.append({"type": "territoryAvailabilities", "id": local})
-        included.append({"type": "territoryAvailabilities", "id": local, "attributes": {"available": True},
+        included.append({"type": "territoryAvailabilities", "id": local,
+                         "attributes": {"available": t["id"] not in exclude},
                          "relationships": {"territory": {"data": {"type": "territories", "id": t["id"]}}}})
     ok, status, _, err = c.api.write("POST", "/v2/appAvailabilities", {
-        "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": True},
+        "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": new_territories},
                  "relationships": {"app": {"data": {"type": "apps", "id": c.app_id}},
                                    "territoryAvailabilities": {"data": refs}}},
         "included": included})
     if ok:
-        c.report.ok(step, f"all {len(territories)} territories, and new ones as Apple adds them")
+        c.report.ok(step, summary)
     else:
         c.report.failed(step, f"HTTP {status} {err}")
 
@@ -1292,12 +1325,14 @@ def checklist(c):
         "\"View and Agree to Terms\" > \"Agree\"; Tax Forms > \"Add Tax Info\" > \"Submit\"; Bank Accounts > "
         "\"Add Bank Account\" > ... > \"Add\". Without an active Paid Apps Agreement Apple only allows a free app.",
         f"EU Digital Services Act trader status ({ASC}/business): Agreements tab > Compliance > Digital Services Act "
-        "> \"Complete Compliance Requirements\". Apple lists a paid app as one sign of being a trader; a trader's "
-        "address, phone and email are shown on the EU App Store.",
+        "> \"Complete Compliance Requirements\" > \"This is not a trader account\" > \"Done\". The app is not on the "
+        "App Store in the 27 EU countries (Apple: distributing 'on the App Store only outside the EU' is not acting "
+        "as a trader there); Apple still asks everyone to declare it.",
         f"Digital Goods and Services, only if App Information shows it ({app}/distribution/info): \"Get Started\". "
         "TwinKeys Remote sells nothing inside the app (no In-App Purchase). The EU answers are locked for 12 months.",
-        f"Availability, only to exclude territories ({app}/distribution/pricing): App Availability > \"Manage\" > "
-        "\"Manage Availability\" > untick > \"Next\" > confirm. China mainland may need an ICP filing number.",
+        f"Availability, only to exclude more territories ({app}/distribution/pricing): App Availability > "
+        "\"Manage\" > \"Manage Availability\" > untick > \"Next\" > confirm (the 27 EU countries are already off). "
+        "China mainland may need an ICP filing number.",
     ]
     items += c.report.manual
     items.append(f"Finally, on the version page ({app}/distribution/ios/version/inflight): check everything, then "
