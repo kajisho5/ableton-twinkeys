@@ -1,6 +1,6 @@
 # TwinKeys Remote サポート
 
-TwinKeys Remote は、音響のオペレーター向けの無料の iPhone・iPad アプリです。無料の Mac アプリ TwinKeys を通して、メインの Mac とバックアップの Mac の Live を同時に操作します。
+TwinKeys Remote は、音響のオペレーター向けの iPhone・iPad アプリです。無料の Mac アプリ TwinKeys を通して、メインの Mac とバックアップの Mac の Live を同時に操作します。
 
 ## 用意するもの
 
