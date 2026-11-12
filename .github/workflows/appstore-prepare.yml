@@ -1,0 +1,89 @@
+# App Store: prepare TwinKeys Remote for App Review WITHOUT submitting it (scripts/asc_appstore.py).
+# Fills in the App Store version from docs/appstore/listing.json (texts in Japanese and English, categories,
+# age rating, copyright, App Review notes), sets the price, uploads the screenshots and attaches the build.
+# The Apple Watch screenshots come from the "ios-screenshots" artifact of the latest successful CI run on
+# this branch. It never creates or submits a review submission: "Add for Review" and "Submit for Review"
+# stay with you, together with the manual items the run lists at the end. It can be run again at any time.
+# Run it from Actions > appstore-prepare > Run workflow once this is on main; before that, a change to
+# iOS/appstore-request.txt on the work branch runs it.
+name: appstore-prepare
+
+on:
+  push:
+    branches: [claude/new-session-k8s13h]
+    paths: [iOS/appstore-request.txt]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "App Store version (CFBundleShortVersionString)"
+        type: string
+        default: "1.2.1"
+      build:
+        description: "Build number on TestFlight"
+        type: string
+        default: "7"
+      price_jpy:
+        description: "Price in yen (base territory Japan; other territories follow automatically)"
+        type: string
+        default: "1000"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: appstore-prepare
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    # Up to 30 minutes waiting for Apple to process the build, plus the screenshot uploads.
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Latest successful CI run on this branch (for the Apple Watch screenshots)
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          run_id=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f branch="$BRANCH" -f status=success -f per_page=1 --jq '.workflow_runs[0].id // empty')
+          if [ -z "$run_id" ]; then
+            echo "::warning::No successful CI run on $BRANCH: the Apple Watch screenshots will be skipped"
+          else
+            echo "CI run $run_id: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$run_id"
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Download its ios-screenshots artifact
+        if: steps.ci.outputs.run_id != ''
+        # A run without the artifact (expired, or the watch step failed) only skips the watch screenshots.
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-screenshots
+          path: ${{ runner.temp }}/ios-screenshots
+          run-id: ${{ steps.ci.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Apple Watch screenshots found
+        run: ls -la "$RUNNER_TEMP"/ios-screenshots/Apple-Watch-*.png 2>/dev/null || echo "none"
+      - name: Python tools (PyJWT 2.15.1, cryptography 50.0.2)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet "PyJWT==2.15.1" "cryptography==50.0.2"
+      - name: Prepare the App Store version (nothing is submitted)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          # Passed through the environment, never pasted into the script; the script checks their format.
+          VERSION: ${{ inputs.version || '1.2.1' }}
+          BUILD: ${{ inputs.build || '7' }}
+          PRICE_JPY: ${{ inputs.price_jpy || '1000' }}
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" -I scripts/asc_appstore.py --listing docs/appstore/listing.json \
+            --version "$VERSION" --build "$BUILD" --price-jpy "$PRICE_JPY" --watch-dir "$RUNNER_TEMP/ios-screenshots"

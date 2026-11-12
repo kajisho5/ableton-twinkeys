@@ -1,9 +1,12 @@
-# App Store の文面（日本語）— TwinKeys Remote 1.2.0
+# App Store の文面（日本語）— TwinKeys Remote 1.2.1
 
 App Store Connect（アップストア コネクト。App Store に出すための Apple のサイト）の「日本語」のページに貼る文面です。灰色の枠の中身を、そのままコピーして貼ってください。英語の文面は [metadata-en.md](metadata-en.md)、出し方の手順は [submit-steps.md](submit-steps.md) にあります。
 
-- アプリ：TwinKeys Remote（バンドル ID `io.github.kajisho5.twinkeys.remote`）
-- バージョン：1.2.0、iOS 17 以降、iPhone と iPad（Apple Watch アプリつき、watchOS 10 以降）
+**自動で入れるとき：** GitHub Actions の「appstore-prepare」（`scripts/asc_appstore.py`）は、この文面ではなく [listing.json](listing.json) の文面を App Store Connect に入れます。文面を直すときは、このファイルと listing.json の両方を直してください（`python3 scripts/asc_appstore.py --check` が、2つが違うと知らせます）。
+
+- アプリ：TwinKeys Remote（バンドル ID `io.github.kajisho5.twinkeys.remote`、App Store Connect の Apple ID 6832469018）
+- バージョン：1.2.1、iOS 17 以降、iPhone と iPad（Apple Watch アプリつき、watchOS 10 以降）
+- 価格：**1,000円（有料のアプリ）**。基準の国は日本で、ほかの国の値段は Apple が為替と税に合わせて自動で決めます。アプリ内課金はありません。（[Set a price](https://developer.apple.com/help/app-store-connect/manage-app-pricing/set-a-price)）Mac の TwinKeys は今までどおり無料・オープンソースです。iPhone アプリのソースコードも GitHub で公開しています（MIT License）。
 - 文字数は、この文面を作ったあとにプログラムで数えた数です（全角も半角も1文字）。キーワードだけは「バイト」で数えます（日本語の1文字は3バイト、英数字とカンマは1バイト）。
 
 ## 上限（Apple の公式ページで確かめたもの、2026年11月12日）
@@ -51,7 +54,7 @@ iPhone から、メインとバックアップの2台の Mac の Ableton Live �
 
 ## 4. 説明（Description）
 
-上限 4000文字 ・ 今の文字数 **1576**
+上限 4000文字 ・ 今の文字数 **1589**（3731バイト）
 
 ```text
 TwinKeys Remote は、2台の Mac（メインとバックアップ）で同じ Ableton Live のセットを動かして本番をする、音響オペレーターのためのリモコンです。iPhone・iPad で押した操作が、2台の Live に同時に届きます。メインの Mac が止まっても、バックアップがすぐに代われます。
@@ -90,7 +93,7 @@ Mac がなくても、最初の画面の「サンプルで試す」で、架空�
 ■ プライバシー
 データを一切集めません。アカウント、利用状況の分析、広告、アプリ内課金はありません。
 
-TwinKeys Remote は無料のオープンソース（MIT License）で、Shogo Kajiyama / SEVENTHWELL が作っています。
+TwinKeys Remote は Shogo Kajiyama / SEVENTHWELL が作っています。ソースコードは GitHub で公開しています（MIT License）。
 
 TwinKeys は非公式のツールです。Ableton 社が作ったり、認めたり、サポートしたりしているものではありません。Ableton、Live は Ableton AG の商標です。
 ```
@@ -162,7 +165,7 @@ https://kajisho5.github.io/ableton-twinkeys/ja/privacy/
 
 「©」は Apple が自動で付けるので、入れません。
 
-## 12. このバージョンの新機能（What's New、1.2.0）
+## 12. このバージョンの新機能（What's New。1.2.0 の変更を書いた文面）
 
 上限 4000文字 ・ 今の文字数 **274**
 
@@ -177,6 +180,8 @@ https://kajisho5.github.io/ableton-twinkeys/ja/privacy/
 ```
 
 **大事：** App Store で最初に出すバージョンには、この欄が出ません（Apple の説明：「最初のバージョンには使えず、2つ目以降は必須」）。TwinKeys Remote を App Store に出すのが今回はじめてなら、この文面は使わず、次のバージョンのときに使ってください。
+
+自動で入れるとき（appstore-prepare）は、App Store に前のバージョン（出したことのあるバージョン）があるかを App Store Connect で調べ、ないときはこの欄を送りません。TwinKeys Remote 1.2.1 は App Store に出す最初のバージョンなので、今回は送られません。
 
 ## スクリーンショット
 

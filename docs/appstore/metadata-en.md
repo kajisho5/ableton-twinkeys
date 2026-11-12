@@ -1,7 +1,10 @@
-# App Store の文面（英語）— TwinKeys Remote 1.2.0
+# App Store の文面（英語）— TwinKeys Remote 1.2.1
 
 App Store Connect の「English (U.S.)」のページに貼る文面です。灰色の枠の中身を、そのままコピーして貼ってください。上限の出典、カテゴリ、年齢制限の答えは [metadata-ja.md](metadata-ja.md) と同じです（カテゴリと年齢制限はアプリ全体で1つ）。
 
+**自動で入れるとき：** GitHub Actions の「appstore-prepare」は [listing.json](listing.json) の文面を入れます。文面を直すときは、このファイルと listing.json の両方を直してください。
+
+- 価格：**1,000円（有料のアプリ。基準の国は日本、ほかの国は Apple が自動で決める）**。アプリ内課金はありません。説明の文には「無料」と書きません（無料なのは Mac の TwinKeys です。iPhone アプリはソースコードを公開していますが、App Store では有料です）。
 - 文字数は、この文面を作ったあとにプログラムで数えた数です。キーワードだけは「バイト」で数えます（英数字とカンマは1文字1バイト）。
 - 英語のページを「主な言語（Primary Language）」にすると、日本語・英語以外の国でもこの英語の文面が出ます（おすすめ）。
 
@@ -39,7 +42,7 @@ Fire clips, scenes and cues in Ableton Live on a main and a backup Mac at once. 
 
 ## 4. 説明（Description）
 
-上限 4000文字 ・ 今の文字数 **2655**
+上限 4000文字 ・ 今の文字数 **2668**
 
 ```text
 TwinKeys Remote is a remote control for sound operators who run a show on two Macs: a main Mac and a backup Mac, both playing the same Ableton Live set. Every tap on your iPhone or iPad reaches Live on both Macs at the same time, so the backup is always ready to take over.
@@ -78,7 +81,7 @@ No Mac yet? Tap "Try with sample data" on the first screen to try the screens wi
 PRIVACY
 TwinKeys Remote collects no data. No accounts, no analytics, no ads, no in-app purchases.
 
-TwinKeys Remote is free and open source (MIT License), made by Shogo Kajiyama / SEVENTHWELL.
+TwinKeys Remote is made by Shogo Kajiyama / SEVENTHWELL. Its source code is open on GitHub (MIT License).
 
 TwinKeys is an unofficial tool. It is not made, endorsed or supported by Ableton. Ableton and Live are trademarks of Ableton AG.
 ```
@@ -119,7 +122,7 @@ https://kajisho5.github.io/ableton-twinkeys/privacy/
 2026 Shogo Kajiyama / SEVENTHWELL
 ```
 
-## 10. このバージョンの新機能（What's New、1.2.0）
+## 10. このバージョンの新機能（What's New。1.2.0 の変更を書いた文面）
 
 上限 4000文字 ・ 今の文字数 **436**
 
@@ -133,4 +136,4 @@ https://kajisho5.github.io/ableton-twinkeys/privacy/
 Needs TwinKeys 2.2 on both Macs.
 ```
 
-**大事：** App Store で最初に出すバージョンには、この欄が出ません。今回がはじめてなら、次のバージョンのときに使ってください。
+**大事：** App Store で最初に出すバージョンには、この欄が出ません。今回がはじめてなら、次のバージョンのときに使ってください。自動で入れるとき（appstore-prepare）は、前のバージョンがないとこの欄を送りません。
