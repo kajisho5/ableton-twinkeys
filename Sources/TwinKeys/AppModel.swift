@@ -147,13 +147,14 @@ final class AppModel: ObservableObject {
             openReleasePage: { [weak self] in if let u = self?.updater.releasePage { NSWorkspace.shared.open(u) } },
             becomeMain: { [weak self] in self?.confirmBecomeMain() },
             handOverMain: { [weak self] in self?.conductor.handOverMain(); self?.refresh() },
-            restoreDesk: { [weak self] in self?.confirmRestoreDesk() },
-            dismissDeskBanner: { [weak self] in self?.desk.dismiss(); self?.refresh() },
             // macOS 13 (from 14 on the window uses SettingsLink, as the menu bar menu does).
             openSettings: {
                 NSApp.activate(ignoringOtherApps: true)
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            }
+            },
+            // Memberwise order: ViewActions declares the desk actions after openSettings.
+            restoreDesk: { [weak self] in self?.confirmRestoreDesk() },
+            dismissDeskBanner: { [weak self] in self?.desk.dismiss(); self?.refresh() }
         )
     }
 
