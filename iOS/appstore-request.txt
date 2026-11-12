@@ -1,0 +1,2 @@
+App Store preparation requests (one line per request; a change here runs .github/workflows/appstore-prepare.yml, which fills in the App Store version but never submits it).
+2026-11-12 TwinKeys Remote 1.2.1 build 7 at 1,000 JPY: fill in everything up to review (not submitted)
