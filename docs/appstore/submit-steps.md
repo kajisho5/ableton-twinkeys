@@ -1,8 +1,8 @@
-# TwinKeys Remote 1.1.0 を App Store に出す手順（iPhone だけでできます）
+# TwinKeys Remote 1.2.0 を App Store に出す手順（iPhone だけでできます）
 
 iPhone の Safari で、App Store Connect（アップストア コネクト。App Store にアプリを出すための Apple のサイト）を使って出します。Mac は要りません。ビルド（アプリの本体）は、GitHub Actions がもう TestFlight に送ってあります。
 
-- アプリ：TwinKeys Remote（`io.github.kajisho5.twinkeys.remote`）、バージョン 1.1.0、iOS 17 以降、iPhone と iPad、無料
+- アプリ：TwinKeys Remote（`io.github.kajisho5.twinkeys.remote`）、バージョン 1.2.0、iOS 17 以降、iPhone と iPad（Apple Watch アプリつき）、無料
 - 文面：[metadata-ja.md](metadata-ja.md)（日本語）、[metadata-en.md](metadata-en.md)（英語）
 - プライバシーと暗号の答え：[compliance.md](compliance.md)
 - スクリーンショット：`docs/appstore/screenshots/`
@@ -111,13 +111,13 @@ GitHub で `docs/appstore/metadata-ja.md` と `metadata-en.md` を開いてお�
 
 ---
 
-## 6. バージョンのページ（1.1.0）
+## 6. バージョンのページ（1.2.0）
 
 サイドバーの「iOS App」の下のバージョン（「1.0 Prepare for Submission（提出準備中）」など）を押します。URL の目安：`https://appstoreconnect.apple.com/apps/（番号）/distribution/ios/version/inflight`
 
 ### 6-1. バージョン番号
 
-「Version（バージョン）」を **1.1.0** にします。ビルドのバージョン（1.1.0）と同じでないと、ビルドを選べません。
+「Version（バージョン）」を **1.2.0** にします。ビルドのバージョン（1.2.0）と同じでないと、ビルドを選べません。
 
 ### 6-2. スクリーンショット
 
@@ -128,6 +128,7 @@ GitHub で `docs/appstore/metadata-ja.md` と `metadata-en.md` を開いてお�
 
 - iPhone：「**iPhone with Dynamic Island (medium display)**」（6.3インチ。iPhone 17 Pro など）が必須。1枚以上。横 2622×1206 か、縦 1206×2622 など。
 - iPad：「**iPad 13-inch display**」が必須（iPad で使えるアプリなので）。1枚以上。縦 2064×2752 か、横 2752×2064 など。
+- Apple Watch：「**Required for Apple Watch apps**」（Watch アプリが入っているので必須）。422×514、416×496、396×484 などのどれか1つ。**すべての言語で同じサイズ**にすること。
 - 1つのサイズに 1〜10枚。PNG か JPEG。透明な部分（アルファチャンネル）はだめ。
 - 大きいサイズから小さいサイズへは、Apple が自動で縮めてくれます。
 
@@ -145,6 +146,7 @@ GitHub で `docs/appstore/metadata-ja.md` と `metadata-en.md` を開いてお�
 - `iphone-6.9/` は、App Store Connect が「iPhone 6.9インチ（Dynamic Island, large display）」も求めてきたときだけ使います（Apple のページで、必須は 6.3インチだけ）。6.3インチの画像を少し（約9%）拡大したものです。
 - 画面の文字は英語（シーン名などは日本語）です。日本語のページにも同じ画像を入れてください。右上の言語のメニューで日本語に切り替えて、同じようにアップロードします（入れないときは主な言語の画像が使われます）。
 - 画像の中の Mac の名前（Main Stage Mac など）やシーン名は、デモ用の架空のものです。
+- Apple Watch の画像は、CI が撮ったもの（`Apple-Watch-go-en.png` など、GO・シーン・全ノートオフ × 英語・日本語）を使います。CI の結果の「ios-screenshots」に入ります。どのサイズで撮れたかは画像で確かめてから、App Store Connect の Apple Watch の欄に入れてください。
 
 ### 6-3. 文面（英語と日本語）
 
@@ -165,7 +167,7 @@ GitHub で `docs/appstore/metadata-ja.md` と `metadata-en.md` を開いてお�
 ### 6-4. ビルドを選ぶ
 
 1. 下の「**Build（ビルド）**」の「＋」を押します。
-2. 一覧から、バージョン **1.1.0** のビルドのうち、TestFlight で試していちばん新しいもの（`iOS/testflight-request.txt` の「2026-11-12 build 5」）を選んで「Done」。番号は TestFlight の画面で確かめてください。
+2. 一覧から、バージョン **1.2.0** のビルドのうち、TestFlight で試していちばん新しいもの（`iOS/testflight-request.txt` のいちばん下の行）を選んで「Done」。番号は TestFlight の画面で確かめてください。
 3. 右上の「Save」。
    - ビルドに「Missing Compliance（コンプライアンス情報がありません）」と出たら、暗号の質問に答えます（[compliance.md](compliance.md) の 2 の推測 5）。ふつうは出ません。
    出典：[Choose a build to submit](https://developer.apple.com/help/app-store-connect/manage-builds/choose-a-build-to-submit)
@@ -176,15 +178,15 @@ GitHub で `docs/appstore/metadata-ja.md` と `metadata-en.md` を開いてお�
 
 1. **Sign-in required（サインインが必要）**：**オフ**（アカウントがないため）。
 2. **Contact Information（連絡先）**：自分の名前、メール、電話番号。電話は `+81` から始めます（例：`+81 90 1234 5678` のように、最初の 0 を取る）。数字だけだと受け付けません。
-3. **Notes（メモ）**：下の英語の文を、そのまま貼ります（2477バイト。上限は4000バイト）。
+3. **Notes（メモ）**：下の英語の文を、そのまま貼ります（2569バイト。上限は4000バイト）。
 4. **Attachment（添付）**：画面の動画があれば、ここに付けます（下の「Mac がないときの選択肢」）。
 
 ```text
 TwinKeys Remote is a remote control for TwinKeys, a free, open-source Mac app for theatre and concert sound operators (source and downloads: https://github.com/kajisho5/ableton-twinkeys). It controls Ableton Live on a main Mac and a backup Mac at the same time, over the local network only.
 
 IMPORTANT: the app needs a Mac to do anything.
-- It works only with a Mac running TwinKeys 2.1 or later and Ableton Live 11 or 12, on the same local network as the iPhone or iPad.
-- Without a Mac, the app shows the pairing code screen and then searches for Macs ("TwinKeys nearby"). Nothing else can be used.
+- It works only with a Mac running TwinKeys 2.2 or later and Ableton Live 11 or 12, on the same local network as the iPhone or iPad.
+- WITHOUT A MAC: tap "Try with sample data" on the first screen. Every screen then works with fictional sample data, "· Sample" is shown in the top bar, and nothing is sent anywhere. The Apple Watch app shows the same sample data. To leave, open Settings and tap "End the sample and connect to a Mac".
 - One Mac is enough to try every screen. The backup Mac is optional.
 - There is no account and no sign-in.
 
@@ -196,24 +198,23 @@ Setup (about 10 minutes):
 5. In TwinKeys Remote, type the same code and tap Save. Allow Local Network access. Tap "Connect" next to the Mac.
 6. The iPhone and the Mac show the same 4 digits. Click "Allow" on the Mac.
 
-Screens: Session (clip grid: launch clips and scenes), Mixer (volume, pan, mute, solo, sends), Cues (the Mac's cue keys), GO (launches the scene selected in Live and selects the next one), Settings (show lock, 0 dB fader cap).
+Screens: Session (clip grid: launch clips and scenes), Mixer (volume, pan, mute, solo, sends), Cues (the Mac's cue keys), GO (launches the scene selected in Live and selects the next one), Settings (show lock and what it stops, 0 dB fader cap, privacy policy and support links).
+Apple Watch app: GO, choose scene and All Notes Off. It talks only to the iPhone app (WatchConnectivity), never to the Macs.
 Full guide: https://kajisho5.github.io/ableton-twinkeys/guide/#controlling-live-from-an-iphone-or-ipad-twinkeys-remote
-
-Demo mode: the app has a demo mode with fictional sample data, which we use for our screenshots. It can only be turned on with a launch argument (-demo) from Xcode, so it is not available in this build. We are sorry that a full review needs a Mac with Live.
 
 Network and privacy: the app connects only to TwinKeys on the user's own Macs (Bonjour service _twinkeys-remote._tcp, then TCP). It does not connect to the internet and collects no data. The connection is encrypted with Apple CryptoKit.
 
 TwinKeys is an unofficial tool, not affiliated with or endorsed by Ableton. "Ableton" and "Live" are named only to say which software it works with.
 ```
 
-動画を付けたときは、上の文の「Demo mode: …」の段落のあとに、どちらか1行を足します（本当のことだけを書きます）。
+動画を付けたときは、上の文の「Full guide: …」の行のあとに、どちらか1行を足します（本当のことだけを書きます）。
 
 - 本物の Mac につないで撮った動画のとき：
   `A short screen recording of the app connected to TwinKeys on a Mac is attached.`
-- シミュレーター（パソコンの中の仮の iPhone）でデモの画面を撮った動画のとき：
-  `The attached video was recorded in the iOS Simulator with the demo mode (fictional data). It shows the screens; it is not a real connection to a Mac.`
+- 「サンプルで試す」の画面を撮った動画のとき：
+  `The attached video shows "Try with sample data" (fictional data). It is not a real connection to a Mac.`
 
-**日本語の意味（メモの中身）：** このアプリは Mac の TwinKeys（無料・オープンソース）のリモコンで、Mac がないと何もできないこと。1台の Mac で全部の画面を試せること。アカウントはないこと。Mac の準備（6手順、約10分）。画面の説明。デモの画面はあるが、Xcode からの起動のときだけ使える（App Store のビルドでは使えない）ので、審査には Mac と Live が要ること。通信は自分の Mac とだけで、データは集めないこと。Ableton 社とは関係ないこと。
+**日本語の意味（メモの中身）：** このアプリは Mac の TwinKeys（無料・オープンソース）のリモコンで、Mac がないと何もできないこと。1台の Mac で全部の画面を試せること。アカウントはないこと。Mac の準備（6手順、約10分）。Mac がないときは、最初の画面の「サンプルで試す」で全部の画面（Apple Watch も）を架空のデータで試せること。画面の説明。通信は自分の Mac とだけで、データは集めないこと。Ableton 社とは関係ないこと。
 
 ### 6-6. 出し方（Version Release）
 
@@ -249,7 +250,8 @@ App Review Guidelines（審査のルール。最終更新 2026年10月16日）�
 1. **審査担当が試せない**（いちばん大きい心配）
    - ルール：「審査担当がアプリを全部使えるようにすること。アカウントがあるならデモ用アカウントか、全部の機能が使えるデモの画面を。**審査に要る機材**も用意すること」（Before You Submit）。
    - Apple の審査のページ：「**特別な機材が要る機能は、デモ動画か、その機材を出せるようにしておくこと**」。
-   - TwinKeys Remote は、Mac と Live がないと何もできません。審査担当が Mac を用意してくれるとは限りません。
+   - TwinKeys Remote は、Mac と Live がないと本当の操作はできません。審査担当が Mac を用意してくれるとは限りません。
+   - 1.2.0 から、最初の画面の「サンプルで試す」で、Mac なしで全部の画面を試せます（審査用メモにも書いています）。
    - 出典：[Before You Submit](https://developer.apple.com/app-store/review/guidelines/#before-you-submit) / [App Review（Providing information for a complete review）](https://developer.apple.com/distribute/app-review/) / [ガイドライン 2.1](https://developer.apple.com/app-store/review/guidelines/#app-completeness)
 2. **ほかのアプリがないと動かない**
    - ルール 4.2.3(i)：「アプリは、**ほかのアプリを入れなくても単独で動く**こと」。
@@ -257,7 +259,7 @@ App Review Guidelines（審査のルール。最終更新 2026年10月16日）�
    - 出典：[ガイドライン 4.2.3](https://developer.apple.com/app-store/review/guidelines/#4.2.3)
 3. **アプリの中にプライバシーポリシーのリンクがない**
    - ルール 5.1.1(i)：「プライバシーポリシーへのリンクを、App Store Connect の欄と、**アプリの中の分かりやすい場所**の両方に入れること」。
-   - 1.1.0 の「設定」画面にはリンクがありません。断られたら、次のビルドで「設定」にリンクを足します（[compliance.md](compliance.md) の「あわせて気をつけること」）。
+   - 1.2.0 で「設定」の「このアプリについて」に、プライバシーポリシーとサポートへのリンクを足しました（解決済み）。
    - 出典：[ガイドライン 5.1.1](https://developer.apple.com/app-store/review/guidelines/#data-collection-and-storage)
 4. **「Ableton」「Live」の名前**
    - ルール 2.3.7：メタデータに商標を詰め込まない。サブタイトルでほかのアプリにふれない。キーワードにほかの会社・アプリの名前は入れない。ルール 5.2.1：ほかの人の商標を許可なく使わない。

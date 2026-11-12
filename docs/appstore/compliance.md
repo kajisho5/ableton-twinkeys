@@ -1,4 +1,4 @@
-# App のプライバシーと、暗号の輸出規制 — TwinKeys Remote 1.1.0
+# App のプライバシーと、暗号の輸出規制 — TwinKeys Remote 1.2.0
 
 App Store Connect で答える「App のプライバシー」と「暗号（輸出コンプライアンス）」について、調べた結果です。2026年11月12日に Apple などの公式ページで確かめました。
 
@@ -45,9 +45,9 @@ App Store のページには「**データの収集なし**（Data Not Collected
 
 ### あわせて気をつけること（審査で問題になりうる）
 
-1. **アプリの中にプライバシーポリシーへのリンクが要る**（事実）。審査ガイドライン 5.1.1(i)：「すべてのアプリは、App Store Connect の欄と、**アプリの中の分かりやすい場所**に、プライバシーポリシーへのリンクを入れること」。今の TwinKeys Remote 1.1.0 の「設定」画面にはリンクがありません（`iOS/Sources/Panes.swift` の `SettingsPane`）。断られる可能性があるので、次のビルドで「設定」にリンク（`https://kajisho5.github.io/ableton-twinkeys/privacy/`）を足すのがおすすめです。
+1. **アプリの中にプライバシーポリシーへのリンクが要る**（事実）。審査ガイドライン 5.1.1(i)：「すべてのアプリは、App Store Connect の欄と、**アプリの中の分かりやすい場所**に、プライバシーポリシーへのリンクを入れること」。**1.2.0 で解決済み**：「設定」の「このアプリについて」に、プライバシーポリシー（日本語のときは `/ja/privacy/`）とサポートへのリンクを足しました（`iOS/Sources/Panes.swift` の `SettingsPane`）。
    出典：[App Review Guidelines 5.1.1](https://developer.apple.com/app-store/review/guidelines/#data-collection-and-storage)
-2. **プライバシーマニフェスト（PrivacyInfo.xcprivacy）がない**（事実）。アプリは UserDefaults を使っていて、これは Apple が「理由の申告が必要な API」に入れているものです（理由コード `CA92.1`：アプリ自身だけが読み書きする情報）。Apple は「2024年5月1日から、申告のないアプリは App Store Connect で受け付けない」と書いています。TestFlight へのアップロードは通っているので、今すぐ止まるかは分かりません（分からないこと）。Apple から「ITMS-91053」というメールが来ていないか確かめ、来ていれば次のビルドで `iOS/Sources/PrivacyInfo.xcprivacy` を足してください。
+2. **プライバシーマニフェスト（PrivacyInfo.xcprivacy）がない**（事実）。アプリは UserDefaults を使っていて、これは Apple が「理由の申告が必要な API」に入れているものです（理由コード `CA92.1`：アプリ自身だけが読み書きする情報）。Apple は「2024年5月1日から、申告のないアプリは App Store Connect で受け付けない」と書いています。TestFlight へのアップロードは通っているので、今すぐ止まるかは分かりません（分からないこと）。**1.2.0 で解決済み**：`iOS/Sources/PrivacyInfo.xcprivacy`（追跡なし・集めるデータなし・UserDefaults の理由 CA92.1）を入れ、CI でアプリの中に入っていることを確かめています。Apple Watch アプリは理由の申告が要る API を使っていません。
    出典：[Describing use of required reason API](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api) / [NSPrivacyAccessedAPIType](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype)
 
 ---

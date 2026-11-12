@@ -1,4 +1,4 @@
-# App Store の文面（英語）— TwinKeys Remote 1.1.0
+# App Store の文面（英語）— TwinKeys Remote 1.2.0
 
 App Store Connect の「English (U.S.)」のページに貼る文面です。灰色の枠の中身を、そのままコピーして貼ってください。上限の出典、カテゴリ、年齢制限の答えは [metadata-ja.md](metadata-ja.md) と同じです（カテゴリと年齢制限はアプリ全体で1つ）。
 
@@ -39,7 +39,7 @@ Fire clips, scenes and cues in Ableton Live on a main and a backup Mac at once. 
 
 ## 4. 説明（Description）
 
-上限 4000文字 ・ 今の文字数 **2317**
+上限 4000文字 ・ 今の文字数 **2655**
 
 ```text
 TwinKeys Remote is a remote control for sound operators who run a show on two Macs: a main Mac and a backup Mac, both playing the same Ableton Live set. Every tap on your iPhone or iPad reaches Live on both Macs at the same time, so the backup is always ready to take over.
@@ -52,13 +52,15 @@ SCREENS
 • Cues: the same cue keys as on the main Mac, each showing what it does (the memo written on the Mac), plus the last cue and whether it reached the backup.
 • GO: Live's scene list becomes your script. The big GO launches the selected scene on both Macs and moves on. Back and Next only choose; they never play.
 • Settings: show safety options and the connection.
+• Apple Watch: GO, choose scene and All Notes Off, through the iPhone.
 
 MADE FOR THE SHOW
 • Top bar: link status, delay to the backup, play, stop, tempo, position and All Notes Off.
-• Show lock: freezes tempo and the mixer. Play, stop, clips, scenes and cues keep working.
+• Show lock: freezes tempo and the mixer. You can also lock launches, stops and cues. GO and All Notes Off are never locked.
 • Stop and Stop all clips need a long press.
 • Faders can be kept at 0 dB or below.
 • A warning appears when the backup Mac has a different set open.
+• If the main Mac stops, switch to the backup Mac from the iPhone (hold 1 second to confirm).
 • Landscape first on iPhone. On iPad the screens spread into two or three columns.
 
 SAFE CONNECTION
@@ -67,9 +69,11 @@ SAFE CONNECTION
 • All traffic is encrypted.
 
 WHAT YOU NEED
-• Two Macs with TwinKeys 2.1 or later (free)
+• Two Macs with TwinKeys 2.2 or later (free)
 • Ableton Live 11 or 12 on both Macs, with the TwinKeysBridge control surface (TwinKeys installs it for you)
-• An iPhone or iPad with iOS 17 or later, on the same network as the Macs
+• An iPhone or iPad with iOS 17 or later, on the same network as the Macs; watchOS 10 or later for the Apple Watch
+
+No Mac yet? Tap "Try with sample data" on the first screen to try the screens with made-up data.
 
 PRIVACY
 TwinKeys Remote collects no data. No accounts, no analytics, no ads, no in-app purchases.
@@ -115,18 +119,18 @@ https://kajisho5.github.io/ableton-twinkeys/privacy/
 2026 Shogo Kajiyama / SEVENTHWELL
 ```
 
-## 10. このバージョンの新機能（What's New、1.1.0）
+## 10. このバージョンの新機能（What's New、1.2.0）
 
-上限 4000文字 ・ 今の文字数 **501**
+上限 4000文字 ・ 今の文字数 **436**
 
 ```text
-• New GO screen: Live's scene list becomes your script. The big GO launches the selected scene on both Macs and moves on.
-• Send A and Send B in the mixer.
-• The top bar shows whether the backup Mac's Live answers.
-• A warning appears when the two Macs have different sets open.
-• Fader, pan, tempo, mute and solo changes made while the backup was offline are sent when it is back.
-• Landscape-first iPhone layout, cue buttons that show the memo first, and many fixes.
-Needs TwinKeys 2.1 on both Macs.
+• Apple Watch app: GO, choose scene and All Notes Off.
+• If the main Mac stops, switch to the backup Mac from the iPhone.
+• The backup Mac confirms each action also ran in its Live, and you are told when it did not.
+• Choose what the show lock stops. GO and All Notes Off are never stopped.
+• "Try with sample data" lets you try the screens without a Mac.
+• Privacy policy and support links in Settings.
+Needs TwinKeys 2.2 on both Macs.
 ```
 
 **大事：** App Store で最初に出すバージョンには、この欄が出ません。今回がはじめてなら、次のバージョンのときに使ってください。
