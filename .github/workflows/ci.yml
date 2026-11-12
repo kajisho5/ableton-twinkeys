@@ -168,7 +168,7 @@ jobs:
             for look in light dark; do
               xcrun simctl ui "$UDID" appearance $look
               for turn in landscape portrait; do
-                for pane in session mixer cues; do
+                for pane in session mixer cues go; do
                   xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
                   if [ "$turn" = landscape ]; then
                     xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane $pane -landscape
