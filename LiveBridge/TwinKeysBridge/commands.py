@@ -3,6 +3,10 @@
 Every command is a JSON object with "cmd" (str) and "id" (int). The reply is
 {"type": "ack", "id": N, "ok": true} or
 {"type": "ack", "id": N, "ok": false, "error": "..."}.
+A command may carry "structure": <int>; if it differs from the tracker's
+structure counter the command is not run and the reply is
+{"type": "ack", "id": N, "ok": false, "error": "structure_changed",
+ "structure": <current int>}.
 No exception escapes handle(): bad input and errors raised by Live both
 become ok:false.
 """
@@ -15,7 +19,14 @@ from .protocol import encode
 
 
 class CommandError(Exception):
-    pass
+    extra = None
+
+
+class StructureChanged(CommandError):
+
+    def __init__(self, current):
+        CommandError.__init__(self, "structure_changed")
+        self.extra = {"structure": current}
 
 
 def _is_int(v):
@@ -116,20 +127,38 @@ class CommandDispatcher(object):
             song = self._song_provider()
             if song is None:
                 raise CommandError("no song available")
+            if name != "hello":
+                self._check_structure(cmd)
             follow_up = handler(song, cmd) or []
             return [self._ack(cmd_id, True)] + list(follow_up)
         except CommandError as exc:
-            return [self._ack(cmd_id, False, str(exc))]
+            return [self._ack(cmd_id, False, str(exc), exc.extra)]
         except Exception as exc:  # errors raised by Live itself
             return [self._ack(cmd_id, False, "Live error: %s: %s"
                               % (type(exc).__name__, exc))]
 
     @staticmethod
-    def _ack(cmd_id, ok, error=None):
+    def _ack(cmd_id, ok, error=None, extra=None):
         msg = {"type": "ack", "id": cmd_id, "ok": bool(ok)}
         if not ok:
             msg["error"] = error or "failed"
+        if extra:
+            msg.update(extra)
         return encode(msg)
+
+    def _check_structure(self, cmd):
+        """Optional "structure" field: reject the command if the track or
+        scene list changed since the client last saw the song message."""
+        if "structure" not in cmd:
+            return
+        expected = cmd["structure"]
+        if not _is_int(expected):
+            raise CommandError("'structure' must be an integer")
+        if self._tracker is None:
+            return
+        current = self._tracker.current_structure()
+        if expected != current:
+            raise StructureChanged(current)
 
     # ---------------------------------------------------------------- lookup
 
@@ -164,9 +193,11 @@ class CommandDispatcher(object):
     # ---------------------------------------------------------------- commands
 
     def _hello(self, song, cmd):
-        if self._tracker is None:
-            return []
-        return self._tracker.full_state()
+        # Coalesced: the tracker sends the full state from its next tick,
+        # at most once per FULL_STATE_MIN_INTERVAL however many hellos come.
+        if self._tracker is not None:
+            self._tracker.request_full_state()
+        return []
 
     def _fire_scene(self, song, cmd):
         scene, idx = self._scene(song, cmd)

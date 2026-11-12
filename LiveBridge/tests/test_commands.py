@@ -3,7 +3,7 @@ import unittest
 
 from TwinKeysBridge.commands import CommandDispatcher
 from TwinKeysBridge.state import StateTracker
-from tests.fake_live import FakeSong, FakeClock, FakeClip
+from tests.fake_live import FakeSong, FakeClock, FakeClip, FakeTrack
 
 
 def run(dispatcher, obj):
@@ -145,11 +145,121 @@ class CommandTest(unittest.TestCase):
         tracker = StateTracker(lambda: self.song, clock=FakeClock())
         d = CommandDispatcher(lambda: self.song, tracker)
         msgs = run(d, {"cmd": "hello", "id": 42})
-        self.assertEqual(msgs[0], {"type": "ack", "id": 42, "ok": True})
-        types = [m["type"] for m in msgs[1:]]
+        # The ack comes at once; the full state from the tracker's next tick.
+        self.assertEqual(msgs, [{"type": "ack", "id": 42, "ok": True}])
+        types = [json.loads(m)["type"] for m in tracker.tick()]
         for t in ("song", "tracks", "scenes", "clips", "meters", "progress"):
             self.assertIn(t, types)
         self.assertEqual(sum(1 for t in types if t == "clips"), 4)
+
+    def test_repeated_hello_is_coalesced(self):
+        clock = FakeClock()
+        tracker = StateTracker(lambda: self.song, clock=clock)
+        d = CommandDispatcher(lambda: self.song, tracker)
+        tracker.tick()
+        clock.advance(0.1)
+        tracker.tick()
+        scans = []
+        real = tracker._full_scan
+        tracker._full_scan = lambda *a: (scans.append(1), real(*a))
+        for i in range(64):
+            self.assertEqual(run(d, {"cmd": "hello", "id": i}),
+                             [{"type": "ack", "id": i, "ok": True}])
+        self.assertEqual(scans, [])          # nothing done inside handle()
+        clock.advance(0.1)
+        songs = [m for m in map(json.loads, tracker.tick())
+                 if m["type"] == "song"]
+        self.assertEqual(len(songs), 1)
+        self.assertEqual(scans, [1])
+        # More hellos right away: kept pending, sent once after the interval.
+        sent = 0
+        for _ in range(10):
+            for i in range(64):
+                run(d, {"cmd": "hello", "id": i})
+            clock.advance(0.1)
+            sent += sum(1 for m in map(json.loads, tracker.tick())
+                        if m["type"] == "song")
+        self.assertEqual(len(scans), 3)      # 1 s / FULL_STATE_MIN_INTERVAL
+        self.assertEqual(sent, 2)
+
+    # ------------------------------------------------------------ structure
+
+    def make_tracked(self):
+        self.clock = FakeClock()
+        self.tracker = StateTracker(lambda: self.song, clock=self.clock,
+                                    structure_seed=100)
+        self.d = CommandDispatcher(lambda: self.song, self.tracker)
+        self.song_msgs = [m for m in map(json.loads, self.tracker.tick())
+                          if m["type"] == "song"]
+        return self.song_msgs[-1]["structure"]
+
+    def test_song_message_carries_structure(self):
+        first = self.make_tracked()
+        self.assertIsInstance(first, int)
+        self.song.tracks.insert(0, FakeTrack("New", 3))
+        self.tracker.mark_structure_dirty()
+        self.clock.advance(0.1)
+        songs = [m for m in map(json.loads, self.tracker.tick())
+                 if m["type"] == "song"]
+        second = songs[-1]["structure"]
+        self.assertGreater(second, first)
+        # reorder (same length) and scene removal also count
+        self.song.tracks.reverse()
+        self.tracker.mark_structure_dirty()
+        self.clock.advance(0.1)
+        self.tracker.tick()
+        self.assertGreater(self.tracker.structure, second)
+        third = self.tracker.structure
+        self.song.scenes.pop()
+        self.clock.advance(1.1)              # found by the 1 s poll
+        self.tracker.tick()
+        self.assertGreater(self.tracker.structure, third)
+        # a mixer change does not
+        fourth = self.tracker.structure
+        self.song.tracks[0].mute = True
+        self.tracker.mark_track_dirty(0)
+        self.clock.advance(1.1)
+        self.tracker.tick()
+        self.assertEqual(self.tracker.structure, fourth)
+
+    def test_structure_match_accepted(self):
+        cur = self.make_tracked()
+        a = self.assertOk({"cmd": "fire_clip", "id": 3, "track": 1,
+                           "scene": 2, "structure": cur})
+        self.assertEqual(a, {"type": "ack", "id": 3, "ok": True})
+        self.assertEqual(self.song.tracks[1].clip_slots[2].fired, 1)
+
+    def test_structure_missing_accepted(self):
+        self.make_tracked()
+        self.assertOk({"cmd": "fire_clip", "id": 3, "track": 1, "scene": 2})
+        self.assertEqual(self.song.tracks[1].clip_slots[2].fired, 1)
+
+    def test_structure_mismatch_rejected(self):
+        old = self.make_tracked()
+        target = self.song.tracks[1]
+        # A track is inserted at 0; the listener marks the structure dirty
+        # and the command arrives in the same tick, before tracker.tick().
+        self.song.tracks.insert(0, FakeTrack("New", 3))
+        self.tracker.mark_structure_dirty()
+        msgs = run(self.d, {"cmd": "fire_clip", "id": 9, "track": 1,
+                            "scene": 2, "structure": old})
+        new = self.tracker.structure
+        self.assertNotEqual(new, old)
+        self.assertEqual(msgs, [{"type": "ack", "id": 9, "ok": False,
+                                 "error": "structure_changed",
+                                 "structure": new}])
+        for t in self.song.tracks:
+            self.assertEqual(sum(s.fired for s in t.clip_slots), 0)
+        # With the new value it goes to the intended (moved) track.
+        self.assertOk({"cmd": "fire_clip", "id": 10, "track": 2, "scene": 2,
+                       "structure": new})
+        self.assertEqual(target.clip_slots[2].fired, 1)
+        # Non-integer values are rejected; hello ignores the field.
+        self.assertBad({"cmd": "play", "id": 11, "structure": "x"},
+                       "'structure' must be an integer")
+        self.assertBad({"cmd": "play", "id": 12, "structure": True})
+        self.assertFalse(self.song.is_playing)
+        self.assertOk({"cmd": "hello", "id": 13, "structure": old})
 
     def test_commands_mark_tracker_dirty(self):
         tracker = StateTracker(lambda: self.song, clock=FakeClock())

@@ -3,7 +3,8 @@ import unittest
 
 from TwinKeysBridge import constants as C
 from TwinKeysBridge.state import StateTracker
-from tests.fake_live import FakeSong, FakeClock, FakeClip, FakeTrack
+from tests.fake_live import (FakeSong, FakeClock, FakeClip, FakeTrack,
+                             FakeScene, FakeClipSlot)
 
 
 def decode(msgs):
@@ -285,6 +286,7 @@ class BigSetTest(TrackerTestBase):
             msgs.extend(self.tick())
         for m in msgs:
             self.assertLess(len(m), C.MAX_DATAGRAM_BYTES)
+        self.assertLess(C.MAX_DATAGRAM_BYTES, 9216)
         decoded = decode(msgs)
         track_items = [i for m in decoded if m["type"] == "tracks"
                        for i in m["items"]]
@@ -330,6 +332,159 @@ class BigSetTest(TrackerTestBase):
                                       self.song.tracks[t].clip_slots]
         self.tick()
         self.assertLessEqual(reads["n"], C.SLOT_BUDGET + 200)
+
+
+class CountingSlot(object):
+    def __init__(self, inner, reads):
+        self.inner = inner
+        self.reads = reads
+
+    @property
+    def has_clip(self):
+        self.reads["n"] += 1
+        return self.inner.has_clip
+
+    @property
+    def clip(self):
+        return self.inner.clip
+
+
+class BurstTest(TrackerTestBase):
+    """Structure changes, hello and mixer changes stay within the budgets."""
+
+    def big(self):
+        self.make(200, 200)
+        for t, track in enumerate(self.song.tracks):
+            for s, slot in enumerate(track.clip_slots):
+                if (t + s) % 3:
+                    slot.clip = FakeClip("clip %d/%d" % (t, s), 0x123456, 8)
+        self.drain()
+
+    def drain(self):
+        msgs = []
+        for _ in range(200):
+            msgs.extend(self.tick())
+            if not self.tracker.bulk_pending():
+                break
+        self.assertEqual(self.tracker.bulk_pending(), 0)
+        return msgs
+
+    def count_reads(self):
+        """Count has_clip reads, also for slot lists re-listed later."""
+        reads = {"n": 0}
+        tr = self.tracker
+        for t in range(len(tr._slots)):
+            tr._slots[t] = [CountingSlot(x, reads) for x in
+                            tr.tracks[t].clip_slots]
+        real = tr._get_slots
+
+        def counting(t):
+            if tr._slots[t] is None:
+                tr._slots[t] = [CountingSlot(x, reads) for x in
+                                tr.tracks[t].clip_slots]
+            return real(t)
+        tr._get_slots = counting
+        return reads
+
+    def assertTickBounded(self, msgs):
+        size = sum(len(m) for m in msgs)
+        # bulk budget + one column of overshoot + song/tracks/scenes rows
+        self.assertLess(size, C.BULK_BYTES_PER_TICK + 150000)
+
+    def test_scene_insert_is_spread_over_ticks(self):
+        self.big()
+        self.song.scenes.insert(0, FakeScene("New"))
+        for track in self.song.tracks:
+            track.clip_slots.insert(0, FakeClipSlot(FakeClip("Top")))
+        self.tracker.mark_structure_dirty()
+        reads = self.count_reads()
+        all_msgs = []
+        ticks = 0
+        while True:
+            reads["n"] = 0
+            msgs = self.tick()
+            ticks += 1
+            self.assertLessEqual(reads["n"], C.SLOT_BUDGET + 201)
+            self.assertTickBounded(msgs)
+            all_msgs.extend(msgs)
+            if not self.tracker.bulk_pending():
+                break
+            self.assertLess(ticks, 100)
+        self.assertGreater(ticks, 10)       # it really was spread out
+        cols = {}
+        for m in decode(all_msgs):
+            if m["type"] == "clips":
+                for it in m["items"]:
+                    cols.setdefault(m["track"], {})[it["scene"]] = it
+        self.assertEqual(sorted(cols), list(range(200)))
+        for t, items in cols.items():
+            self.assertEqual(len(items), 201)
+            self.assertEqual(items[0]["name"], "Top")
+            want = "clip %d/%d" % (t, 0) if t % 3 else ""
+            self.assertEqual(items[1]["name"], want)
+
+    def test_track_insert_is_bounded(self):
+        self.big()
+        self.song.tracks.insert(0, FakeTrack("New", 200))
+        self.tracker.mark_structure_dirty()
+        reads = self.count_reads()
+        msgs = self.tick()
+        self.assertTickBounded(msgs)
+        self.assertGreater(reads["n"], 0)
+        self.assertLessEqual(reads["n"], C.SLOT_BUDGET + 200)
+        self.assertGreater(self.tracker.bulk_pending(), 0)
+        names = [i["name"] for m in decode(msgs + self.drain())
+                 if m["type"] == "clips" and m["track"] == 1
+                 for i in m["items"] if i["scene"] == 1]
+        self.assertEqual(names[-1], "clip 0/1")
+
+    def test_hello_on_big_set_is_bounded(self):
+        self.big()
+        reads = self.count_reads()
+        msgs = self.tracker.full_state()
+        self.assertTickBounded(msgs)
+        self.assertLessEqual(reads["n"], C.SLOT_BUDGET + 200)
+        self.assertGreater(self.tracker.bulk_pending(), 0)
+        self.drain()
+
+    def test_mixer_change_does_not_reread_clips(self):
+        self.big()
+        reads = self.count_reads()
+        for i, track in enumerate(self.song.tracks):
+            track.mixer_device.volume.value = 0.3
+            self.tracker.mark_track_dirty(i)    # as the volume listener does
+        msgs = decode(self.tick())
+        items = [i for m in msgs if m["type"] == "tracks" for i in m["items"]]
+        self.assertEqual(len(items), 200)
+        # only the round-robin slice, not 200 columns
+        self.assertLessEqual(reads["n"], C.SLOT_BUDGET + 200)
+        self.assertEqual(self.tracker._clip_patches, {})
+        self.assertEqual(self.tracker.bulk_pending(), 0)
+        self.assertEqual([m for m in msgs if m["type"] == "clips"], [])
+
+    def test_play_change_reads_only_affected_slots(self):
+        self.make(3, 50)
+        self.song.tracks[1].clip_slots[7].clip = FakeClip("P", 1, 4)
+        self.settle()
+        patched = []
+        real = self.tracker._patch_clips
+        self.tracker._patch_clips = lambda t, idx: (
+            patched.append((t, sorted(idx))) or real(t, idx))
+        self.song.tracks[1].playing_slot_index = 7
+        self.tracker.mark_track_dirty(1)
+        clips = of_type(self.tick(), "clips")
+        self.assertEqual(patched, [(1, [7])])
+        self.assertEqual([(m["track"], [i["scene"] for i in m["items"]])
+                          for m in clips], [(1, [7])])
+        self.assertTrue(clips[0]["items"][0]["is_playing"])
+        self.song.tracks[1].playing_slot_index = -1
+        self.song.tracks[1].fired_slot_index = 9
+        self.tracker.mark_track_dirty(1)
+        clips = of_type(self.tick(), "clips")
+        self.assertEqual(patched[-1], (1, [7, 9]))
+        got = {i["scene"]: i for i in clips[0]["items"]}
+        self.assertFalse(got[7]["is_playing"])
+        self.assertTrue(got[9]["is_triggered"])
 
 
 class ErrorIsolationTest(TrackerTestBase):

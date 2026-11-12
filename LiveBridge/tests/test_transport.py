@@ -1,3 +1,4 @@
+import errno
 import json
 import socket
 import unittest
@@ -101,6 +102,56 @@ class LoopbackBindingTest(unittest.TestCase):
                 t.close()
         finally:
             rx.close()
+
+
+class FailingSocket(RecordingSocket):
+    def __init__(self, family, kind, err):
+        RecordingSocket.__init__(self, family, kind)
+        self.err = err
+        self.calls = 0
+
+    def recvfrom(self, n):
+        self.calls += 1
+        raise OSError(self.err, "fail")
+
+
+class ReceiveErrorTest(unittest.TestCase):
+
+    def make(self, err):
+        holder = []
+
+        def factory(family, kind):
+            holder.append(FailingSocket(family, kind, err))
+            return holder[0]
+        t = UdpTransport(socket_factory=factory)
+        return t, holder[0]
+
+    def test_persistent_error_loop_is_bounded(self):
+        t, sock = self.make(errno.ECONNREFUSED)   # retried, but bounded
+        self.assertEqual(t.receive(64), [])
+        self.assertLessEqual(sock.calls, 128)
+        self.assertEqual(t.recv_errors, sock.calls)
+
+    def test_bad_socket_stops_at_once(self):
+        t, sock = self.make(errno.EBADF)
+        self.assertEqual(t.receive(64), [])
+        self.assertEqual(sock.calls, 1)
+
+    def test_errors_between_datagrams_still_deliver(self):
+        t = UdpTransport(socket_factory=RecordingSocket)
+        sock = RecordingSocket.instances[-1]
+        queue = [OSError(errno.ECONNREFUSED, "x"), (b"a", ("127.0.0.1", 1)),
+                 OSError(errno.ECONNREFUSED, "x"), (b"b", ("127.0.0.1", 1))]
+
+        def recvfrom(n):
+            if not queue:
+                raise BlockingIOError()
+            item = queue.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+        sock.recvfrom = recvfrom
+        self.assertEqual(t.receive(10), [b"a", b"b"])
 
 
 if __name__ == "__main__":
