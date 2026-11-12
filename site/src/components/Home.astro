@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import { t, url, pageUrl, DOWNLOAD_URL, type Lang } from '../lib/i18n';
 import { latestVersion } from '../lib/releases';
+import RemoteDemo from './RemoteDemo.astro';
 
 interface Props {
   lang: Lang;
@@ -99,7 +100,9 @@ const suffix = lang === 'ja' ? '-ja' : '';
     </div>
   </section>
 
-  <section class="section section-alt" aria-labelledby="start">
+  <RemoteDemo lang={lang} />
+
+  <section class="section" aria-labelledby="start">
     <div class="wrap">
       <h2 class="section-title" id="start">{s.stepsTitle}</h2>
       <ol class="steps">
