@@ -39,7 +39,9 @@ struct MainView: View {
             let lc = LayoutClass.of(geo.size)
             VStack(spacing: 0) {
                 TopBar(compact: lc == .narrowPortrait)
-                if let d = model.status?.setDiff { SetDiffBanner(diff: d) }
+                if !model.isConnected && model.wasConnected { MainLostBanner() }
+                if model.switchedToBackup && model.isConnected { SwitchedBanner() }
+                if model.isConnected, let d = model.status?.setDiff { SetDiffBanner(diff: d) }
                 if let r = model.lastResult { ResultBanner(error: r) }
                 switch lc {
                 case .narrowPortrait:
@@ -174,16 +176,18 @@ struct TopBar: View {
         // 2.1: the backup's own Live must answer too, or a cue reaches only one Live.
         let backupLive = backupOK && st?.backupLiveConnected == true
         let allOK = st?.mainLiveConnected == true && backupLive
+        let connected = model.isConnected
         let line: String = {
+            guard connected else { return L.s("Main Mac: no answer", "メイン切断中") }
             guard backupOK else { return L.s("Backup not linked", "バックアップ未接続") }
             let live = backupLive ? L.s("Live ✓", "Live ✓") : L.s("Live ✗ no answer", "Live ✗ 応答なし")
             return L.s("Backup ✓", "バックアップ ✓") + " · " + live + (backupLive ? (st?.latencyMs.map { " · \(Int($0.rounded())) ms" } ?? "") : "")
         }()
         return HStack(spacing: 8) {
-            Circle().fill(allOK ? Color.tkOK : Color.tkWarn).frame(width: 9, height: 9)
+            Circle().fill(!connected ? Color.tkDanger : allOK ? Color.tkOK : Color.tkWarn).frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 1) {
-                Text(st?.mainName ?? "TwinKeys").font(.subheadline.bold()).lineLimit(1)
-                Text(line).font(.caption).foregroundStyle(backupLive ? Color.secondary : Color.tkWarn).lineLimit(1)
+                Text((st?.mainName ?? "TwinKeys") + (model.trialMode ? L.s(" · Sample", " · サンプル") : "")).font(.subheadline.bold()).lineLimit(1)
+                Text(line).font(.caption).foregroundStyle(!connected ? Color.tkDanger : backupLive ? Color.secondary : Color.tkWarn).lineLimit(1)
             }
         }
         .accessibilityElement(children: .combine)
@@ -319,5 +323,87 @@ struct SetDiffSheet: View {
             Text(backup).bold().foregroundStyle(main == backup ? Color.primary : Color.tkWarn).frame(maxWidth: .infinity, alignment: .leading)
         }
         .lineLimit(2).font(.subheadline)
+    }
+}
+
+/// 2.3: the main Mac stopped answering. After 3 s, offer switching to the backup Mac.
+struct MainLostBanner: View {
+    @EnvironmentObject var model: RemoteModel
+    @State private var confirming = false
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            let secs = model.lostAt.map { Int(ctx.date.timeIntervalSince($0)) } ?? 0
+            if secs >= 3 {
+                HStack(spacing: 10) {
+                    Label(L.s("The main Mac is not answering (\(secs) s)", "メインの Mac が応答しません（\(secs) 秒）"),
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.heavy)).lineLimit(1).minimumScaleFactor(0.7)
+                    Spacer(minLength: 8)
+                    if model.backupMac != nil {
+                        Button { confirming = true } label: {
+                            Text(L.s("Switch to the backup", "バックアップに切り替える")).font(.subheadline.bold())
+                                .foregroundStyle(.white).padding(.horizontal, 14).frame(minHeight: 34)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.tkDanger))
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Text(L.s("Backup Mac not found", "バックアップの Mac が見つかりません")).font(.caption.bold())
+                    }
+                }
+                .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.8))
+                .padding(.horizontal, 12).frame(maxWidth: .infinity, minHeight: 42)
+                .background(Color(red: 0.29, green: 0.08, blue: 0.06))
+            }
+        }
+        .sheet(isPresented: $confirming) { SwitchConfirmSheet().presentationDetents([.medium]) }
+    }
+}
+
+/// Confirm with a 1 s hold (a stray tap must not move the show to the other Mac).
+struct SwitchConfirmSheet: View {
+    @EnvironmentObject var model: RemoteModel
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        let name = model.backupMacName ?? L.s("the backup Mac", "バックアップの Mac")
+        VStack(spacing: 14) {
+            Text(L.s("Switch to the backup?", "バックアップに切り替えますか？")).font(.title3.bold())
+            Text(L.s("\(name) becomes the main.", "\(name) がメインになります。")).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L.s("· The iPhone connects to \(name)", "・iPhone は \(name) につなぎ直します"))
+                Text(L.s("· \(name)'s keyboard fires the cues", "・\(name) のキーボードでキューを出せるようになります"))
+            }
+            .font(.footnote).foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Button { dismiss() } label: {
+                    Text(L.s("Cancel", "やめる")).font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkCell))
+                }
+                .buttonStyle(.plain)
+                VStack(spacing: 2) {
+                    Text(L.s("Hold to switch", "長押しで切り替え")).font(.headline)
+                    Text(L.s("1 s", "1 秒")).font(.caption.bold())
+                }
+                .foregroundStyle(.white).frame(maxWidth: .infinity, minHeight: 52)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.tkDanger))
+                .onLongPressGesture(minimumDuration: 1) { model.switchToBackup(); dismiss() }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(L.s("Double-tap and hold to switch", "ダブルタップして長押しで切り替え"))
+            }
+        }
+        .padding(20)
+    }
+}
+
+/// 2.3: running on the backup Mac after switching.
+struct SwitchedBanner: View {
+    @EnvironmentObject var model: RemoteModel
+    var body: some View {
+        Text(L.s("Switched to the backup: \(model.status?.mainName ?? "this Mac") is the main. To go back, use Return to Main on the Mac.",
+                 "バックアップに切り替え中：\(model.status?.mainName ?? "この Mac") がメインです。元に戻すときは Mac の画面で「メインに戻す」"))
+            .font(.footnote.weight(.bold)).foregroundStyle(Color(red: 0.75, green: 0.87, blue: 1))
+            .lineLimit(2).minimumScaleFactor(0.8)
+            .padding(.horizontal, 12).frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
+            .background(Color(red: 0.12, green: 0.16, blue: 0.23))
     }
 }

@@ -49,6 +49,16 @@ final class RemoteModel: ObservableObject {
         }
     }
     @Published var lastBackup: String?
+    /// 2.3: the main screen stays up when the link drops (stale data is better than the pairing
+    /// screen mid-show). Set at the first welcome; cleared when choosing another Mac.
+    @Published var wasConnected = false
+    /// When the link to the Mac was lost (nil while connected).
+    @Published var lostAt: Date?
+    /// The iPhone switched to the backup Mac and asked it to be the main.
+    @Published var switchedToBackup = false
+    /// The backup Mac's name as the main Mac told it (kept for switching when the main is gone).
+    @Published var backupMacName: String? = UserDefaults.standard.string(forKey: "backupMac")
+    private var becomeMainOnWelcome = false
 
     static let zeroDB = 0.85
 
@@ -66,7 +76,10 @@ final class RemoteModel: ObservableObject {
     /// Ids of fader / tempo commands (their backup results are not shown one by one).
     private var continuousIDs: Set<Int> = []
     private let queue = DispatchQueue(label: "TwinKeysRemote.net")
-    let demo: Bool
+    /// Fictional sample data instead of a Mac (`-demo` for screenshots, or "Try with sample data").
+    @Published private(set) var demo: Bool
+    /// Sample data started from the pairing screen (App Review has no Mac): shown as such, and can be ended.
+    @Published private(set) var trialMode = false
 
     init(demo: Bool = false) {
         self.demo = demo
@@ -179,6 +192,7 @@ final class RemoteModel: ObservableObject {
     /// Forget the Mac and search again (or after the main Mac failed: pick the backup).
     func chooseAnotherMac() {
         UserDefaults.standard.removeObject(forKey: "lastMac")
+        wasConnected = false; lostAt = nil; switchedToBackup = false
         disconnect()
         phase = pairingCode.isEmpty ? .needsCode : .searching
         startBrowsing()
@@ -186,6 +200,7 @@ final class RemoteModel: ObservableObject {
 
     private func fail(_ why: String) {
         disconnect()
+        if lostAt == nil, wasConnected { lostAt = Date() }
         phase = .failed(why)
         // A wrong pairing code does not fix itself: wait until a new code is saved.
         if why == "code" { return }
@@ -235,6 +250,14 @@ final class RemoteModel: ObservableObject {
             case let .waitingForApproval(code): phase = .waitingForApproval(code: code)
             case let .welcome(name):
                 phase = .connected(name)
+                wasConnected = true
+                lostAt = nil
+                if becomeMainOnWelcome {
+                    becomeMainOnWelcome = false
+                    switchedToBackup = true
+                    nextID += 1
+                    send(.becomeMain(id: nextID))
+                }
                 UIApplication.shared.isIdleTimerDisabled = true    // keep the screen on during a show
                 pingTimer?.invalidate()
                 sendLock()
@@ -249,7 +272,13 @@ final class RemoteModel: ObservableObject {
             case .denied: phase = .denied; disconnect()
             case let .update(u):
                 live.apply(u)
-            case let .status(st): status = st
+            case let .status(st):
+                status = st
+                // Remember the backup's name while the main tells it (it is gone once the main is).
+                if !switchedToBackup, let b = st.backupName, b != backupMacName {
+                    backupMacName = b
+                    UserDefaults.standard.set(b, forKey: "backupMac")
+                }
             case let .result(rid, ok, err, backup):
                 lastBackup = backup
                 // Fader and tempo moves: no banner per step (the top bar shows the backup's Live).
@@ -353,6 +382,19 @@ final class RemoteModel: ObservableObject {
         send(.allNotesOff(id: nextID))
     }
 
+    // MARK: Switching to the backup (2.3)
+
+    /// The backup Mac, if it is seen on the network (Bonjour) right now.
+    var backupMac: FoundMac? { backupMacName.flatMap { n in macs.first { $0.id == n } } }
+
+    /// Connect to the backup Mac and ask it to be the main (after the main stopped answering).
+    func switchToBackup() {
+        guard let mac = backupMac else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        becomeMainOnWelcome = true
+        connect(mac)
+    }
+
     // MARK: Device identity (kept on this device only)
 
     static func deviceID() -> String {
@@ -373,6 +415,27 @@ final class RemoteModel: ObservableObject {
     }
 
     // MARK: Demo (screenshots and previews; fictional names)
+
+    /// "Try with sample data" on the pairing screen: nothing is sent anywhere.
+    func startTrial() {
+        disconnect()
+        browser?.cancel(); browser = nil; macs = []
+        let code = pairingCode
+        demo = true; trialMode = true
+        loadDemo()
+        pairingCode = code
+    }
+
+    /// Back to the pairing screen (or searching for the Mac with the saved code).
+    func endTrial() {
+        guard trialMode else { return }
+        locked = false
+        demo = false; trialMode = false
+        live = LiveState(); status = nil; lastResult = nil; lastBackup = nil
+        wasConnected = false; lostAt = nil; switchedToBackup = false
+        phase = pairingCode.isEmpty ? .needsCode : .searching
+        startBrowsing()
+    }
 
     private func loadDemo() {
         pairingCode = "K7MQ2-WX9TP"

@@ -522,6 +522,13 @@ struct SettingsPane: View {
 
     var body: some View {
         Form {
+            if model.trialMode {
+                Section {
+                    Button(L.s("End the sample and connect to a Mac", "サンプルを終わって Mac につなぐ")) { model.endTrial() }
+                } footer: {
+                    Text(L.s("You are looking at made-up data. Nothing is sent to a Mac.", "架空のデータを表示しています。Mac には何も送っていません。"))
+                }
+            }
             Section(L.s("Show safety", "本番の安全")) {
                 // Turning the lock off only with the 1 s hold on the lock button.
                 Toggle(L.s("Show lock", "本番ロック"), isOn: $model.locked).disabled(model.locked)
@@ -547,12 +554,18 @@ struct SettingsPane: View {
                 Button(L.s("Connect to another Mac (for example the backup)", "別の Mac につなぐ（バックアップなど）")) { model.chooseAnotherMac() }
                     .disabled(model.locked)
             }
-            Section {
+            Section(L.s("About", "このアプリについて")) {
+                Link(L.s("Privacy policy", "プライバシーポリシー"), destination: Self.site(L.ja ? "ja/privacy/" : "privacy/"))
+                Link(L.s("Help and support", "使い方・サポート"), destination: Self.site(L.ja ? "ja/support/" : "support/"))
                 Text(L.s("TwinKeys Remote by Shogo Kajiyama / SEVENTHWELL. Unofficial tool, not affiliated with Ableton.",
                          "TwinKeys Remote（制作 Shogo Kajiyama / SEVENTHWELL）。非公式のツールで、Ableton 社とは関係ありません。"))
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+    }
+
+    private static func site(_ path: String) -> URL {
+        URL(string: "https://kajisho5.github.io/ableton-twinkeys/" + path)!
     }
 
     private func lockToggle(_ part: LockScope, _ title: String, note: String? = nil) -> some View {

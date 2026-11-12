@@ -13,6 +13,7 @@ struct TwinKeysRemoteApp: App {
                 .environmentObject(model)
                 .onAppear {
                     model.startBrowsing()
+                    WatchLink.shared.start(model)    // 2.3 Apple Watch (WatchLink.swift)
                     // `-landscape` turns the window sideways (screenshots on CI; the simulator starts upright).
                     if ProcessInfo.processInfo.arguments.contains("-landscape") {
                         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
@@ -77,6 +78,11 @@ struct RootView: View {
         Group {
             switch model.phase {
             case .connected: MainView()
+            // Lost the link during a show: keep the main screen (with the switch-to-backup banner).
+            case .failed(let why) where model.wasConnected && why != "code": MainView()
+            // (Waiting for approval shows the pairing screen: it has the 4-digit code.)
+            case .connecting, .searching:
+                if model.wasConnected { MainView() } else { PairView() }
             default: PairView()
             }
         }
