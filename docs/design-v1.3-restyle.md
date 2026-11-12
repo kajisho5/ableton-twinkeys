@@ -41,3 +41,11 @@
 - 文字の大きさを最大にしても切れない（Dynamic Type）、VoiceOver の読み上げは今と同じ。
 - 色のコントラスト：本文・数字・ボタンの文字は背景に対して 4.5:1 以上（label #6B6B6B は小見出しだけに使う）。
 - CI の画面写真（iPhone・iPad・Watch）がデザインの絵と同じに見える。
+
+## 5. 実装メモ（1.3.0）
+
+- 色と部品は `iOS/Shared/Theme.swift` の1か所（iPhone と Watch の両方に入る）。`TK`（色）、`LED`、`SmallCaps`、`DisplayWindow`、`SegmentMeter`、`GoKeyBackground`、`NotesOffBackground`、`TKButtonStyle`、`TKToggleKeyStyle`、`.tkPanel()`。今までの `Color.tkOK` などの名前は A1 の色を指すようにした。
+- ライトモードは外した（`RootView` の `.preferredColorScheme(.dark)`）。理由：本番の暗い現場用で、A1 の色（緑のランプ、赤い全ノートオフ）は黒い画面用に決めたもの。明るい版の色は決めていない。シート・設定も同じ黒になる。
+- 小さな英字の見出し（NOW PLAYING など）は飾り。VoiceOver は今までの日本語・英語の言葉を読む。
+- コントラストのため：意味のある薄い文字は #9A9A9A（`TK.dim`、黒に対して約 7:1）。#6B6B6B（`TK.label`）は飾りの見出しだけ。白い文字の赤いボタン（「バックアップに切り替える」など）は #D70015（`TK.redFill`、白に対して約 5:1）。
+- 絵と違うところ：Watch の GO の輪は残り時間の割合を表さない（Watch に届く情報に曲の長さがないため。通信は変えない）。輪は飾りで、残り時間は上の行の数字。ミキサーの数字は今の表示（% と 0 dB）のまま。

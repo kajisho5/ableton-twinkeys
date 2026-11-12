@@ -39,14 +39,15 @@ extension Color {
         if h.count == 6 { Scanner(string: h).scanHexInt64(&v) }
         self.init(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
     }
-    static let tkAccent = Color(light: 0x0060C7, dark: 0x5AA9FF)
-    static let tkOK = Color(light: 0x1B7A31, dark: 0x4FD06A)
-    static let tkWarn = Color(light: 0x8A5A00, dark: 0xF2B13A)
-    static let tkDanger = Color(red: 0xC0 / 255, green: 0x24 / 255, blue: 0x1A / 255)
-    static let tkCell = Color(light: 0xE9E9EE, dark: 0x2C2C2E)
-    static let tkCard = Color(light: 0xFFFFFF, dark: 0x1C1C1E)
-    static let tkBar = Color(light: 0xF9F9FB, dark: 0x121214)
-    static let tkBG = Color(light: 0xF2F2F7, dark: 0x000000)
+    // 1.3 (A1 green LED): the old names point at the A1 palette in iOS/Shared/Theme.swift.
+    static let tkAccent = TK.accent
+    static let tkOK = TK.accent
+    static let tkWarn = TK.yellow
+    static let tkDanger = TK.red
+    static let tkCell = TK.panel
+    static let tkCard = TK.panel
+    static let tkBar = TK.top
+    static let tkBG = TK.bg
 
     init(light: UInt32, dark: UInt32) {
         self.init(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) })
@@ -87,5 +88,10 @@ struct RootView: View {
             }
         }
         .background(Color.tkBG.ignoresSafeArea())
+        // 1.3: always the dark A1 look, also with the iPhone in Light Mode. The app is used on dark
+        // stages, and the A1 colours (green LEDs, red All Notes Off) are made for a black screen; a light
+        // version would need a second palette that was not designed. Sheets and Settings follow too.
+        .preferredColorScheme(.dark)
+        .tint(TK.accent)
     }
 }

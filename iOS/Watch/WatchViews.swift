@@ -39,7 +39,7 @@ struct GoPage: View {
             goButton
             Text(model.notice ?? L.s("Digital Crown: back / next", "デジタルクラウンで前・次"))
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(model.notice == nil ? Color.secondary : Color.tkWarn)
+                .foregroundStyle(model.notice == nil ? TK.dim : TK.yellow)
                 .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.7)
         }
         .padding(.horizontal, 4)
@@ -68,15 +68,28 @@ struct GoPage: View {
     }
 
     private var goButton: some View {
-        Button { model.go() } label: {
-            VStack(spacing: 2) {
-                Text("GO").font(.system(size: 46, weight: .black)).minimumScaleFactor(0.6)
-                Text(nextLine).font(.system(size: 15, weight: .bold)).lineLimit(1).minimumScaleFactor(0.55)
+        let on = model.canGo
+        return Button { model.go() } label: {
+            // A1: a round dark-green key with a glowing green edge inside a green ring.
+            ZStack {
+                Circle().strokeBorder(on ? TK.accent.opacity(0.85) : TK.off, lineWidth: 5)
+                    .shadow(color: on ? TK.accent.opacity(0.5) : .clear, radius: 5)
+                Circle()
+                    .fill(LinearGradient(colors: on ? [TK.keyTop, TK.keyBottom] : [TK.panel, TK.panel], startPoint: .top, endPoint: .bottom))
+                    .overlay(Circle().strokeBorder(on ? TK.accent : TK.stroke, lineWidth: 1.5))
+                    .padding(10)
+                VStack(spacing: 2) {
+                    Text("GO").font(.system(size: 44, weight: .heavy, design: .monospaced)).minimumScaleFactor(0.6)
+                        .foregroundStyle(on ? TK.accent : TK.dim)
+                        .shadow(color: on ? TK.accent.opacity(0.5) : .clear, radius: 6)
+                    Text(nextLine).font(.system(size: 13, weight: .bold)).lineLimit(1).minimumScaleFactor(0.5)
+                        .foregroundStyle(on ? TK.accentSoft : TK.dim)
+                }
+                .padding(.horizontal, 22)
             }
-            .padding(.horizontal, 6)
-            .foregroundStyle(model.canGo ? Color.tkOnGreen : Color.white.opacity(0.6))
+            .aspectRatio(1, contentMode: .fit)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 22).fill(model.canGo ? Color.tkOK : Color.tkCell))
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(model.nextIndex.map { L.s("GO: play scene \($0 + 1) \(model.sceneName($0))",
@@ -95,24 +108,25 @@ struct NowLine: View {
 
     var body: some View {
         if let why = model.problem {
-            Text(why).font(.system(size: 14, weight: .bold)).foregroundStyle(Color.tkWarn)
+            Text(why).font(.system(size: 14, weight: .bold)).foregroundStyle(TK.yellow)
                 .lineLimit(2).minimumScaleFactor(0.6).multilineTextAlignment(.center)
         } else if let p = model.playingIndex {
             TimelineView(.periodic(from: Date(), by: 1)) { context in
                 HStack(spacing: 6) {
+                    LED(size: 5)
                     Text("\(p + 1) \(model.sceneName(p))").lineLimit(1).minimumScaleFactor(0.6)
                     Spacer(minLength: 4)
                     if let left = model.leftNow(context.date) {
-                        Text(WatchState.formatLeft(left)).monospacedDigit()
+                        Text(WatchState.formatLeft(left)).font(.system(size: 15, weight: .bold, design: .monospaced)).monospacedDigit()
                     }
                 }
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Color.tkOK)
+                .foregroundStyle(TK.accent)
             }
             .accessibilityElement(children: .combine)
         } else {
             Text(L.s("Nothing playing", "再生中のシーンはありません")).font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
+                .foregroundStyle(TK.dim).lineLimit(1).minimumScaleFactor(0.6)
         }
     }
 }
@@ -127,15 +141,22 @@ struct ScenesPage: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 6) {
-                    Text(model.notice ?? model.problem ?? L.s("Choose scene", "シーンを選ぶ"))
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(model.notice == nil && model.problem == nil ? Color.tkAccent : Color.tkWarn)
-                        .lineLimit(2).minimumScaleFactor(0.6).multilineTextAlignment(.center)
+                    if let warn = model.notice ?? model.problem {
+                        Text(warn)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(TK.yellow)
+                            .lineLimit(2).minimumScaleFactor(0.6).multilineTextAlignment(.center)
+                    } else {
+                        // A1 heading; VoiceOver reads the localized words.
+                        Text("SCENES").font(.system(size: 13, weight: .bold, design: .monospaced)).tracking(3)
+                            .foregroundStyle(TK.accent)
+                            .accessibilityLabel(L.s("Choose scene", "シーンを選ぶ"))
+                    }
                     ForEach(model.names.indices, id: \.self) { i in
                         row(i).id(i)
                     }
                     Text(L.s("Tap to make it Next (does not play)", "タップで「次」に選ぶ（鳴らさない）"))
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(TK.dim)
                         .multilineTextAlignment(.center).padding(.top, 2)
                 }
                 .padding(.horizontal, 2)
@@ -149,20 +170,21 @@ struct ScenesPage: View {
         let next = i == model.nextIndex
         return Button { model.choose(i, now: true) } label: {
             HStack(spacing: 8) {
-                Text("\(i + 1)").monospacedDigit().foregroundStyle(.secondary)
-                Text(model.sceneName(i)).lineLimit(1).minimumScaleFactor(0.7)
+                Text(String(format: "%02d", i + 1)).font(.system(size: 14, weight: .bold, design: .monospaced)).monospacedDigit()
+                    .foregroundStyle(TK.dim)
+                Text(model.sceneName(i)).foregroundStyle(TK.read).lineLimit(1).minimumScaleFactor(0.7)
                 Spacer(minLength: 2)
                 if playing {
-                    Image(systemName: "play.fill").foregroundStyle(Color.tkOK)
+                    LED(size: 6)
                 } else if next {
-                    Text(L.s("Next", "次")).foregroundStyle(Color.tkAccent)
+                    Text("NEXT").font(.system(size: 10, weight: .bold, design: .monospaced)).tracking(1).foregroundStyle(TK.blue)
                 }
             }
             .font(.system(size: 16, weight: .bold))
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 12).fill(playing ? Color.tkOK.opacity(0.22) : next ? Color.tkAccent.opacity(0.22) : Color.tkCell))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(playing ? Color.tkOK : next ? Color.tkAccent : Color.clear, lineWidth: 1.5))
+            .background(RoundedRectangle(cornerRadius: 10).fill(playing ? TK.keyTop : TK.panel))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(playing ? TK.accent : next ? TK.blue : TK.stroke, lineWidth: playing || next ? 1.5 : TK.line))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(L.s("Scene \(i + 1) \(model.sceneName(i))", "シーン \(i + 1) \(model.sceneName(i))")
@@ -180,22 +202,31 @@ struct PanicPage: View {
         VStack(spacing: 6) {
             linkLine
             Button { model.allNotesOff() } label: {
-                Text(L.s("All Notes Off", "全ノートオフ"))
-                    .font(.system(size: 28, weight: .heavy)).multilineTextAlignment(.center)
-                    .lineLimit(2).minimumScaleFactor(0.6)
-                    .padding(.horizontal, 8)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 22).fill(Color.tkDanger))
+                VStack(spacing: 2) {
+                    // A1 decoration; VoiceOver reads the localized words below.
+                    VStack(spacing: 0) {
+                        Text("ALL").font(.system(size: 26, weight: .heavy, design: .monospaced)).tracking(2)
+                        Text("NOTES OFF").font(.system(size: 18, weight: .heavy, design: .monospaced)).tracking(1)
+                    }
+                    .foregroundStyle(TK.red).lineLimit(1).minimumScaleFactor(0.5)
+                    .accessibilityHidden(true)
+                    Text(L.s("All Notes Off", "全ノートオフ"))
+                        .font(.system(size: 14, weight: .bold)).multilineTextAlignment(.center)
+                        .lineLimit(2).minimumScaleFactor(0.6)
+                        .foregroundStyle(TK.redSoft)
+                }
+                .padding(.horizontal, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(NotesOffBackground(radius: 22, lineWidth: 2.5))
             }
             .buttonStyle(.plain)
             .accessibilityHint(L.s("Stops every note on both Macs", "2台の Mac の音をすべて止めます"))
             Text(model.notice ?? cueLine)
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(model.notice == nil ? Color.white : Color.tkWarn)
+                .foregroundStyle(model.notice == nil ? TK.read : TK.yellow)
                 .lineLimit(1).minimumScaleFactor(0.6)
             Text(L.s("Swipe left / right to switch", "左右にスワイプで切替"))
-                .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
+                .font(.system(size: 12)).foregroundStyle(TK.dim).lineLimit(1).minimumScaleFactor(0.6)
         }
         .padding(.horizontal, 4)
     }
@@ -207,11 +238,22 @@ struct PanicPage: View {
         let ok = model.problem == nil && main && backup
         let line: String = model.problem != nil ? "iPhone ✗" : "Main \(main ? "✓" : "✗")  Backup \(backup ? "✓" : "✗")"
         return HStack(spacing: 4) {
-            Text(line)
-            if st?.locked == true { Image(systemName: "lock.fill").accessibilityLabel(L.s("Show lock on", "本番ロック中")) }
+            if model.problem != nil {
+                Text(line).foregroundStyle(TK.yellow)
+            } else {
+                // A1: the two Macs as lamps (M, B); VoiceOver reads the same line as before.
+                HStack(spacing: 14) {
+                    HStack(spacing: 4) { LED(color: main ? TK.accent : TK.yellow, size: 6); Text("M") }
+                    HStack(spacing: 4) { LED(color: backup ? TK.accent : TK.yellow, size: 6); Text("B") }
+                }
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .foregroundStyle(ok ? TK.read : TK.yellow)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(line)
+            }
+            if st?.locked == true { Image(systemName: "lock.fill").foregroundStyle(TK.accent).accessibilityLabel(L.s("Show lock on", "本番ロック中")) }
         }
         .font(.system(size: 15, weight: .bold))
-        .foregroundStyle(ok ? Color.tkOK : Color.tkWarn)
         .lineLimit(1).minimumScaleFactor(0.6)
     }
 
