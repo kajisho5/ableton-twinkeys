@@ -79,6 +79,12 @@ export interface DemoText {
   liveReceived: string;
   backupUnreached: string;
   plan: string;
+  deskTitle: string;
+  deskMain: string;
+  deskPlan: string;
+  deskBackup: string;
+  linkMainDesk: string;
+  linkBackupDesk: string;
   // controls
   stopMain: string;
   reset: string;
@@ -172,6 +178,12 @@ export const demoText: Record<Lang, DemoText> = {
     liveReceived: 'Live ✓ · 受け取り 2 ms',
     backupUnreached: 'Live ✓（いまは iPhone から届かない）',
     plan: '切り替えると、iPhone はバックアップに直接つなぎ直します',
+    deskTitle: '卓（Yamaha QL5）',
+    deskMain: 'メインの音（Ch 1–4）',
+    deskPlan: '切り替えると Ch 9–12 を上げます',
+    deskBackup: 'バックアップの音（Ch 9–12）',
+    linkMainDesk: '音 Ch 1–4 ・ LAN',
+    linkBackupDesk: '音 Ch 9–12 ・ LAN',
     stopMain: 'メインの Mac を止めてみる',
     reset: 'はじめに戻す',
     controlsNote1: '止めると、iPhone に切り替えの案内が出ます。',
@@ -270,6 +282,12 @@ export const demoText: Record<Lang, DemoText> = {
     liveReceived: 'Live ✓ · received in 2 ms',
     backupUnreached: 'Live ✓ (the iPhone cannot reach it now)',
     plan: 'Switching connects the iPhone straight to the backup',
+    deskTitle: 'Console (Yamaha QL5)',
+    deskMain: "Main's sound (Ch 1–4)",
+    deskPlan: 'Switching raises Ch 9–12',
+    deskBackup: "Backup's sound (Ch 9–12)",
+    linkMainDesk: 'Sound Ch 1–4 · LAN',
+    linkBackupDesk: 'Sound Ch 9–12 · LAN',
     stopMain: 'Stop the main Mac',
     reset: 'Start over',
     controlsNote1: 'Stop it and the iPhone offers to switch.',

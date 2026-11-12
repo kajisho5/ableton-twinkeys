@@ -191,3 +191,31 @@ public struct LinkStateMachine: Sendable {
         }
     }
 }
+
+/// 2.3: when the main Mac was lost, for the "main Mac stopped" banner on a receiving Mac (and the
+/// console's automatic takeover). Only an unexpected loss counts: the link timed out and is being
+/// retried. A deliberate end (Disconnect on this Mac, or the other Mac saying goodbye when it quits)
+/// leaves the link idle and is not a loss.
+public struct MainLossWatch: Sendable {
+    public private(set) var lostSince: Double?
+    private var wasConnected = false
+    public init() {}
+
+    public mutating func update(_ link: LinkStateMachine.State, now: Double) {
+        switch link {
+        case .connected:
+            wasConnected = true
+            lostSince = nil
+        case .idle:
+            wasConnected = false
+            lostSince = nil
+        case .connecting:
+            if wasConnected, lostSince == nil { lostSince = now }
+        }
+    }
+
+    /// Lost for at least `after` seconds.
+    public func isLost(now: Double, after: Double = 3) -> Bool {
+        lostSince.map { now - $0 >= after } ?? false
+    }
+}

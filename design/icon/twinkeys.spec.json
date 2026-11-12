@@ -3,14 +3,40 @@
   "darkBackground": "gradient:#1B2335,#06090F",
   "groups": [
     {
-      "name": "K",
-      "props": { "translucency": { "enabled": false, "value": 0.5 } },
-      "layers": [{ "file": "src/letter-k.svg", "name": "K", "props": { "glass": true } }]
+      "name": "Backup key",
+      "props": {
+        "translucency": {
+          "enabled": false,
+          "value": 0.5
+        }
+      },
+      "layers": [
+        {
+          "file": "src/key-backup.svg",
+          "name": "Backup key",
+          "props": {
+            "glass": true
+          }
+        }
+      ]
     },
     {
-      "name": "T",
-      "props": { "translucency": { "enabled": false, "value": 0.5 } },
-      "layers": [{ "file": "src/letter-t.svg", "name": "T", "props": { "glass": true } }]
+      "name": "Main key",
+      "props": {
+        "translucency": {
+          "enabled": false,
+          "value": 0.5
+        }
+      },
+      "layers": [
+        {
+          "file": "src/key-main.svg",
+          "name": "Main key",
+          "props": {
+            "glass": true
+          }
+        }
+      ]
     }
   ]
 }

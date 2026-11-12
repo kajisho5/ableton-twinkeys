@@ -23,6 +23,9 @@ struct ContentView: View {
                     if state.cueKeysLeaking { cueLeakBanner }
                     if state.mainLost && !state.claimsMain { mainLostBanner }
                     if state.claimsMain { claimsMainBanner }
+                    if let d = state.desk, DeskBanner.shows(d) {
+                        DeskBanner(desk: d, t: t, onRestore: actions.restoreDesk, onDismiss: actions.dismissDeskBanner)
+                    }
                     if let d = state.setDiff { setDiffBanner(d) }
                     if !state.cueKeys.isEmpty || state.lastCue != nil { CuePanel(state: state) }
                     peersSection
@@ -145,6 +148,7 @@ struct ContentView: View {
         case .mac: return "desktopcomputer"
         case .phone: return "iphone"
         case .watch: return "applewatch"
+        case .desk: return "slider.vertical.3"
         }
     }
 
@@ -197,6 +201,8 @@ struct ContentView: View {
         Button(t.becomeMainButton, action: actions.becomeMain).buttonStyle(TKButtonStyle(kind: .destructive))
     }
 
+    private var isLinked: Bool { if case .connected = state.link { return true }; return false }
+
     /// 2.3: this Mac made itself the main.
     private var claimsMainBanner: some View {
         TKGroup(border: Theme.accent) {
@@ -210,6 +216,8 @@ struct ContentView: View {
                 }
                 Spacer()
                 Button(t.handOverMain, action: actions.handOverMain).buttonStyle(TKButtonStyle())
+                    .disabled(!isLinked)
+                    .help(isLinked ? "" : t.handOverNeedsLink)
             }
             .padding(12)
         }

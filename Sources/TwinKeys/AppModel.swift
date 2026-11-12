@@ -39,6 +39,14 @@ final class AppModel: ObservableObject {
     let updater = Updater()
     /// Live on this Mac (through the Bridge Remote Script) and TwinKeys Remote on iPhones.
     let bridge = LiveBridgeClient()
+    /// 2.4 (experimental): the Yamaha console's faders. Both Macs read them; only the Mac that is
+    /// not the main moves them (when the main stops).
+    let desk = DeskClient()
+    private struct DeskWanted: Equatable { var settings: DeskSettings; var routes: [DeskRoute] }
+    /// What the console link last got (nil: stopped).
+    private var deskConfig: DeskWanted?
+    /// Linked to the main Mac since the last automatic takeover attempt (it runs once per loss).
+    private var deskAutoArmed = false
     private var remote: RemoteServer!
     /// Read from the remote queue: guarded by a lock.
     private let remoteLock = NSLock()
@@ -140,18 +148,29 @@ final class AppModel: ObservableObject {
             restartForUpdate: { [weak self] in self?.restartForUpdate() },
             openReleasePage: { [weak self] in if let u = self?.updater.releasePage { NSWorkspace.shared.open(u) } },
             becomeMain: { [weak self] in self?.confirmBecomeMain() },
-            handOverMain: { [weak self] in self?.conductor.handOverMain(); self?.refresh() },
+            // Only while linked (the button is greyed out otherwise): the other Mac must hear it.
+            handOverMain: { [weak self] in _ = self?.conductor.handOverMain(); self?.refresh() },
             // macOS 13 (from 14 on the window uses SettingsLink, as the menu bar menu does).
             openSettings: {
                 NSApp.activate(ignoringOtherApps: true)
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            }
+            },
+            // Memberwise order: ViewActions declares the desk actions after openSettings.
+            restoreDesk: { [weak self] in self?.confirmRestoreDesk() },
+            dismissDeskBanner: { [weak self] in self?.desk.dismiss(); self?.refresh() }
         )
     }
 
     func start() {
         guard !started else { return }
         started = true
+        let deskLog = self.log
+        desk.onLog = { deskLog.write($0) }
+        // The console settings are the same on both Macs: the other Mac's newer ones come in here.
+        self.conductor.onDeskSettings = { [weak self] d in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.adoptDeskSettings(d) } }
+        }
+        self.conductor.setDeskSettings(settings.desk)
         let conductor = self.conductor
         let network = self.network
         startRemote(name: Host.current().localizedName ?? "Mac")
@@ -225,6 +244,7 @@ final class AppModel: ObservableObject {
         network.stop()
         remote?.stop()
         bridge.stop()
+        desk.stop()
         try? store.save(settings)
         updater.installOnQuit(relaunch: relaunchAfterQuit)
     }
@@ -440,10 +460,15 @@ final class AppModel: ObservableObject {
             // command carries the layout it was aimed at (the backup's layout is its own).
             let id = conductor.forwardLive(cmd)
             bridge.run(cmd, checkStructure: true, done: { ok, err in
-                // Wait for the backup's own Live to answer too (it has up to 1 s, like this one).
-                bridge.queue.asyncAfter(deadline: .now() + 1.2) {
+                // Live did not answer in time: say so at once, so a "ran late" that may follow
+                // always comes after it (never a stale "no answer" after "late").
+                guard let id, ok || err != "no_answer" else {
                     done(ok, err, id.map { conductor.liveDelivery($0) } ?? "notLinked")
+                    return
                 }
+                // Wait for the backup's own Live too (it has up to 1 s, like this one), but only
+                // until the backup has answered.
+                AppModel.whenBackupSettled(id, conductor, on: bridge.queue) { done(ok, err, $0) }
             }, late: { ok, _ in late(ok) })
         }
         r.onApproved = { [weak self] h in
@@ -472,6 +497,18 @@ final class AppModel: ObservableObject {
         // 2.2: an older TwinKeysBridge from a previous TwinKeys is replaced with the one in this app.
         if LiveBridgeInstaller.updateIfOutdated() { log.write("Live Bridge: installed copy updated to version \(LiveBridgeInstaller.bundledVersion)") }
         bridge.start()
+    }
+
+    /// Calls `report` with the backup's answer for Live command `id` as soon as it has given it
+    /// (or after `limit` seconds, for a backup that never says more, such as 2.1).
+    nonisolated private static func whenBackupSettled(_ id: UInt32, _ conductor: Conductor, on queue: DispatchQueue,
+                                                      waited: Double = 0, limit: Double = 1.2,
+                                                      report: @escaping (String) -> Void) {
+        let d = conductor.liveDelivery(id)
+        if Conductor.isSettledLiveDelivery(d) || waited >= limit { report(d); return }
+        queue.asyncAfter(deadline: .now() + 0.05) {
+            AppModel.whenBackupSettled(id, conductor, on: queue, waited: waited + 0.05, limit: limit, report: report)
+        }
     }
 
     /// Asks on screen (as a sheet on the TwinKeys window when it is open, otherwise as a window),
@@ -607,9 +644,8 @@ final class AppModel: ObservableObject {
 
     // MARK: Switching to the backup (2.3)
 
-    /// When the link to the other Mac was lost (nil while linked or never linked).
-    private var linkLostAt: Date?
-    private var wasLinked = false
+    /// When the link to the main Mac was lost unexpectedly (not a Disconnect or a goodbye).
+    private var mainLoss = MainLossWatch()
 
     /// Asks first: making this Mac the main changes which Mac sends the cues.
     private func confirmBecomeMain() {
@@ -620,11 +656,32 @@ final class AppModel: ObservableObject {
         alert.addButton(withTitle: t.becomeMainConfirm)
         alert.addButton(withTitle: t.cancel)
         alert.buttons.first?.keyEquivalent = ""          // not by pressing Return by accident
-        if alert.runModal() == .alertFirstButtonReturn { becomeMain() }
+        let deskBox = addDeskLine(to: alert, t)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        var moveDesk = false
+        if let deskBox {
+            moveDesk = deskBox.state == .on
+            if settings.desk.moveDeskWhenConfirming != moveDesk {
+                settings.desk.moveDeskWhenConfirming = moveDesk      // remembered (also for the iPhone)
+                try? store.save(settings)
+            }
+        }
+        becomeMain(moveDesk: moveDesk)
     }
 
-    /// Also called for an iPhone that switched to this Mac.
+    /// Called for an iPhone that switched to this Mac: the console follows the last answer
+    /// given in the confirmation on this Mac.
     func becomeMain() {
+        let d = settings.desk
+        becomeMain(moveDesk: d.enabled && !d.rows.isEmpty && d.moveDeskWhenConfirming)
+    }
+
+    private func becomeMain(moveDesk: Bool) {
+        // The console first. Only a Mac that is not the main moves it (the main stopped).
+        if moveDesk && !settings.sendKeys {
+            let r = desk.takeover(automatic: false)
+            log.write("Console takeover with Make This Mac the Main: \(r)")
+        }
         conductor.claimMain()
         refresh()
     }
@@ -787,7 +844,156 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([store.paths.settingsFile])
     }
 
+    // MARK: Console takeover (2.4, experimental)
+
+    var deskActions: DeskSettingsActions {
+        DeskSettingsActions(
+            update: { [weak self] d in self?.setDeskSettings(d) },
+            setTrigger: { [weak self] tr in self?.setDeskTrigger(tr) },
+            check: { [weak self] in self?.desk.checkNow() }
+        )
+    }
+
+    func setDeskSettings(_ new: DeskSettings) {
+        var d = new
+        d.host = d.host.trimmingCharacters(in: .whitespaces)
+        d.fade = DeskSettings.nearestFade(d.fade)
+        d.rows = Array(d.rows.prefix(DeskSettings.maxRows))
+        for i in d.rows.indices { d.rows[i].fixedLevel = DeskLevel.clamped(d.rows[i].fixedLevel) }
+        guard d != settings.desk else { return }
+        if d.enabled != settings.desk.enabled { log.write("Console takeover (experimental) \(d.enabled ? "on" : "off")") }
+        // A change made here is newer than anything before: the other Mac takes it over.
+        if !d.sameShared(as: settings.desk) { d.markChanged(nowMillis: UInt64(max(0, Date().timeIntervalSince1970) * 1000)) }
+        settings.desk = d
+        try? store.save(settings)
+        conductor.setDeskSettings(d)
+        refresh()
+    }
+
+    /// The other Mac's newer console settings (this Mac's answer to the confirmation is kept).
+    private func adoptDeskSettings(_ incoming: DeskSettings) {
+        // A change made here meanwhile is newer: it stays (and goes to the other Mac).
+        guard incoming.revision >= settings.desk.revision else { return }
+        var d = incoming
+        d.moveDeskWhenConfirming = settings.desk.moveDeskWhenConfirming
+        guard d != settings.desk else { return }
+        if d.enabled != settings.desk.enabled { log.write("Console takeover (experimental) \(d.enabled ? "on" : "off") (from the other Mac)") }
+        settings.desk = d
+        try? store.save(settings)
+        conductor.setDeskSettings(d)          // the same revision: nothing is sent back
+        refresh()
+    }
+
+    /// Automatic switching moves the console without asking: say so before choosing it.
+    private func setDeskTrigger(_ trigger: DeskTrigger) {
+        guard trigger != settings.desk.trigger else { return }
+        if trigger == .automatic {
+            let t = state.t
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = t.deskAutoAlertTitle
+            alert.informativeText = t.deskAutoAlertMessage
+            alert.addButton(withTitle: t.deskAutoAlertConfirm)
+            alert.addButton(withTitle: t.cancel)
+            alert.buttons.first?.keyEquivalent = ""
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        var d = settings.desk
+        d.trigger = trigger
+        setDeskSettings(d)
+    }
+
+    /// The console line of "Make this Mac the main?": a checkbox when the console can be moved
+    /// now, otherwise "The console cannot be moved" (and only the Mac switches). Nil: no checkbox.
+    private func addDeskLine(to alert: NSAlert, _ t: Strings) -> NSButton? {
+        let d = settings.desk
+        // Only on the Mac that is not the main (the main stopped).
+        guard d.enabled, !d.rows.isEmpty, !settings.sendKeys else { return nil }
+        let snap = desk.snapshot()
+        if snap?.canRestore == true { return nil }           // already switched
+        let readiness = snap?.readiness ?? .notReady(.notConnected)
+        if case let .notReady(why) = readiness {
+            let note = NSTextField(wrappingLabelWithString: t.deskCannotMove(why))
+            note.textColor = .systemOrange
+            note.preferredMaxLayoutWidth = 300
+            note.frame.size = note.fittingSize
+            alert.accessoryView = note
+            return nil
+        }
+        let box = NSButton(checkboxWithTitle: t.deskConfirmCheckbox(d.model.shortName, rows: deskConfig?.routes.count ?? d.rows.count, fade: d.fade),
+                           target: nil, action: nil)
+        box.state = d.moveDeskWhenConfirming ? .on : .off
+        box.sizeToFit()
+        alert.accessoryView = box
+        return box
+    }
+
+    /// Restoring moves faders during the show: asks first.
+    private func confirmRestoreDesk() {
+        guard let snap = desk.snapshot(), snap.canRestore else { return }
+        let t = state.t
+        let alert = NSAlert()
+        alert.messageText = t.deskRestoreTitle
+        alert.informativeText = t.deskRestoreMessage(snap.move?.fade ?? settings.desk.fade)
+        alert.addButton(withTitle: t.deskRestoreConfirm)
+        alert.addButton(withTitle: t.cancel)
+        alert.buttons.first?.keyEquivalent = ""
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        log.write("Console restore: \(desk.restore())")
+        refresh()
+    }
+
+    /// Runs the console link while the feature is on and an address is set, on both Macs (each
+    /// reads the levels). The table is kept to this Mac and the Mac it is linked to, and this
+    /// Mac's console link is told to the other Mac. Automatic mode switches the console once
+    /// when the main Mac has been silent for 3 s, only on the Mac that is not the main.
+    private func updateDesk(_ s: inout ViewState, peerName: String?) {
+        let me = conductor.instanceID.uuidString
+        // The Mac linked now (not the placeholder of a connection by IP address).
+        var linked: String?
+        if case .connected = s.link, let p = s.linkedPeerID, !p.hasPrefix(PeerInfo.manualPrefix) { linked = p }
+        if let linked {
+            var n = settings.desk
+            n.normalize(me: me, other: linked, myName: conductor.displayName, otherName: peerName)
+            if n != settings.desk {
+                settings.desk = n
+                try? store.save(settings)
+                conductor.setDeskSettings(n)
+            }
+        }
+        let d = settings.desk
+        let other = linked ?? d.otherMac(me: me)
+        let routes = d.routes(me: me, other: other)
+        let wanted: DeskWanted? = d.enabled && d.hasValidHost ? DeskWanted(settings: d, routes: routes) : nil
+        if wanted != deskConfig {
+            deskConfig = wanted
+            desk.configure(wanted?.settings, routes: routes)
+        }
+        let snap = wanted == nil ? nil : desk.snapshot()
+        conductor.setDeskStatus(DeskPeerStatus(snap?.status))
+        s.deskSettings = d
+        s.deskActive = wanted != nil
+        s.desk = d.enabled ? snap : nil
+        s.deskMeID = me
+        s.deskOtherID = other
+        s.deskMeName = conductor.displayName
+        s.deskOtherName = peerName ?? d.macNames[other]
+        s.peerDesk = d.enabled ? conductor.peerDeskStatus : nil
+        guard wanted != nil, d.trigger == .automatic else { deskAutoArmed = false; return }
+        if case .connected = s.link, !settings.sendKeys {
+            deskAutoArmed = true
+        } else if s.mainLost, deskAutoArmed {
+            // The Mac's own role still switches only as before (by a person or an iPhone).
+            deskAutoArmed = false
+            log.write("Console takeover (automatic, main Mac silent for 3 s): \(desk.takeover(automatic: true))")
+            s.desk = desk.snapshot()
+        }
+    }
+
     // MARK: State
+
+    /// The Bridge inside this app does not change while it runs: read its version once.
+    private static let bundledBridgeVersion = LiveBridgeInstaller.bundledVersion
 
     private func refresh() {
         maintainKeyMonitor()
@@ -835,18 +1041,20 @@ final class AppModel: ObservableObject {
         s.appVersion = updater.currentVersion
         s.autoUpdate = settings.autoUpdate
         updateShowActivity(linked: s.linkedPeerID != nil)
-        if case .connected = s.link { wasLinked = true; linkLostAt = nil }
-        else if wasLinked, linkLostAt == nil { linkLostAt = Date() }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        mainLoss.update(snap.link, now: uptime)
         s.claimsMain = conductor.claimsMain
-        s.mainLost = !settings.sendKeys && linkLostAt.map { Date().timeIntervalSince($0) >= 3 } == true
+        s.mainLost = !settings.sendKeys && mainLoss.isLost(now: uptime)
         s.liveConnected = bridge.isConnected
         conductor.setLiveConnected(s.liveConnected)
-        conductor.setLocalSet(s.liveConnected ? SetSummary(bridge.snapshot()) : nil)
+        // One snapshot per refresh (it copies the whole Live state).
+        let live = s.liveConnected ? bridge.snapshot() : nil
+        conductor.setLocalSet(live.map { SetSummary($0) })
         s.setDiff = conductor.setDiff
         s.backupLiveConnected = conductor.peerLiveConnected
         s.bridgeInstalled = LiveBridgeInstaller.isInstalled
         // Live still runs an older script (it loads the new files at its next start).
-        s.bridgeNeedsRestart = s.liveConnected && (bridge.snapshot().song.bridgeVersion ?? 0) < LiveBridgeInstaller.bundledVersion
+        s.bridgeNeedsRestart = live.map { ($0.song.bridgeVersion ?? 0) < Self.bundledBridgeVersion } ?? false
         s.approvedDevices = settings.approvedDevices
         s.remoteClients = remoteClients
         s.remoteEnabled = settings.remoteEnabled
@@ -855,6 +1063,8 @@ final class AppModel: ObservableObject {
         // and this Mac the other's.
         conductor.setRemoteSummary(RemoteSummary(phones: remoteClients, watch: remoteWatch))
         s.peerRemote = conductor.peerRemoteSummary
+        let linkedName = s.linkedPeerID.flatMap { id in snap.peerNames[id] ?? peers.first { $0.id == id }?.name }
+        updateDesk(&s, peerName: linkedName)
         updateRemoteStatus(s, snap)
         if s != state { state = s }
     }

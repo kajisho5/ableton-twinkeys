@@ -277,6 +277,8 @@ struct ResultBanner: View {
         case "structure_changed": return L.s("Live's tracks or scenes changed, so it was not sent. Tap again.",
                                              "Live のトラックやシーンが変わったので、送りませんでした。もう一度押してください。")
         case "locked": return L.s("Show lock is on.", "本番ロック中です。")
+        case "old_mac": return L.s("That Mac runs an older TwinKeys: make it the main on the Mac itself.",
+                                   "その Mac の TwinKeys が古いため、Mac で「この Mac をメインにする」を押してください。")
         case "late": return L.s("Live ran it after all (late). Do not tap again.", "Live で遅れて動きました。押し直さないでください。")
         case "backup_failedLive": return L.s("Ran on the main Mac, but the backup's Live refused it.", "メインでは動きましたが、バックアップの Live では動きませんでした。")
         case "backup_noLive": return L.s("Ran on the main Mac; the backup's Live did not answer.", "メインでは動きましたが、バックアップの Live から返事がありません。")
@@ -370,13 +372,16 @@ struct MainLostBanner: View {
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline.weight(.heavy)).lineLimit(1).minimumScaleFactor(0.7)
                     Spacer(minLength: 8)
-                    if model.backupMac != nil {
+                    if model.backupMac != nil, model.canSwitchToBackup {
                         Button { confirming = true } label: {
                             Text(L.s("Switch to the backup", "バックアップに切り替える")).font(.subheadline.bold())
                                 .foregroundStyle(.white).padding(.horizontal, 14).frame(minHeight: 34)
                                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.tkDanger))
                         }
                         .buttonStyle(.plain)
+                    } else if model.backupMac != nil {
+                        // TwinKeys 2.1 on the Macs: switching is done on the backup Mac itself.
+                        Text(L.s("Switch on the backup Mac", "バックアップの Mac で切り替えてください")).font(.caption.bold())
                     } else {
                         Text(L.s("Backup Mac not found", "バックアップの Mac が見つかりません")).font(.caption.bold())
                     }

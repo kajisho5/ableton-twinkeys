@@ -29,6 +29,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Wait for TwinKeys Remote on the network. Off until the user turns it on, so an
     /// automatic update does not open a new network service on a show Mac by itself.
     public var remoteEnabled: Bool = false
+    /// 2.4 (experimental): moving a Yamaha console's faders when the main Mac stops. Off by default.
+    public var desk = DeskSettings()
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -48,6 +50,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case menuBarOnly = "menu_bar_only"
         case approvedDevices = "approved_devices"
         case remoteEnabled = "remote_enabled"
+        case desk
     }
 
     public init() {}
@@ -78,6 +81,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
         menuBarOnly = try c.decodeIfPresent(Bool.self, forKey: .menuBarOnly) ?? d.menuBarOnly
         approvedDevices = ((try? c.decodeIfPresent([Lenient<ApprovedDevice>].self, forKey: .approvedDevices)) ?? []).compactMap(\.value)
         remoteEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .remoteEnabled)) ?? d.remoteEnabled
+        // A broken console section falls back to its defaults (feature off), never the whole file.
+        desk = (try? c.decodeIfPresent(DeskSettings.self, forKey: .desk)) ?? d.desk
+        // Rows from the first 2.4 builds (by role) are keyed to this Mac now; the other Mac's
+        // side keeps a placeholder until the two Macs are linked.
+        desk.normalize(me: instanceID.uuidString)
     }
 }
 

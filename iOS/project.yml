@@ -10,7 +10,7 @@ options:
 # Shared by the iPhone app and the Apple Watch app (App Store Connect needs the same version and build in both).
 settings:
   base:
-    MARKETING_VERSION: "1.2.0"
+    MARKETING_VERSION: "1.2.1"
     CURRENT_PROJECT_VERSION: "1"
 packages:
   TwinKeys:

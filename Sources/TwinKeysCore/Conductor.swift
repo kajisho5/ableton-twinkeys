@@ -305,7 +305,7 @@ public final class Conductor: @unchecked Sendable {
         var f = filters[peer] ?? SequenceFilter()
         let orderFree: Bool
         switch packet.body {
-        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem, .liveResult, .roleClaim, .remoteSummary: orderFree = true
+        case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem, .liveResult, .roleClaim, .remoteSummary, .desk: orderFree = true
         case let .liveCommand(_, c): orderFree = !c.isContinuous   // a late fader value must not overwrite a newer one
         default: orderFree = false
         }
@@ -409,15 +409,27 @@ public final class Conductor: @unchecked Sendable {
             sendBody(.liveAck(id: id), to: peer)
         case let .liveAck(id):
             guard link.peer == peer else { return peer }
-            if var p = pendingLive[id] { p.delivery = "delivered"; pendingLive[id] = p }
+            // A repeated ack (the command was sent again) must not hide what the backup's Live did.
+            if var p = pendingLive[id], ["waiting", "missing", "unconfirmed"].contains(p.delivery) {
+                p.delivery = "delivered"; pendingLive[id] = p
+            }
         case let .liveStatus(on):
             guard link.peer == peer else { return peer }
             peerLive = on
         case let .remoteSummary(phones, watch):
             guard link.peer == peer else { return peer }
             peerRemote = RemoteSummary(phones: Int(phones), watch: WatchLevel(rawValue: watch) ?? .absent)
+        case let .desk(d):
+            guard link.peer == peer, link.isConnected else { return peer }
+            let (adopt, replies) = deskShare.received(d, me: myID, peer: peer, myName: displayName, peerName: name(of: peer), now: now)
+            for r in replies { sendBody(.desk(r), to: peer) }
+            if let adopt {
+                log("Console settings taken over from \(name(of: peer))")
+                onDeskSettings?(adopt)
+            }
         case let .roleClaim(ms):
             guard link.peer == peer, link.isConnected else { return peer }
+            seenClaim = max(seenClaim, ms)
             let theirsNewer = ms > mainClaim || (ms == mainClaim && peer > myID)
             if theirsNewer {
                 if sendKeys || mainClaim > 0 { becomeReceiver() }
@@ -761,6 +773,7 @@ public final class Conductor: @unchecked Sendable {
         let up = link.isConnected
         guard up != wasConnected else { return }
         wasConnected = up
+        deskShare.linkChanged()
         guard up else { pendingHello = nil; return }
         resetCues()
         peerAnswersCues = false; peerCueNames.removeAll(); peerEpoch = nil; pendingHello = nil
@@ -769,6 +782,7 @@ public final class Conductor: @unchecked Sendable {
             // Bit 2: "I start counting again" (for 1.0.0); the new epoch does the same for 1.0.1+.
             sendBody(.features(flags: 3, epoch: linkEpoch), to: p, copies: redundancy)
             sendCueNames(to: p)
+            sendDesk(rows: true, to: p)
         }
     }
 
@@ -811,8 +825,12 @@ public final class Conductor: @unchecked Sendable {
 
     // MARK: Switching to the backup (2.3)
 
-    /// Wall-clock time (ms) this Mac made itself the main; 0: no claim. Compared across Macs.
+    /// This Mac's claim to be the main; 0: no claim. Compared across Macs (the higher wins). It
+    /// is the wall-clock time in ms (as 2.2.0 sends it), but always above every claim seen from the
+    /// other Mac, so a later claim wins even when this Mac's clock is behind.
     private var mainClaim: UInt64 = 0
+    /// The highest claim the other Mac has sent.
+    private var seenClaim: UInt64 = 0
     /// Seconds since 1970 (both Macs keep network time, so claims compare across Macs).
     public var wallClock: () -> Double = { Date().timeIntervalSince1970 }
     /// Called (with the lock held: hand the work to another queue) when this Mac becomes the
@@ -829,14 +847,22 @@ public final class Conductor: @unchecked Sendable {
     }
 
     /// "Return to main": this Mac only receives again and asks the other Mac to be the main.
-    public func handOverMain() {
+    /// Only while linked (otherwise the other Mac never hears it and both Macs would only
+    /// receive): returns false and changes nothing when not linked.
+    @discardableResult
+    public func handOverMain() -> Bool {
         lock.lock(); defer { lock.unlock() }
+        guard link.isConnected, let p = link.peer else {
+            log("Return to Main refused: not linked to the other Mac")
+            return false
+        }
         becomeReceiver()
-        if link.isConnected, let p = link.peer { sendBody(.roleHandover, to: p, copies: redundancy) }
+        sendBody(.roleHandover, to: p, copies: redundancy)
+        return true
     }
 
     private func claimMainLocked() {
-        mainClaim = max(UInt64(max(0, wallClock()) * 1000), mainClaim + 1)
+        mainClaim = max(UInt64(max(0, wallClock()) * 1000), mainClaim + 1, seenClaim + 1)
         sendKeys = true
         receiveNotes = false
         for m in peerGuard.releaseAll() { midi?.send(m.bytes) }
@@ -930,6 +956,38 @@ public final class Conductor: @unchecked Sendable {
         sendBody(.remoteSummary(phones: UInt8(clamping: s.phones), watch: s.watch.rawValue), to: p)
     }
 
+    // MARK: Console settings shared between the Macs (2.4)
+
+    /// The sharing of the console settings (packet `desk`).
+    private var deskShare = DeskShare()
+    /// Called (with the lock held: hand the work to another queue) with the other Mac's newer
+    /// console settings, taken over (this Mac's `moveDeskWhenConfirming` kept).
+    public var onDeskSettings: ((DeskSettings) -> Void)?
+
+    /// This Mac's console settings (normalized to this Mac and the linked one). A change of the
+    /// shared part is sent to the other Mac at once.
+    public func setDeskSettings(_ s: DeskSettings) {
+        lock.lock(); defer { lock.unlock() }
+        if deskShare.setLocal(s), link.isConnected, let p = link.peer { sendDesk(rows: true, to: p) }
+    }
+
+    /// This Mac's own console link; told to the other Mac with each heartbeat and when it changes.
+    public func setDeskStatus(_ st: DeskPeerStatus) {
+        lock.lock(); defer { lock.unlock() }
+        if deskShare.setStatus(st), link.isConnected, let p = link.peer { sendDesk(rows: false, to: p) }
+    }
+
+    /// The other Mac's console link as it told us (nil: not linked, or a version without it).
+    public var peerDeskStatus: DeskPeerStatus? {
+        lock.lock(); defer { lock.unlock() }
+        return link.isConnected ? deskShare.peerStatus : nil
+    }
+
+    private func sendDesk(rows: Bool, to p: String) {
+        sendBody(.desk(deskShare.summary(me: myID, peer: p)), to: p)
+        if rows { for r in deskShare.rows(me: myID, peer: p) { sendBody(.desk(r), to: p) } }
+    }
+
     /// The control a "latest value counts" command sets, or nil for one-shot commands.
     static func latestKey(_ cmd: LiveCommand) -> String? {
         switch cmd {
@@ -971,6 +1029,12 @@ public final class Conductor: @unchecked Sendable {
 
     /// "waiting", "delivered" (arrived), "ran" / "failedLive" / "noLive" (what the backup's Live did,
     /// 2.2 backups), "missing" (no answer in time), "unconfirmed" (old backup), "unknown".
+    /// The backup has said all it will about a Live command (or never will): no need to wait.
+    /// "delivered" waits for its liveResult (2.2+ backups send one).
+    public static func isSettledLiveDelivery(_ d: String) -> Bool {
+        !["waiting", "delivered"].contains(d)
+    }
+
     public func liveDelivery(_ id: UInt32) -> String {
         lock.lock(); defer { lock.unlock() }
         return pendingLive[id]?.delivery ?? "unknown"
@@ -1076,6 +1140,7 @@ public final class Conductor: @unchecked Sendable {
                 sendRemoteSummary(to: p)
                 if mainClaim > 0 { sendBody(.roleClaim(millis: mainClaim), to: p) }
                 sendSet(to: p)
+                sendDesk(rows: false, to: p)
                 heartbeatsSinceNames += 1
                 if heartbeatsSinceNames >= 10, link.isConnected { sendCueNames(to: p) }
             case let .sendHeartbeatAck(p, t):

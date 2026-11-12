@@ -67,6 +67,10 @@ public enum PacketBody: Equatable, Sendable {
     /// each heartbeat and when it changes, so the backup Mac can show the iPhone line. Type 0x21
     /// (0x20 is allNotesOff); older versions drop the unknown type.
     case remoteSummary(phones: UInt8, watch: UInt8)
+    /// 2.4: the console settings shared between the Macs, and the sender's own console link
+    /// (`DeskPacket`, docs/design-v2.4-ql.md). Type 0x22 (0x20 and 0x21 are taken); older
+    /// versions drop the unknown type.
+    case desk(DeskPacket)
 
     var typeCode: UInt8 {
         switch self {
@@ -93,6 +97,7 @@ public enum PacketBody: Equatable, Sendable {
         case .roleClaim: return 0x1E
         case .roleHandover: return 0x1F
         case .remoteSummary: return 0x21
+        case .desk: return 0x22
         }
     }
 }
@@ -171,6 +176,8 @@ extension Packet {
             break
         case let .remoteSummary(phones, watch):
             b += [phones, watch]
+        case let .desk(d):
+            b += d.encoded()
         }
         return b
     }
@@ -256,6 +263,9 @@ extension Packet {
         case 0x21:
             guard p.count >= 2 else { throw DecodeError.badPayload }
             body = .remoteSummary(phones: p[0], watch: p[1])
+        case 0x22:
+            guard let d = DeskPacket.decode(p) else { throw DecodeError.badPayload }
+            body = .desk(d)
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)

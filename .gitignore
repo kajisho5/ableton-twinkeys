@@ -10,3 +10,6 @@ design/icon/out/
 # iOS (generated project and build output)
 iOS/TwinKeysRemote.xcodeproj/
 build/
+
+# Python caches (tests under scripts/ and LiveBridge/)
+__pycache__/

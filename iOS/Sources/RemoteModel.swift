@@ -63,7 +63,17 @@ final class RemoteModel: ObservableObject {
     @Published var watch: RemoteWatchState? = nil {
         didSet { if watch != oldValue { sendWatch() } }
     }
-    private var becomeMainOnWelcome = false
+    /// The Mac (Bonjour name) to ask to become the main once it welcomes the iPhone; only that Mac,
+    /// and forgotten when the switch fails, is cancelled or another Mac is chosen.
+    private var becomeMainFor: String?
+    /// What the connected Mac understands (older Macs close the connection on newer messages).
+    private var compat = RemoteMacCompat(advertised: nil, legacy: false)
+    /// Macs (Bonjour names) that closed the connection on the first 2.2 message: TwinKeys 2.1 or
+    /// older. Remembered while the app runs.
+    private var legacyMacs: Set<String> = []
+    /// Probing a Mac that listed nothing in its welcome: the ping sent after the first new message.
+    /// Its pong shows the Mac read that message (2.2.0); a close before it means 2.1.
+    private var probePing: Double?
 
     static let zeroDB = 0.85
 
@@ -154,6 +164,8 @@ final class RemoteModel: ObservableObject {
     func connect(_ mac: FoundMac) {
         guard let secret = PairingSecret(code: pairingCode) else { phase = .needsCode; return }
         disconnect()
+        if becomeMainFor != mac.id { becomeMainFor = nil }
+        compat = RemoteMacCompat(advertised: nil, legacy: legacyMacs.contains(mac.id))
         chosenMac = mac.id
         UserDefaults.standard.set(mac.id, forKey: "lastMac")
         phase = .connecting(mac.id)
@@ -189,6 +201,7 @@ final class RemoteModel: ObservableObject {
 
     func disconnect() {
         connection?.cancel(); connection = nil; session = nil
+        probePing = nil
         pingTimer?.invalidate(); pingTimer = nil
         pendingContinuous = [:]; lastContinuous = [:]
         UIApplication.shared.isIdleTimerDisabled = false
@@ -198,13 +211,24 @@ final class RemoteModel: ObservableObject {
     func chooseAnotherMac() {
         UserDefaults.standard.removeObject(forKey: "lastMac")
         wasConnected = false; lostAt = nil; switchedToBackup = false
+        becomeMainFor = nil
         disconnect()
         phase = pairingCode.isEmpty ? .needsCode : .searching
         startBrowsing()
     }
 
     private func fail(_ why: String) {
+        let probing = probePing != nil
+        // A switch that did not get through is over: the next welcome must not make a Mac the main.
+        becomeMainFor = nil
         disconnect()
+        if probing, let m = chosenMac {
+            // Closed right after the first 2.2 message: TwinKeys 2.1 on that Mac. Connect again and
+            // send it only what it understands.
+            legacyMacs.insert(m)
+            if switchedToBackup { switchedToBackup = false; lastResult = "old_mac" }
+            if let mac = macs.first(where: { $0.id == m }) { connect(mac); return }
+        }
         if lostAt == nil, wasConnected { lostAt = Date() }
         phase = .failed(why)
         // A wrong pairing code does not fix itself: wait until a new code is saved.
@@ -253,20 +277,35 @@ final class RemoteModel: ObservableObject {
         case let .message(m):
             switch m {
             case let .waitingForApproval(code): phase = .waitingForApproval(code: code)
-            case let .welcome(name):
+            case let .welcome(name, features):
                 phase = .connected(name)
                 wasConnected = true
                 lostAt = nil
-                if becomeMainOnWelcome {
-                    becomeMainOnWelcome = false
-                    switchedToBackup = true
-                    nextID += 1
-                    send(.becomeMain(id: nextID))
+                compat = RemoteMacCompat(advertised: features, legacy: chosenMac.map { legacyMacs.contains($0) } ?? false)
+                if let target = becomeMainFor {
+                    becomeMainFor = nil
+                    // Only the Mac the switch was meant for.
+                    if target == chosenMac {
+                        if compat.understands(RemoteFeature.becomeMain) {
+                            switchedToBackup = true
+                            nextID += 1
+                            send(.becomeMain(id: nextID))
+                        } else {
+                            lastResult = "old_mac"
+                        }
+                    }
                 }
                 UIApplication.shared.isIdleTimerDisabled = true    // keep the screen on during a show
                 pingTimer?.invalidate()
                 sendLock()
-                sendWatch()
+                if compat.needsProbe {
+                    // The show lock above is the first 2.2 message; this ping's pong shows it was read.
+                    let t = Date().timeIntervalSince1970
+                    probePing = t
+                    send(.ping(t, watch: watch))
+                } else {
+                    sendWatch()
+                }
                 pingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
                     Task { @MainActor in
                         guard let self else { return }
@@ -285,6 +324,8 @@ final class RemoteModel: ObservableObject {
                     backupMacName = b
                     UserDefaults.standard.set(b, forKey: "backupMac")
                 }
+            case let .pong(t):
+                if let p = probePing, t >= p { probePing = nil }      // a Mac on 2.2.0 or newer
             case let .result(rid, ok, err, backup):
                 lastBackup = backup
                 // Fader and tempo moves: no banner per step (the top bar shows the backup's Live).
@@ -303,10 +344,20 @@ final class RemoteModel: ObservableObject {
         }
     }
 
+    /// Sends `m`, or its older form to a Mac that does not understand it (TwinKeys 2.1).
     private func send(_ m: RemoteMessage) {
-        guard let s = session, let c = connection, let bytes = try? s.seal(m) else { return }
-        c.send(content: Data(bytes), completion: .contentProcessed { _ in })
+        guard let s = session, let c = connection else { return }
+        for x in compat.translate(m, sceneCount: live.scenes.count) {
+            guard let bytes = try? s.seal(x) else { continue }
+            c.send(content: Data(bytes), completion: .contentProcessed { _ in })
+        }
     }
+
+    /// The Mac can be asked to become the main (TwinKeys 2.2.0 or newer).
+    var canSwitchToBackup: Bool { compat.understands(RemoteFeature.becomeMain) }
+
+    /// The show lock stops the mixer now (it may lock other things only).
+    var mixerLocked: Bool { locked && lockScope.contains(.mixer) }
 
     /// Pings carry the Apple Watch's state (older Macs read a plain ping).
     private func ping() {
@@ -324,7 +375,8 @@ final class RemoteModel: ObservableObject {
     var isConnected: Bool { if case .connected = phase { return true }; return demo }
 
     func run(_ cmd: LiveCommand) {
-        guard !locked || !lockScope.blocks(cmd) else { return }
+        // Locked: say so instead of doing nothing.
+        guard !locked || !lockScope.blocks(cmd) else { lastResult = "locked"; return }
         var cmd = cmd
         if capAtZeroDB, case let .setVolume(t, v) = cmd { cmd = .setVolume(track: t, value: min(v, Self.zeroDB)) }
         if demo { applyDemo(cmd); return }
@@ -387,7 +439,7 @@ final class RemoteModel: ObservableObject {
     }
 
     func cue(_ keycode: UInt16) {
-        if locked, lockScope.contains(.cues) { return }
+        if locked, lockScope.contains(.cues) { lastResult = "locked"; return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         nextID += 1
         send(.cue(id: nextID, keycode: keycode))
@@ -401,14 +453,19 @@ final class RemoteModel: ObservableObject {
 
     // MARK: Switching to the backup (2.3)
 
-    /// The backup Mac, if it is seen on the network (Bonjour) right now.
-    var backupMac: FoundMac? { backupMacName.flatMap { n in macs.first { $0.id == n } } }
+    /// The backup Mac, if it is seen on the network (Bonjour) right now. Its name as the main Mac
+    /// knows it is cut to 32 bytes, and Bonjour may show it as "Name (2)": matched with both in mind,
+    /// never the Mac the iPhone is on now.
+    var backupMac: FoundMac? {
+        guard let n = backupMacName, let id = RemoteNames.find(n, in: macs.map(\.id), excluding: chosenMac) else { return nil }
+        return macs.first { $0.id == id }
+    }
 
     /// Connect to the backup Mac and ask it to be the main (after the main stopped answering).
     func switchToBackup() {
         guard let mac = backupMac else { return }
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        becomeMainOnWelcome = true
+        becomeMainFor = mac.id
         connect(mac)
     }
 

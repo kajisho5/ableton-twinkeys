@@ -75,6 +75,20 @@ struct ViewState: Equatable {
     var peerRemote: RemoteSummary?
     /// Name of the device waiting for Allow / Don't Allow on this Mac.
     var approvalRequest: String?
+    /// 2.4 console takeover (experimental): the settings (the same on both Macs), whether the
+    /// link runs (feature on and an address set, on both Macs), and its state (nil while it does
+    /// not run or the feature is off).
+    var deskSettings = DeskSettings()
+    var deskActive = false
+    var desk: DeskSnapshot?
+    /// The table's two Macs: this Mac and the other one (TwinKeys IDs and names; the other Mac's
+    /// name is nil until known).
+    var deskMeID = DeskSettings.thisMacKey
+    var deskOtherID = DeskSettings.otherMacKey
+    var deskMeName = ""
+    var deskOtherName: String?
+    /// The other Mac's own console link as it told us (nil: not linked, or a version without it).
+    var peerDesk: DeskPeerStatus?
 
     var t: Strings { Strings(language) }
 
@@ -136,6 +150,7 @@ struct ViewState: Equatable {
         var chips = [macChip]
         if let p = phoneChip { chips.append(p) }
         if let w = watchChip { chips.append(w) }
+        if let d = deskChip { chips.append(d) }
         return chips
     }
 
@@ -178,11 +193,31 @@ struct ViewState: Equatable {
         case .notReachable: return LinkChip(kind: .watch, title: "Apple Watch", detail: t.linkWatchNotReachable, tone: .warning)
         }
     }
+
+    /// 2.4: the console, while the feature is on (both Macs connect to it).
+    private var deskChip: LinkChip? {
+        let d = deskSettings
+        guard d.enabled else { return nil }
+        let m = d.model.shortName
+        func chip(_ connected: Bool, _ detail: String, _ tone: LinkChip.Tone) -> LinkChip {
+            LinkChip(kind: .desk, title: t.deskChipTitle(m, connected: connected), detail: detail, tone: tone)
+        }
+        guard let snap = desk else { return chip(false, t.deskChipNotConnected, .warning) }
+        switch snap.status {
+        case .reading: return chip(true, t.deskChipReading, .ok)
+        case let .fixedLevels(unconfirmed): return chip(!unconfirmed, t.deskChipFixed, .warning)
+        case .stale: return chip(true, t.deskChipStale, .warning)
+        case .checking: return chip(true, t.deskChipChecking, .idle)
+        case .connecting: return chip(false, t.deskChipChecking, .idle)
+        case .cannotRead: return chip(true, t.deskChipCannotMove, .warning)
+        case .notReachable: return chip(false, t.deskChipNotConnected, .warning)
+        }
+    }
 }
 
 /// One item of the connection row.
 struct LinkChip: Equatable, Identifiable {
-    enum Kind { case mac, phone, watch }
+    enum Kind { case mac, phone, watch, desk }
     enum Tone { case ok, warning, idle }
     var kind: Kind
     var title: String
@@ -217,6 +252,9 @@ struct ViewActions {
     var handOverMain: () -> Void = {}
     /// Opens the Settings window (macOS 13; from macOS 14 the window uses SettingsLink).
     var openSettings: () -> Void = {}
+    /// 2.4: "Restore the console" (asks first) and closing the console banner.
+    var restoreDesk: () -> Void = {}
+    var dismissDeskBanner: () -> Void = {}
 }
 
 enum AppSheet: Equatable { case pairing, connectByIP, help }
