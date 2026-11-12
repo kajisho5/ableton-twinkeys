@@ -21,6 +21,7 @@ JavaScript が動かないときは、今の画面の画像をそのまま出す
 - **2台の Mac**：「Main Stage Mac」「Backup Stage Mac」のカード。押した操作を同時に受け取ったことを「↓ GO を受け取りました 2 ms」で示す（音は鳴らない）。
 - **メインの Mac を止めてみる**：押すとメインのカードが赤く「応答なし」になり、iPhone に赤い帯「メインの Mac が応答しません」が出る。「バックアップに切り替える」→「長押しで切り替え」を 1 秒押すと、iPhone がバックアップにつなぎ直し、バックアップのカードに「メイン」の印が付く（アプリと同じ流れ）。
 - **はじめに戻す**：最初の状態に戻す。
+- **つながり**：Apple Watch ― iPhone ― Main Stage Mac ― Backup Stage Mac を線で結んだ図。つながっている線は緑、切れた線は赤の点線と ✕。メインを止めると、iPhone からバックアップへの青い点線（「切り替えると、iPhone はここにつなぎ直します」）が出る。切り替えたあとは、iPhone の線がバックアップにつながり、「メイン」の印がバックアップに移る。スマホの幅では縦に並べる。
 
 ## 技術の選び方
 
@@ -57,6 +58,7 @@ type DemoState = {
   main: 'ok' | 'dead';      // メインの Mac（見本の中だけ）
   switched: boolean;        // バックアップに切り替えた
   lastEvent: { label: string; at: number } | null; // Mac のカードに出す「受け取りました」
+  watchLinked: boolean;     // Apple Watch と iPhone（見本では常に true）
 };
 ```
 
