@@ -105,7 +105,8 @@ jobs:
           $zip = "TwinKeys-Windows-${{ matrix.arch }}-0.1.0-ci.$env:GITHUB_RUN_NUMBER.zip"
           Compress-Archive -Path out/TwinKeys/* -DestinationPath $zip
           "{0}: {1:N1} MB" -f $zip, ((Get-Item $zip).Length / 1MB) | Tee-Object size.txt
-          Get-ChildItem out/TwinKeys | Select-Object -First 40 Name, Length
+          Get-ChildItem out/TwinKeys -Filter *.pri | Select-Object Name, Length
+          Get-ChildItem out/TwinKeys -File | Select-Object -First 60 Name, Length
       - name: Launch smoke test (opens every window and settings page, stays up, quits)
         working-directory: windows
         shell: pwsh

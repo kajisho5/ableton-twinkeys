@@ -24,6 +24,9 @@
     <SelfContained>true</SelfContained>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefaultLanguage>ja-JP</DefaultLanguage>
+    <!-- Unpackaged app whose exe (TwinKeys.exe) is not named like the project: the resource index must be
+         resources.pri, or WinUI finds neither App.xaml nor its own themeresources.xaml (seen in CI). -->
+    <ProjectPriFileName>resources.pri</ProjectPriFileName>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
