@@ -1,12 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- OS-independent part of TwinKeys for Windows: the UDP protocol, pairing, the link and the
-       Conductor, ported file by file from Sources/TwinKeysCore (Swift). No package references:
-       everything uses the .NET 10 base library. Builds and tests on Linux, macOS and Windows. -->
+       Conductor, the Live Bridge client and the iPhone remote server, ported file by file from
+       Sources/TwinKeysCore (Swift). Builds and tests on Linux, macOS and Windows.
+       One package (phase 3, docs/design-windows.md 2.5): X25519 for the iPhone link, which .NET 10
+       does not have. BouncyCastle.Cryptography 2.7.0 (stable, MIT):
+       https://www.nuget.org/packages/BouncyCastle.Cryptography/2.7.0 , source https://github.com/bcgit/bc-csharp -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>TwinKeys.Core</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
+  </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="TwinKeys.Core.Tests" />
     <InternalsVisibleTo Include="TwinKeys.Interop.Tests" />

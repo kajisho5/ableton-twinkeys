@@ -64,8 +64,8 @@ public sealed record ConductorSnapshot(
 /// role (phase 1); Live commands forwarded between the computers and the set check (phase 2).
 /// Thread-safe: key events, network packets and timer ticks may arrive on different threads; work
 /// is done on the calling thread under one lock.
-/// iPhone and console packets (phase 3, and the Mac-only console) are accepted as signs of life
-/// and otherwise ignored.
+/// The iPhone summary (remoteSummary) is sent and read (phase 3); the Mac-only console packet is
+/// accepted as a sign of life and otherwise ignored.
 /// </summary>
 public sealed class Conductor
 {
@@ -510,9 +510,12 @@ public sealed class Conductor
                     if (link.Peer != peer || peerSet is null || si.Kind > 1) return peer;
                     peerSet.Item((SetItemKind)si.Kind, si.Index, si.Name);
                     break;
-                case PacketBody.RemoteSummary:
+                case PacketBody.RemoteSummary rs:
+                    if (link.Peer != peer) return peer;
+                    peerRemote = new RemoteSummary(rs.Phones, rs.Watch <= 2 ? (WatchLevel)rs.Watch : WatchLevel.Absent);
+                    break;
                 case PacketBody.Desk:
-                    // Phase 3 (iPhone) and the Mac-only console: not handled yet. Still a sign of life.
+                    // The Mac-only console: not handled. Still a sign of life.
                     if (link.Peer == peer && link.IsConnected) link.ReceivedOther(peer, now);
                     break;
             }
@@ -874,6 +877,7 @@ public sealed class Conductor
             wasLinkedForLive = false;
             peerLive = null;
             peerSet = null;
+            peerRemote = null;
             return;
         }
         if (!wasLinkedForLive)
@@ -901,6 +905,33 @@ public sealed class Conductor
         }
         // Forget settled commands after a while.
         pendingLive = pendingLive.Where(kv => kv.Value.Delivery == "waiting" || now - kv.Value.SentAt < 10).ToDictionary();
+    }
+
+    // MARK: Connection display (phase 3; docs/design-links.md)
+
+    /// <summary>This computer's approved iPhones and their watch; told to the other computer with each heartbeat.</summary>
+    private RemoteSummary? localRemote;
+    /// <summary>The other computer's, as it last told us.</summary>
+    private RemoteSummary? peerRemote;
+
+    /// <summary>The approved iPhones connected to this computer and their watch. A change is sent at once.</summary>
+    public void SetRemoteSummary(RemoteSummary s)
+    {
+        lock (gate)
+        {
+            if (s == localRemote) return;
+            localRemote = s;
+            if (link.IsConnected && link.Peer is string p) SendRemoteSummary(p);
+        }
+    }
+
+    /// <summary>The other computer's iPhones (null: not linked, or it did not say).</summary>
+    public RemoteSummary? PeerRemoteSummary { get { lock (gate) return link.IsConnected ? peerRemote : null; } }
+
+    private void SendRemoteSummary(string p)
+    {
+        if (localRemote is not RemoteSummary s) return;
+        SendBody(new PacketBody.RemoteSummary((byte)Math.Clamp(s.Phones, 0, 255), (byte)s.Watch), p);
     }
 
     // MARK: Set check (port of the Mac's 2.1)
@@ -1186,6 +1217,7 @@ public sealed class Conductor
                         SendBody(new PacketBody.Held(engine.Channel, on ? [.. engine.HeldNotes] : []), p);
                         SendBody(FeaturesBody(), p);
                         if (localLive is bool live) SendBody(new PacketBody.LiveStatus(live), p);
+                        SendRemoteSummary(p);
                         if (mainClaim > 0) SendBody(new PacketBody.RoleClaim(mainClaim), p);
                         SendSet(p);
                         heartbeatsSinceNames += 1;

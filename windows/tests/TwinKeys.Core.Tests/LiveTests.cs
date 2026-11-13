@@ -127,6 +127,17 @@ public class LiveTests
     }
 
     [Fact]
+    public void BackupLearnsTheMainsIPhones()
+    {
+        t.Connect(); t.Tick(1.1);
+        Assert.Null(t.Backup.PeerRemoteSummary);
+        t.Main.SetRemoteSummary(new RemoteSummary(2, WatchLevel.Reachable)); t.Pump();
+        Assert.Equal(new RemoteSummary(2, WatchLevel.Reachable), t.Backup.PeerRemoteSummary);
+        t.Main.SetRemoteSummary(new RemoteSummary(0, WatchLevel.Absent)); t.Tick(1.1);
+        Assert.Equal(new RemoteSummary(0, WatchLevel.Absent), t.Backup.PeerRemoteSummary);
+    }
+
+    [Fact]
     public void ComputersCompareTheirSets()
     {
         t.Main.SetLocalSet(new SetSummary(Enumerable.Range(0, 12).Select(i => $"T{i}"), Enumerable.Range(0, 10).Select(i => $"S{i}")));

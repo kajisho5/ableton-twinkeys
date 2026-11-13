@@ -1,0 +1,638 @@
+{
+  "about": "TwinKeys Remote (iPhone link, phase 3): X25519 with fixed keys, the hellos, tags, HKDF session keys, the 4-digit code, sealed frames, and every message as Swift's JSONEncoder writes it. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "client_hello_frame": "000000df7b2276657273696f6e223a312c226465766963654944223a2235423045374331412d324434462d344538422d394133362d374331443245334634413542222c226465766963654e616d65223a225374616765206950686f6e65222c226465766963655075626c69634b6579223a2265615978377434622b636d5045674d7333713351353642354f592f486872694d7945627369612b4670526f3d222c226e6f6e6365223a2241514944424155474277674a4367734d4451345045413d3d227db699f275f91827a26acf7a39a1d07b6ebf5f44aec7f938fd0a98cb53a4492e10",
+  "client_hello_json": "{\"version\":1,\"deviceID\":\"5B0E7C1A-2D4F-4E8B-9A36-7C1D2E3F4A5B\",\"deviceName\":\"Stage iPhone\",\"devicePublicKey\":\"eaYx7t4b+cmPEgMs3q3Q56B5OY/HhriMyEbsia+FpRo=\",\"nonce\":\"AQIDBAUGBwgJCgsMDQ4PEA==\"}",
+  "client_tag": "b699f275f91827a26acf7a39a1d07b6ebf5f44aec7f938fd0a98cb53a4492e10",
+  "confirm_code": "4587",
+  "device_private": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+  "device_public": "79a631eede1bf9c98f12032cdeadd0e7a079398fc786b88cc846ec89af85a51a",
+  "ephemeral_private": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+  "ephemeral_public": "675dd574ed7789310b3d2e7681f3790b466c773b1521fecf36577958371ea52f",
+  "info": "5477696e4b6579732072656d6f7465207631690a2eb053de6398334e0ff15e2b59097ad994fb2429aca3574097fdca681e9a",
+  "key_c2s": "ad9ca3f856e855cba0d88bb7bf1b2522933987fda24d42e65be222fd66213624",
+  "key_s2c": "2874f45dc366ebf26e1f2c2668e2b3b2237aadf40770cdc5da93f6ba9ea5ce8e",
+  "messages": [
+    {
+      "message": {
+        "command": {
+          "_1": {
+            "fireScene": {
+              "_0": 3
+            }
+          },
+          "id": 1
+        }
+      },
+      "name": "command"
+    },
+    {
+      "message": {
+        "command": {
+          "_1": {
+            "fireClip": {
+              "scene": 2,
+              "track": 1
+            }
+          },
+          "id": 2
+        }
+      },
+      "name": "command_fireClip"
+    },
+    {
+      "message": {
+        "commandAt": {
+          "_1": {
+            "setVolume": {
+              "track": -1,
+              "value": 0.5
+            }
+          },
+          "id": 3,
+          "structure": 42
+        }
+      },
+      "name": "commandAt"
+    },
+    {
+      "message": {
+        "commandAt": {
+          "_1": {
+            "stopAll": {}
+          },
+          "id": 4
+        }
+      },
+      "name": "commandAt_no_structure"
+    },
+    {
+      "message": {
+        "commandAt": {
+          "_1": {
+            "setSend": {
+              "send": 1,
+              "track": 2,
+              "value": 0.25
+            }
+          },
+          "id": 5,
+          "structure": 7
+        }
+      },
+      "name": "commandAt_setSend"
+    },
+    {
+      "message": {
+        "command": {
+          "_1": {
+            "setMute": {
+              "on": true,
+              "track": 0
+            }
+          },
+          "id": 6
+        }
+      },
+      "name": "command_setMute"
+    },
+    {
+      "message": {
+        "command": {
+          "_1": {
+            "setTempo": {
+              "_0": 128.5
+            }
+          },
+          "id": 7
+        }
+      },
+      "name": "command_setTempo"
+    },
+    {
+      "message": {
+        "command": {
+          "_1": {
+            "continuePlaying": {}
+          },
+          "id": 8
+        }
+      },
+      "name": "command_continuePlaying"
+    },
+    {
+      "message": {
+        "go": {
+          "id": 9,
+          "scene": 4,
+          "structure": 42
+        }
+      },
+      "name": "go"
+    },
+    {
+      "message": {
+        "lockScope": {
+          "on": true,
+          "scope": 19
+        }
+      },
+      "name": "lockScope"
+    },
+    {
+      "message": {
+        "becomeMain": {
+          "id": 10
+        }
+      },
+      "name": "becomeMain"
+    },
+    {
+      "message": {
+        "cue": {
+          "id": 11,
+          "keycode": 336
+        }
+      },
+      "name": "cue"
+    },
+    {
+      "message": {
+        "allNotesOff": {
+          "id": 12
+        }
+      },
+      "name": "allNotesOff"
+    },
+    {
+      "message": {
+        "ping": {
+          "_0": 12.5
+        }
+      },
+      "name": "ping"
+    },
+    {
+      "message": {
+        "ping": {
+          "_0": 13.25,
+          "watch": {
+            "appInstalled": true,
+            "paired": true,
+            "reachable": false
+          }
+        }
+      },
+      "name": "ping_watch"
+    },
+    {
+      "message": {
+        "lock": {
+          "_0": true
+        }
+      },
+      "name": "lock"
+    },
+    {
+      "message": {
+        "waitingForApproval": {
+          "code": "0427"
+        }
+      },
+      "name": "waitingForApproval"
+    },
+    {
+      "message": {
+        "welcome": {
+          "features": [
+            "commandAt",
+            "go",
+            "lockScope",
+            "becomeMain",
+            "skipsUnknown"
+          ],
+          "macName": "Stage PC"
+        }
+      },
+      "name": "welcome"
+    },
+    {
+      "message": {
+        "denied": {}
+      },
+      "name": "denied"
+    },
+    {
+      "message": {
+        "result": {
+          "backup": "delivered",
+          "id": 1,
+          "ok": true
+        }
+      },
+      "name": "result"
+    },
+    {
+      "message": {
+        "result": {
+          "backup": "notSent",
+          "error": "structure_changed",
+          "id": 2,
+          "ok": false
+        }
+      },
+      "name": "result_error"
+    },
+    {
+      "message": {
+        "pong": {
+          "_0": 12.5
+        }
+      },
+      "name": "pong"
+    },
+    {
+      "message": {
+        "update": {
+          "_0": {
+            "song": {
+              "_0": {
+                "beat": "17.3.1",
+                "bridgeVersion": 3,
+                "playing": true,
+                "sceneCount": 3,
+                "selectedScene": 2,
+                "selectedTrack": 1,
+                "setName": "",
+                "structure": 42,
+                "tempo": 124.5,
+                "trackCount": 2
+              }
+            }
+          }
+        }
+      },
+      "name": "update_song"
+    },
+    {
+      "message": {
+        "update": {
+          "_0": {
+            "scenes": {
+              "_0": [
+                {
+                  "color": "#FF3A34",
+                  "index": 0,
+                  "name": "1 Intro",
+                  "playing": true,
+                  "triggered": false
+                },
+                {
+                  "color": "#888888",
+                  "index": 1,
+                  "name": "2 本編",
+                  "playing": false,
+                  "triggered": true
+                }
+              ]
+            }
+          }
+        }
+      },
+      "name": "update_scenes"
+    },
+    {
+      "message": {
+        "update": {
+          "_0": {
+            "tracks": {
+              "_0": [
+                {
+                  "color": "#1A2B3C",
+                  "firedSlot": -1,
+                  "index": 0,
+                  "mute": false,
+                  "name": "Music",
+                  "pan": 0,
+                  "playingSlot": 0,
+                  "sends": [
+                    0.5,
+                    0.25
+                  ],
+                  "solo": false,
+                  "volume": 0.75
+                },
+                {
+                  "color": "#888888",
+                  "firedSlot": -1,
+                  "index": 1,
+                  "mute": true,
+                  "name": "SE",
+                  "pan": -0.25,
+                  "playingSlot": -1,
+                  "sends": [],
+                  "solo": false,
+                  "volume": 0.5
+                }
+              ],
+              "_1": {
+                "pan": 0,
+                "volume": 0.75
+              }
+            }
+          }
+        }
+      },
+      "name": "update_tracks"
+    },
+    {
+      "message": {
+        "update": {
+          "_0": {
+            "clips": {
+              "_1": [
+                {
+                  "color": "#FFA500",
+                  "hasClip": true,
+                  "isPlaying": true,
+                  "isTriggered": false,
+                  "lengthBeats": 16,
+                  "name": "Opening",
+                  "scene": 0
+                },
+                {
+                  "color": "#888888",
+                  "hasClip": false,
+                  "isPlaying": false,
+                  "isTriggered": false,
+                  "lengthBeats": 0,
+                  "name": "",
+                  "scene": 1
+                }
+              ],
+              "track": 0
+            }
+          }
+        }
+      },
+      "name": "update_clips"
+    },
+    {
+      "message": {
+        "update": {
+          "_0": {
+            "meters": {
+              "_0": {
+                "0": [
+                  0.5,
+                  0.25
+                ],
+                "3": [
+                  0.125,
+                  0
+                ]
+              },
+              "_1": [
+                0.75,
+                0.5
+              ]
+            }
+          }
+        }
+      },
+      "name": "update_meters"
+    },
+    {
+      "message": {
+        "update": {
+          "_0": {
+            "progress": {
+              "_0": {
+                "1": [
+                  4,
+                  16
+                ]
+              }
+            }
+          }
+        }
+      },
+      "name": "update_progress"
+    },
+    {
+      "message": {
+        "update": {
+          "_0": {
+            "full": {
+              "_0": {
+                "clips": [
+                  [
+                    {
+                      "color": "#FFA500",
+                      "hasClip": true,
+                      "isPlaying": true,
+                      "isTriggered": false,
+                      "lengthBeats": 16,
+                      "name": "Opening",
+                      "scene": 0
+                    },
+                    {
+                      "color": "#888888",
+                      "hasClip": false,
+                      "isPlaying": false,
+                      "isTriggered": false,
+                      "lengthBeats": 0,
+                      "name": "",
+                      "scene": 1
+                    }
+                  ],
+                  []
+                ],
+                "master": {
+                  "pan": 0,
+                  "volume": 0.75
+                },
+                "masterMeter": [
+                  0.75,
+                  0.5
+                ],
+                "meters": {
+                  "0": [
+                    0.5,
+                    0.25
+                  ]
+                },
+                "progress": {
+                  "0": [
+                    4,
+                    16
+                  ]
+                },
+                "scenes": [
+                  {
+                    "color": "#FF3A34",
+                    "index": 0,
+                    "name": "1 Intro",
+                    "playing": true,
+                    "triggered": false
+                  },
+                  {
+                    "color": "#888888",
+                    "index": 1,
+                    "name": "2 本編",
+                    "playing": false,
+                    "triggered": true
+                  }
+                ],
+                "song": {
+                  "beat": "17.3.1",
+                  "bridgeVersion": 3,
+                  "playing": true,
+                  "sceneCount": 3,
+                  "selectedScene": 2,
+                  "selectedTrack": 1,
+                  "setName": "",
+                  "structure": 42,
+                  "tempo": 124.5,
+                  "trackCount": 2
+                },
+                "tracks": [
+                  {
+                    "color": "#1A2B3C",
+                    "firedSlot": -1,
+                    "index": 0,
+                    "mute": false,
+                    "name": "Music",
+                    "pan": 0,
+                    "playingSlot": 0,
+                    "sends": [
+                      0.5,
+                      0.25
+                    ],
+                    "solo": false,
+                    "volume": 0.75
+                  },
+                  {
+                    "color": "#888888",
+                    "firedSlot": -1,
+                    "index": 1,
+                    "mute": true,
+                    "name": "SE",
+                    "pan": -0.25,
+                    "playingSlot": -1,
+                    "sends": [],
+                    "solo": false,
+                    "volume": 0.5
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "name": "update_full"
+    },
+    {
+      "message": {
+        "status": {
+          "_0": {
+            "backupLinked": true,
+            "backupLiveConnected": false,
+            "backupName": "Backup Stage Mac",
+            "cueKeys": [
+              {
+                "keycode": 336,
+                "label": "↓",
+                "memo": "次のシーン"
+              },
+              {
+                "keycode": 328,
+                "label": "↑",
+                "memo": ""
+              }
+            ],
+            "lastCue": {
+              "count": 12,
+              "delivery": "delivered",
+              "label": "↓",
+              "memo": "次のシーン"
+            },
+            "latencyMs": 1.5,
+            "mainLiveConnected": true,
+            "mainName": "Stage PC",
+            "setDiff": {
+              "backupScenes": 3,
+              "backupTracks": 1,
+              "complete": true,
+              "differences": 2,
+              "mainScenes": 3,
+              "mainTracks": 2,
+              "rows": [
+                {
+                  "index": 1,
+                  "kind": "track",
+                  "main": "SE"
+                },
+                {
+                  "backup": "2 Main",
+                  "index": 1,
+                  "kind": "scene",
+                  "main": "2 本編"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "name": "status"
+    },
+    {
+      "message": {
+        "status": {
+          "_0": {
+            "backupLinked": false,
+            "backupLiveConnected": false,
+            "cueKeys": [],
+            "mainLiveConnected": false,
+            "mainName": "Stage PC"
+          }
+        }
+      },
+      "name": "status_minimal"
+    }
+  ],
+  "pairing_code": "K7MQ2-WX9TP",
+  "sealed": [
+    {
+      "counter": 1,
+      "direction": "c2s",
+      "frame": "0000002c00000000000000018c696601d7eeafbe1a693ea647a90be4b7fac120cef5adedff55afdf35fa8e235e78f8d9",
+      "name": "ping_from_iphone",
+      "plain": "{\"ping\":{\"_0\":12.5}}"
+    },
+    {
+      "counter": 2,
+      "direction": "c2s",
+      "frame": "000000480000000000000002338d4c4ce7b90986e31b8c63dbba06c9bb2cee7d9d6442ffb7799b9c9d322e2cbd83758eca586d25c3a871ea91ede11c1b242a8df7b65010ab09dbd4477ad82e",
+      "name": "command_from_iphone",
+      "plain": "{\"command\":{\"id\":1,\"_1\":{\"fireScene\":{\"_0\":3}}}}"
+    },
+    {
+      "counter": 1,
+      "direction": "s2c",
+      "frame": "000000800000000000000001927e6cc441f3e5fe94292401c7c635c84fb710e218723224e4e1c2e29922c5d0a4a720afda5e6c183baf8704fe8f0e0bf491b550aca787122b6c9162e311c40d27fad7335e0a1d366d30a641e29ece80622258c23b2e579f88a80e996394d29ee6247da8b05fb216630c8cfd5fbf02ebeb5fddf9d9daba4f",
+      "name": "welcome_to_iphone",
+      "plain": "{\"welcome\":{\"macName\":\"Stage PC\",\"features\":[\"commandAt\",\"go\",\"lockScope\",\"becomeMain\",\"skipsUnknown\"]}}"
+    },
+    {
+      "counter": 2,
+      "direction": "s2c",
+      "frame": "0000002c000000000000000221951b0166c1b724ad6ba3167dbec58f7a6e7e191dedd9cff1a226a627e1ed341a535343",
+      "name": "pong_to_iphone",
+      "plain": "{\"pong\":{\"_0\":12.5}}"
+    }
+  ],
+  "server_hello_frame": "000000de7b2276657273696f6e223a312c227365727665724944223a2238463043324237452d344433412d344238452d394331312d324136463545304439423334222c227365727665724e616d65223a225374616765205043222c22657068656d6572616c5075626c69634b6579223a225a313356644f31336954454c5053353267664e3543305a73647a7356496637504e6c6435574463657053383d222c226e6f6e6365223a2267594b44684957476834694a696f754d6a5936506b413d3d227d065cf83375ca441a649b8f73fd5af1afa44577db6fee0946335a1398180c38c9",
+  "server_hello_json": "{\"version\":1,\"serverID\":\"8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34\",\"serverName\":\"Stage PC\",\"ephemeralPublicKey\":\"Z13VdO13iTELPS52gfN5C0ZsdzsVIf7PNld5WDcepS8=\",\"nonce\":\"gYKDhIWGh4iJiouMjY6PkA==\"}",
+  "server_tag": "065cf83375ca441a649b8f73fd5af1afa44577db6fee0946335a1398180c38c9",
+  "shared": "d6fb939511b2381bc8599b4b8edc5968829450dfd7a87aebe78a703cd04cd54e"
+}

@@ -40,6 +40,8 @@ public sealed record MasterStrip(double Volume = 0.85, double Pan = 0);
 public abstract record LiveUpdate
 {
     private LiveUpdate() { }
+    /// <summary>Everything but the clips (they follow one column per update, see <see cref="LiveState.InitialUpdates"/>).</summary>
+    public sealed record Full(LiveState State) : LiveUpdate;
     public sealed record Song(LiveSong Value) : LiveUpdate;
     public sealed record Scenes(IReadOnlyList<LiveScene> Items) : LiveUpdate;
     public sealed record Tracks(IReadOnlyList<LiveTrack> Items, MasterStrip Master) : LiveUpdate;
@@ -70,6 +72,16 @@ public sealed class LiveState
         c.Meters = Meters.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
         c.Progress = Progress.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
         return c;
+    }
+
+    /// <summary>The whole state for an iPhone that just connected: everything but the clips first, then one clip column per update.</summary>
+    public List<LiveUpdate> InitialUpdates()
+    {
+        var head = Copy();
+        head.Clips.Clear();
+        var list = new List<LiveUpdate> { new LiveUpdate.Full(head) };
+        for (int t = 0; t < Clips.Count; t++) list.Add(new LiveUpdate.Clips(t, [.. Clips[t]]));
+        return list;
     }
 
     private static double? D(JsonObject o, string k) => o[k] is JsonValue v && v.TryGetValue(out double d) ? d : null;

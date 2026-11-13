@@ -23,6 +23,8 @@ public class SharedVectorTests
         throw new DirectoryNotFoundException("shared/test-vectors not found above " + AppContext.BaseDirectory);
     }
 
+    internal static JsonObject LoadFile(string name) => Load(name);
+    internal static bool SameJson(JsonNode? a, JsonNode? b) => Same(a, b);
     static JsonObject Load(string name) => (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(Dir, name)))!;
     static byte[] Hex(JsonNode? n) => Convert.FromHexString((string)n!);
     static string HexOf(byte[] b) => Convert.ToHexStringLower(b);
