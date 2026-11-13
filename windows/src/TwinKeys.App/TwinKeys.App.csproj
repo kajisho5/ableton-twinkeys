@@ -36,6 +36,8 @@
     <!-- The texts are read by Platform/Strings.cs (so the language can change without a restart). -->
     <EmbeddedResource Include="Strings\ja-JP\Resources.resw" LogicalName="Strings.ja.resw" />
     <EmbeddedResource Include="Strings\en-US\Resources.resw" LogicalName="Strings.en.resw" />
+    <!-- For the CI XAML check (Platform/XamlCheck.cs). -->
+    <EmbeddedResource Include="Views\*.xaml" LogicalName="Xaml.%(Filename).xaml" />
     <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\*.png" CopyToOutputDirectory="PreserveNewest" />
     <AppxManifest Remove="Package.appxmanifest" />

@@ -61,6 +61,7 @@ public partial class App : Application
         if (cmd.Contains("--smoke-windows"))
         {
             // CI: open every window and settings page once, so a XAML error shows up in the log.
+            XamlCheck.Run(EarlyLog.Write);
             ShowFirstRun();
             ShowMain();
             foreach (var page in new[] { "cues", "midi", "live", "pairing", "updates", "general" }) ShowSettings(page);
