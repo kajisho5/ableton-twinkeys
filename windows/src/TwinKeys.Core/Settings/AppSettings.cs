@@ -47,6 +47,8 @@ public sealed class AppSettings
     public bool FirstRunDone { get; set; }
     public string HotkeyKeyCapture { get; set; } = "Ctrl+Alt+K";
     public string HotkeyAllNotesOff { get; set; } = "Ctrl+Alt+P";
+    /// <summary>Closing the window keeps TwinKeys running in the notification area (as on the Mac).</summary>
+    public bool CloseToTray { get; set; } = true;
 
     public AppSettings Clone() => FromJson(ToJson())!;
 
@@ -84,6 +86,7 @@ public sealed class AppSettings
                     ["port_name"] = MidiPortName,
                 },
                 ["first_run_done"] = FirstRunDone,
+                ["close_to_tray"] = CloseToTray,
                 ["hotkeys"] = new JsonObject { ["key_capture"] = HotkeyKeyCapture, ["all_notes_off"] = HotkeyAllNotesOff },
             },
         };
@@ -135,6 +138,7 @@ public sealed class AppSettings
                 if (!string.IsNullOrWhiteSpace(port)) s.MidiPortName = port;
             }
             s.FirstRunDone = Bool(w, "first_run_done") ?? false;
+            s.CloseToTray = Bool(w, "close_to_tray") ?? true;
             if (w["hotkeys"] is JsonObject h)
             {
                 s.HotkeyKeyCapture = Str(h, "key_capture") ?? s.HotkeyKeyCapture;

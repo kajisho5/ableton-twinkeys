@@ -67,3 +67,19 @@ public class SettingsTests : IDisposable
         Assert.Contains("\"8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34\"", s.ToJson());
     }
 }
+
+public class HotkeyTests
+{
+    [Fact]
+    public void ParsesTheDefaults()
+    {
+        Assert.Equal((Hotkey.ModControl | Hotkey.ModAlt, (uint)'K'), Hotkey.Parse("Ctrl+Alt+K"));
+        Assert.Equal((Hotkey.ModControl | Hotkey.ModAlt, (uint)'P'), Hotkey.Parse(" ctrl + alt + p "));
+        Assert.Equal((Hotkey.ModControl | Hotkey.ModShift, 0x70u + 11), Hotkey.Parse("Ctrl+Shift+F12"));
+        Assert.Null(Hotkey.Parse("K"));
+        Assert.Null(Hotkey.Parse("Shift+K"));
+        Assert.Null(Hotkey.Parse("Ctrl+Alt"));
+        Assert.Null(Hotkey.Parse("Ctrl+Alt+K+L"));
+        Assert.Null(Hotkey.Parse(""));
+    }
+}

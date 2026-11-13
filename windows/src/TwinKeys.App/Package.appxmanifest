@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest for the Microsoft Store (phase 2, docs/design-windows.md 7.2). Not used by the phase 1
+  ZIP build. It declares the UDP 47801 firewall exception (private and domain networks) so the Store
+  version does not need the firewall prompt:
+  https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-desktop2-firewallrules
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
+  IgnorableNamespaces="uap rescap desktop2">
+  <Identity Name="TwinKeys" Publisher="CN=TwinKeys (placeholder until the Store assigns it)" Version="0.1.0.0" />
+  <Properties>
+    <DisplayName>TwinKeys</DisplayName>
+    <PublisherDisplayName>SEVENTHWELL</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="ja-JP" />
+    <Resource Language="en-US" />
+  </Resources>
+  <Applications>
+    <Application Id="App" Executable="TwinKeys.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="TwinKeys" Description="TwinKeys" BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <desktop2:Extension Category="windows.firewallRules">
+          <desktop2:FirewallRules Executable="TwinKeys.exe">
+            <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="47801" LocalPortMax="47801" Profile="private" />
+            <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="47801" LocalPortMax="47801" Profile="domain" />
+          </desktop2:FirewallRules>
+        </desktop2:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

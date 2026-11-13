@@ -47,7 +47,7 @@ Say($"TwinKeys peer \"{name}\" ({GuidBytes.ToSwiftString(conductor.InstanceId)})
 
 if (opts.TryGetValue("connect", out var target))
 {
-    if (ManualAddress.Parse(target) is not var (host, p)) { Console.Error.WriteLine("Bad --connect address"); return 2; }
+    if (ManualAddress.Parse(target) is not (string host, ushort p)) { Console.Error.WriteLine("Bad --connect address"); return 2; }
     var addr = IPAddress.TryParse(host, out var a) ? a : (await Dns.GetHostAddressesAsync(host))[0];
     var placeholder = PeerInfo.ManualPrefix + target;
     net.SetManual(placeholder, new IPEndPoint(addr, p));

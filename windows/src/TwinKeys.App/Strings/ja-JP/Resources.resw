@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Texts of TwinKeys for Windows. The same keys in ja-JP and en-US (checked by TwinKeys.Core.Tests/StringsTests). -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Separator" xml:space="preserve"><value>・</value></data>
+  <data name="AllNotesOff" xml:space="preserve"><value>オールノートオフ</value></data>
+  <data name="AllNotesOffHelp" xml:space="preserve"><value>このPCと接続先で鳴っている音をすべて止めます（{0}）</value></data>
+  <data name="AnotherComputer" xml:space="preserve"><value>相手のコンピューター</value></data>
+  <data name="NotConnected" xml:space="preserve"><value>未接続</value></data>
+  <data name="ConnectedTo" xml:space="preserve"><value>{0} に接続済み</value></data>
+  <data name="ConnectingTo" xml:space="preserve"><value>{0} に接続中…</value></data>
+  <data name="Latency" xml:space="preserve"><value>遅延 {0} ms</value></data>
+  <data name="TrayLatency" xml:space="preserve"><value>遅延 {0} ms</value></data>
+  <data name="Measuring" xml:space="preserve"><value>測定中…</value></data>
+  <data name="SendingAndReceiving" xml:space="preserve"><value>送信・受信中</value></data>
+  <data name="Sending" xml:space="preserve"><value>送信中</value></data>
+  <data name="Receiving" xml:space="preserve"><value>受信中</value></data>
+  <data name="BothOff" xml:space="preserve"><value>送信も受信もオフ</value></data>
+  <data name="PeerOs" xml:space="preserve"><value>相手は {0}</value></data>
+  <data name="Retrying" xml:space="preserve"><value>応答がありません。再試行中（{0} 回目）</value></data>
+  <data name="WaitingForAnswer" xml:space="preserve"><value>応答を待っています…</value></data>
+  <data name="Searching" xml:space="preserve"><value>TwinKeys を探しています…</value></data>
+  <data name="ChooseComputer" xml:space="preserve"><value>下の一覧から相手を選んで「接続」をクリック</value></data>
+  <data name="NeedsPairing" xml:space="preserve"><value>合言葉を設定すると接続できます</value></data>
+  <data name="NeedsPairingDetail" xml:space="preserve"><value>接続するには、2台で同じ合言葉を使います</value></data>
+  <data name="NeedsPairingBanner" xml:space="preserve"><value>接続するには、2台で同じ合言葉を使います。一度設定すれば、次からは不要です。</value></data>
+  <data name="SetUpPairing" xml:space="preserve"><value>合言葉を設定…</value></data>
+  <data name="LastCue" xml:space="preserve"><value>直前のキュー</value></data>
+  <data name="NoCueYet" xml:space="preserve"><value>まだキューを叩いていません。キューのキーを押すと出ます。</value></data>
+  <data name="NoCueReceivedYet" xml:space="preserve"><value>まだキューを受け取っていません。</value></data>
+  <data name="CueDetail" xml:space="preserve"><value>{0}・接続してから {1} 回目</value></data>
+  <data name="DeliveredToBackup" xml:space="preserve"><value>バックアップに届きました</value></data>
+  <data name="WaitingForBackup" xml:space="preserve"><value>バックアップの返事を待っています…</value></data>
+  <data name="NotConfirmed" xml:space="preserve"><value>届いた確認がありません</value></data>
+  <data name="NotConfirmedDetail" xml:space="preserve"><value>バックアップでこのキューが出ているか確かめてください</value></data>
+  <data name="CannotConfirm" xml:space="preserve"><value>届いたかは確認できません</value></data>
+  <data name="CannotConfirmDetail" xml:space="preserve"><value>相手の TwinKeys が 1.0.0 より前です</value></data>
+  <data name="CueNotConnected" xml:space="preserve"><value>接続していません</value></data>
+  <data name="CueNotConnectedDetail" xml:space="preserve"><value>このPCだけにキューが出ました</value></data>
+  <data name="ReceivedFromMain" xml:space="preserve"><value>メインから受け取りました</value></data>
+  <data name="NearbyTwinKeys" xml:space="preserve"><value>近くの TwinKeys</value></data>
+  <data name="ConnectByIp" xml:space="preserve"><value>IP アドレスで接続…</value></data>
+  <data name="ConnectByIpHint" xml:space="preserve"><value>一覧に出ないときはこちら（Ctrl+Shift+K）</value></data>
+  <data name="ConnectByIpTitle" xml:space="preserve"><value>IP アドレスで接続</value></data>
+  <data name="ConnectByIpExplain" xml:space="preserve"><value>相手が一覧に出ないときに使います。相手の「設定」&gt;「合言葉」に出ている IP アドレスを入れてください。合言葉が同じ必要があります。</value></data>
+  <data name="InvalidAddress" xml:space="preserve"><value>192.168.1.20 のような IP アドレスを入れてください。</value></data>
+  <data name="ThisPcAddress" xml:space="preserve"><value>このPCの IP アドレス: {0}</value></data>
+  <data name="NoAddress" xml:space="preserve"><value>なし（ネットワーク未接続）</value></data>
+  <data name="PortLabel" xml:space="preserve"><value>UDP ポート {0}</value></data>
+  <data name="NoPeersTitle" xml:space="preserve"><value>このネットワークに TwinKeys が見つかりません</value></data>
+  <data name="NoPeersHint" xml:space="preserve"><value>2台が同じネットワークにあるか、Windows ファイアウォールでプライベート ネットワークの TwinKeys が許可されているかを確かめてください。IP アドレスでも接続できます。</value></data>
+  <data name="Connect" xml:space="preserve"><value>接続</value></data>
+  <data name="Disconnect" xml:space="preserve"><value>接続解除</value></data>
+  <data name="ConnectTo" xml:space="preserve"><value>{0} に接続</value></data>
+  <data name="DisconnectFrom" xml:space="preserve"><value>{0} との接続を解除</value></data>
+  <data name="ConnectingShort" xml:space="preserve"><value>接続中…</value></data>
+  <data name="Incompatible" xml:space="preserve"><value>TwinKeys のバージョンが違います。両方で同じバージョンを使ってください。</value></data>
+  <data name="CodeMismatch" xml:space="preserve"><value>合言葉が違います</value></data>
+  <data name="CodeMismatchBanner" xml:space="preserve"><value>このネットワークに、合言葉が違う TwinKeys があります。2台で同じ合言葉を入れてください。</value></data>
+  <data name="ModeSendReceive" xml:space="preserve"><value>送信・受信</value></data>
+  <data name="ModeSend" xml:space="preserve"><value>送信</value></data>
+  <data name="ModeReceive" xml:space="preserve"><value>受信</value></data>
+  <data name="ModeAndKeyboard" xml:space="preserve"><value>モードとキーボード</value></data>
+  <data name="SendKeys" xml:space="preserve"><value>キーを送信</value></data>
+  <data name="SendKeysHint" xml:space="preserve"><value>このPCで押したキューのキーを、両方の Live に送ります</value></data>
+  <data name="ReceiveNotes" xml:space="preserve"><value>ノートを受信</value></data>
+  <data name="ReceiveNotesHint" xml:space="preserve"><value>相手から届いたキューを、このPCの Live で鳴らします</value></data>
+  <data name="KeyCapture" xml:space="preserve"><value>キー入力</value></data>
+  <data name="CaptureHintOn" xml:space="preserve"><value>オン：キューのキーをほかのアプリに渡しません（{0} で切り替え）</value></data>
+  <data name="CaptureHintOnPassThrough" xml:space="preserve"><value>オン：キューのキーはほかのアプリにも届きます（{0} で切り替え）</value></data>
+  <data name="CaptureHintOff" xml:space="preserve"><value>オフ：キーはふだんどおり使えます（{0} で切り替え）</value></data>
+  <data name="HookMissing" xml:space="preserve"><value>キー入力を開始できませんでした。TwinKeys を終了して開き直してください。</value></data>
+  <data name="MidiReady" xml:space="preserve"><value>MIDI: {0}（ループバック）</value></data>
+  <data name="MidiNotFound" xml:space="preserve"><value>MIDI: 「{0}」が見つかりません</value></data>
+  <data name="MidiError" xml:space="preserve"><value>MIDI: エラー（{0}）</value></data>
+  <data name="MidiOff" xml:space="preserve"><value>MIDI: 使わない</value></data>
+  <data name="MidiMissingBanner" xml:space="preserve"><value>ループバック MIDI ポート「{0}」が見つからないため、このPCの Live にキューが届きません。作ると自動で見つかります。</value></data>
+  <data name="OpenMidiSetup" xml:space="preserve"><value>準備の方法…</value></data>
+  <data name="LiveNotYet" xml:space="preserve"><value>Live: TwinKeysBridge との連携は次の版で対応</value></data>
+  <data name="TestVersionNote" xml:space="preserve"><value>試験版：まだ本物の Windows PC で試していません。</value></data>
+  <data name="ProblemSettingsBroken" xml:space="preserve"><value>settings.json を読めませんでした。{0} として残し、初期設定で起動しました。</value></data>
+  <data name="ProblemNoChaCha" xml:space="preserve"><value>この Windows では TwinKeys の通信を暗号化できません（ChaCha20-Poly1305 には Windows 11 が必要です）。接続できません。</value></data>
+  <data name="ProblemListen" xml:space="preserve"><value>ほかのコンピューターからの接続を待ち受けられませんでした（UDP）。</value></data>
+  <data name="ProblemDuplicateId" xml:space="preserve"><value>ほかのコンピューターが同じ TwinKeys の ID を使っています（このPCの設定をコピーしたため）。どちらかの settings.json を消して、TwinKeys を開き直してください。</value></data>
+  <data name="ProblemHook" xml:space="preserve"><value>キー入力を開始できませんでした。TwinKeys を終了して開き直してください。</value></data>
+  <data name="OpenTwinKeys" xml:space="preserve"><value>TwinKeys を開く</value></data>
+  <data name="SettingsMenu" xml:space="preserve"><value>設定…</value></data>
+  <data name="StartAtSignIn" xml:space="preserve"><value>サインイン時に起動</value></data>
+  <data name="QuitTwinKeys" xml:space="preserve"><value>TwinKeys を終了</value></data>
+  <data name="SettingsTitle" xml:space="preserve"><value>TwinKeys の設定</value></data>
+  <data name="PageCueKeys" xml:space="preserve"><value>キューのキー</value></data>
+  <data name="PageMidi" xml:space="preserve"><value>MIDI の出し方</value></data>
+  <data name="PageLive" xml:space="preserve"><value>Live との連携</value></data>
+  <data name="PagePairing" xml:space="preserve"><value>合言葉</value></data>
+  <data name="PageRemote" xml:space="preserve"><value>iPhone リモート</value></data>
+  <data name="PageUpdates" xml:space="preserve"><value>アップデート</value></data>
+  <data name="PageGeneral" xml:space="preserve"><value>一般</value></data>
+  <data name="Coming" xml:space="preserve"><value>準備中</value></data>
+  <data name="CueKeysByPosition" xml:space="preserve"><value>キーは位置で判定します（JIS 配列でも US 配列でも同じ場所なら同じキュー）。</value></data>
+  <data name="CueKeyColumn" xml:space="preserve"><value>キー</value></data>
+  <data name="CueMemoColumn" xml:space="preserve"><value>メモ（自分用の名前）</value></data>
+  <data name="CueKeysNone" xml:space="preserve"><value>キューのキーがありません。下で追加できます。</value></data>
+  <data name="MemoPlaceholder" xml:space="preserve"><value>例：次のシーン</value></data>
+  <data name="MemoFor" xml:space="preserve"><value>{0} のメモ</value></data>
+  <data name="RemoveCueKey" xml:space="preserve"><value>{0} を削除</value></data>
+  <data name="AddCueKey" xml:space="preserve"><value>キーを追加…</value></data>
+  <data name="AddLettersAndDigits" xml:space="preserve"><value>英字と数字をまとめて追加</value></data>
+  <data name="AddCueKeyHint" xml:space="preserve"><value>押したあと、登録したいキーを続けて押します</value></data>
+  <data name="AddedKeys" xml:space="preserve"><value>追加しました: {0}</value></data>
+  <data name="CueKeysFull" xml:space="preserve"><value>割り当てられるノートがもうありません。</value></data>
+  <data name="AddKeyTitle" xml:space="preserve"><value>キーを追加</value></data>
+  <data name="PressKeyToAdd" xml:space="preserve"><value>登録したいキーを押してください</value></data>
+  <data name="PressKeyHint" xml:space="preserve"><value>続けて押すと、まとめて登録できます。Ctrl・Alt・Shift・Windows キーは使いません。</value></data>
+  <data name="KeyAlreadyUsed" xml:space="preserve"><value>{0} はもう登録されています。</value></data>
+  <data name="Done" xml:space="preserve"><value>完了</value></data>
+  <data name="BlockCueKeys" xml:space="preserve"><value>キューのキーを、ほかのアプリに渡さない（おすすめ）</value></data>
+  <data name="BlockCueKeysHelp" xml:space="preserve"><value>メインの Live が矢印キーやスペースにも反応して、2回動くのを防ぎます。
+Windows では特別な許可は不要です（管理者として動くアプリの前面では効きません）。</value></data>
+  <data name="AutoNoteOffLabel" xml:space="preserve"><value>キーを離したノートが届かないとき、自動で止めるまで</value></data>
+  <data name="AutoNoteOffHelp" xml:space="preserve"><value>ノートオフが届かなかったときに、音が鳴り続けるのを防ぎます。相手から届いた音は最低 3 秒待ちます。</value></data>
+  <data name="Off" xml:space="preserve"><value>オフ</value></data>
+  <data name="Seconds" xml:space="preserve"><value>{0} 秒</value></data>
+  <data name="PortName" xml:space="preserve"><value>ポートの名前</value></data>
+  <data name="LookAgain" xml:space="preserve"><value>探し直す</value></data>
+  <data name="MidiOutputsFound" xml:space="preserve"><value>このPCの MIDI 出力: {0}</value></data>
+  <data name="None" xml:space="preserve"><value>なし</value></data>
+  <data name="LoopbackHowTo" xml:space="preserve"><value>Windows の「MIDI Settings」アプリ（Windows MIDI Services）か loopMIDI で「TwinKeys」という名前のループバック MIDI ポートを作り、Live の設定（Link, Tempo &amp; MIDI）でその入力をオンにしてください。TwinKeys はそこへ送るだけで、ポートは作りません。</value></data>
+  <data name="TestSendLabel" xml:space="preserve"><value>テスト：キュー C1 を「{0}」に 1 回送る</value></data>
+  <data name="TestSend" xml:space="preserve"><value>送ってみる</value></data>
+  <data name="TestSendDone" xml:space="preserve"><value>C1 を送りました。Live の MIDI インジケーターが光ったか確かめてください。</value></data>
+  <data name="OpenFirstRun" xml:space="preserve"><value>はじめての準備を開く…</value></data>
+  <data name="FoundPort" xml:space="preserve"><value>見つかりました：{0}</value></data>
+  <data name="SentHere" xml:space="preserve"><value>（このPCで送信を確認済み）</value></data>
+  <data name="PortMissingCreate" xml:space="preserve"><value>見つかりません：「{0}」という名前のループバックポートを作ってください</value></data>
+  <data name="ModeLoopback" xml:space="preserve"><value>ループバック MIDI ポート「TwinKeys」（おすすめ）</value></data>
+  <data name="ModeLoopbackDetail" xml:space="preserve"><value>MIDI Settings か loopMIDI で作ったポートに送ります。</value></data>
+  <data name="ModeVirtual" xml:space="preserve"><value>TwinKeys が自分で MIDI 入力を作る（あとで対応）</value></data>
+  <data name="ModeVirtualDetail" xml:space="preserve"><value>Windows MIDI Services の仮想デバイス。SDK 正式版の確認後に有効にします。</value></data>
+  <data name="ModeVirtualUnavailable" xml:space="preserve"><value>このPCでは使えません：Windows 11 25H2 と MIDI Services ランタイムが必要</value></data>
+  <data name="ModeBridge" xml:space="preserve"><value>MIDI を使わない（TwinKeysBridge だけで動かす）</value></data>
+  <data name="ModeBridgeDetail" xml:space="preserve"><value>キューのキーを Live の操作（シーンの再生など）に直接結びます。</value></data>
+  <data name="ModeBridgeUnavailable" xml:space="preserve"><value>Live との連携を先に設定してください</value></data>
+  <data name="FirstRunTitle" xml:space="preserve"><value>TwinKeys の準備</value></data>
+  <data name="FirstRunHeading" xml:space="preserve"><value>Live に音を届ける方法を選びます</value></data>
+  <data name="FirstRunSubtitle" xml:space="preserve"><value>Live が読める MIDI 入力「TwinKeys」に、キューのノートを送ります。</value></data>
+  <data name="Later" xml:space="preserve"><value>あとで</value></data>
+  <data name="Next" xml:space="preserve"><value>次へ</value></data>
+  <data name="LivePhase2" xml:space="preserve"><value>TwinKeysBridge を使った Live との連携（状態の表示、セットの見比べ、相手からの Live の操作）は次の版（フェーズ2）で対応します。今は MIDI で Live にキューを送ります。</value></data>
+  <data name="PairingExplain" xml:space="preserve"><value>2台で同じ合言葉を使うと、その2台だけがつながります。通信の中身も暗号化されます。Mac と PC の組み合わせでも同じ合言葉を使います。</value></data>
+  <data name="ThisPcCode" xml:space="preserve"><value>このPCの合言葉</value></data>
+  <data name="NoCodeYet" xml:space="preserve"><value>未設定</value></data>
+  <data name="MakeNewCode" xml:space="preserve"><value>新しく作る</value></data>
+  <data name="Copy" xml:space="preserve"><value>コピー</value></data>
+  <data name="EnterCode" xml:space="preserve"><value>合言葉を入力…</value></data>
+  <data name="PairingSameOnBoth" xml:space="preserve"><value>1台で作り、もう1台（Mac でも PC でも）に同じ10文字を入れます。このPCでは Windows のユーザーごとに暗号化して保存します。</value></data>
+  <data name="ReplaceCodeTitle" xml:space="preserve"><value>新しい合言葉を作りますか？</value></data>
+  <data name="ReplaceCodeMessage" xml:space="preserve"><value>今の合言葉は使えなくなります。もう1台にも新しい合言葉を入れてください。</value></data>
+  <data name="MakeNew" xml:space="preserve"><value>作る</value></data>
+  <data name="Cancel" xml:space="preserve"><value>キャンセル</value></data>
+  <data name="Save" xml:space="preserve"><value>保存</value></data>
+  <data name="EnterCodeTitle" xml:space="preserve"><value>合言葉を入力</value></data>
+  <data name="EnterCodeExplain" xml:space="preserve"><value>もう1台の「設定」&gt;「合言葉」に出ている10文字を入れてください。</value></data>
+  <data name="EnterCodeRule" xml:space="preserve"><value>大文字・小文字、ハイフンの有無は区別しません。</value></data>
+  <data name="InvalidCode" xml:space="preserve"><value>合言葉の形になっていません。10文字の英数字です（0・1・I・L・O は使いません）。</value></data>
+  <data name="FirewallHint" xml:space="preserve"><value>Windows ファイアウォールの確認が出たら、プライベート ネットワークで許可してください。</value></data>
+  <data name="CurrentVersion" xml:space="preserve"><value>今のバージョン: {0}（試験版）</value></data>
+  <data name="UpdatesZipNote" xml:space="preserve"><value>この ZIP 版は自分では更新しません。新しい版は GitHub のリリースのページにあります。Microsoft Store 版（あとで）は Store が更新します。</value></data>
+  <data name="OpenReleases" xml:space="preserve"><value>GitHub のリリースを開く</value></data>
+  <data name="Language" xml:space="preserve"><value>言語</value></data>
+  <data name="LanguageSystem" xml:space="preserve"><value>システムに合わせる</value></data>
+  <data name="CloseToTray" xml:space="preserve"><value>ウインドウを閉じたら通知領域に残す</value></data>
+  <data name="CloseToTrayHelp" xml:space="preserve"><value>おすすめ：ウインドウを閉じても本番が止まりません。終了は通知領域のメニューから。</value></data>
+  <data name="ShortcutsTitle" xml:space="preserve"><value>ショートカット</value></data>
+  <data name="ShortcutsList" xml:space="preserve"><value>キー入力のオン／オフ：{0}（どのアプリが前でも）
+オールノートオフ：{1}（どのアプリが前でも）
+接続／接続解除：Ctrl+K・IP アドレスで接続：Ctrl+Shift+K・設定：Ctrl+,・使い方：F1</value></data>
+  <data name="ShowLogs" xml:space="preserve"><value>ログフォルダを開く</value></data>
+</root>
