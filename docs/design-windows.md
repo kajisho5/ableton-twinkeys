@@ -744,8 +744,9 @@ TwinKeysBridge（`LiveBridge/`）は Mac と Windows で同じものを使いま
 9. **ソフトウェアが送ったキー（LLKHF_INJECTED）はキューにしません**（遠隔操作ソフトなどの二重送信を避けるため）。
 10. **設定ファイルに `windows.first_run_done` と `windows.close_to_tray` を足しました。** MIDI のチャンネルは画面に出さず、ch1 固定です（F1）。
 11. **文言は resw を自分で読みます**（`Platform/Strings.cs`）。言語の切り替えをすぐに反映するためです。両言語のキーがそろっていることは Linux のテストで確かめます。
-12. **ZIP 版のアップデート確認（7.3）は、まだ「GitHub のリリースを開く」ボタンだけです。** MSIX は作っていません（`Package.appxmanifest` はフェーズ2用に置いてあるだけ）。CI の起動テスト（smoke）は、ランナーの画面の事情で失敗しうるので、今は失敗してもジョブを落としません。
+12. **ZIP 版のアップデート確認（7.3）は、まだ「GitHub のリリースを開く」ボタンだけです。** MSIX は作っていません（`Package.appxmanifest` はフェーズ2用に置いてあるだけ）。CI の起動テストは、全部のウインドウと設定の各ページを開き、XAML の誤りがあればジョブを落とします（`--smoke-windows`）。
 13. **CI で .NET を入れるため `actions/setup-dotnet` v6.1.0 を使います**（この文書に書いていなかった依存。checkout と同じく SHA で固定：`0f4a354dd5547a28c70b7853dbd95d5b67886e73`、https://github.com/actions/setup-dotnet ）。SDK の版は `windows/global.json`（10.0 系、`dotnet test` を Microsoft Testing Platform で動かす設定）で決めます。
+15. **CI で分かって直したこと**：(a) `EnableMsixTooling` がないと `resources.pri` が作られず、WinUI が App.xaml も自分のテーマも読めなかった（全ウインドウが XamlParseException）。(b) テーマ辞書は Default／Dark／Light／HighContrast をすべて置く。(c) 念のため、起動時にリソースが空なら埋め込みの App.xaml から足す（`Platform/ThemeResources.cs`）。(d) macOS で C# の相手役が終了しなかったので、結果のあとすぐ終了する。
 14. 「メインの Mac が止まったときは」の帯（MainLossWatch）は Core にありますが、画面にはまだ出していません。
 
 ### 14.3 本物の Windows PC で確かめること（9.3 に加えて）
