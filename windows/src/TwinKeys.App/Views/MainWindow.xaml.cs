@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     private bool updating;
     private string peerSignature = "";
     private string bannerKey = "";
+    private ContentDialog? approvalDialog;
 
     internal MainWindow(AppModel model, Action<string?> showSettings, Action showFirstRun, Action quit)
     {
@@ -46,6 +47,7 @@ public sealed partial class MainWindow : Window
 
         model.LanguageChanged += () => { peerSignature = ""; bannerKey = ""; ApplyStrings(); Refresh(); };
         model.Changed += () => { peerSignature = ""; Refresh(); };
+        model.ApprovalCancelled += () => { approvalDialog?.Hide(); approvalDialog = null; bannerKey = ""; };
         ApplyStrings();
         Refresh();
         timer = DispatcherQueue.CreateTimer();
@@ -146,6 +148,7 @@ public sealed partial class MainWindow : Window
                     });
                     if (OsName(model.Peers.FirstOrDefault(p => p.Id == c.Peer)?.Os) is string os) parts.Add(S.F("PeerOs", os));
                     if (model.Conductor.PeerLiveConnected is bool peerLive) parts.Add(peerLive ? S["PeerLiveOK"] : S["PeerLiveNo"]);
+                    if (model.RemoteClients > 0) parts.Add(S.F("RemoteCount", model.RemoteClients));
                     LinkDetail.Text = string.Join(S["Separator"], parts);
                     break;
                 }
@@ -312,6 +315,35 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task ReviewApprovalAsync(int token, string name, string code)
+    {
+        if (approvalDialog is not null) return;
+        var S = Strings.Current;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = S["ApproveTitle"],
+            Content = new TextBlock { Text = S.F("ApproveMessage", name, code), TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = S["ApproveAllow"],
+            CloseButtonText = S["ApproveDeny"],
+            DefaultButton = ContentDialogButton.Close,
+        };
+        approvalDialog = dialog;
+        model.OwnInputHasFocus = true;
+        try
+        {
+            var r = await dialog.ShowAsync();
+            // Hidden because the question ended (time limit, the iPhone left): no answer.
+            if (approvalDialog == dialog) model.AnswerApproval(token, r == ContentDialogResult.Primary);
+        }
+        finally
+        {
+            model.OwnInputHasFocus = false;
+            if (approvalDialog == dialog) approvalDialog = null;
+            bannerKey = "";
+        }
+    }
+
     private async Task ConfirmBecomeMainAsync()
     {
         var S = Strings.Current;
@@ -340,7 +372,13 @@ public sealed partial class MainWindow : Window
         Action? onAction = null;
         var severity = InfoBarSeverity.Informational;
         var diff = model.Conductor.SetDifference;
-        if (model.Problem is string problem)
+        if (model.PendingApproval is (int token, string name, string code))
+        {
+            // An iPhone asks to connect (phase 3). Asked here, not in a window of its own, so it never takes the screen from Live.
+            (key, severity, text, action) = ($"approve:{token}", InfoBarSeverity.Warning, S.F("ApproveBanner", name, code), S["ApproveReview"]);
+            onAction = () => _ = ReviewApprovalAsync(token, name, code);
+        }
+        else if (model.Problem is string problem)
         {
             (key, severity, text) = ("problem:" + problem, InfoBarSeverity.Error, problem);
         }

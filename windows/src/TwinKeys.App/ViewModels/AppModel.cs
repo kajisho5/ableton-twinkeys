@@ -33,6 +33,11 @@ internal sealed class AppModel : ObservableObject, IDisposable
     private readonly Timer ticker;
     private readonly Timer liveTicker;
     private readonly MainLossWatch mainLoss = new();
+    private readonly RemoteAdvertiser remoteAdvertiser = new();
+    private readonly object remoteLock = new();
+    private RemoteStatus? statusSnapshot;
+    private double lastStatusBroadcast;
+    private PairingSecret? secret;
     private Action<KeyInput>? learner;
     private bool userDisconnected;
     private bool disposed;
@@ -47,6 +52,14 @@ internal sealed class AppModel : ObservableObject, IDisposable
     public bool LiveConnected { get; private set; }
     /// <summary>Live still runs an older TwinKeysBridge than the one in this app.</summary>
     public bool BridgeNeedsRestart { get; private set; }
+    /// <summary>The iPhone remote server (phase 3).</summary>
+    public RemoteServer Remote { get; }
+    /// <summary>Approved iPhones connected now.</summary>
+    public int RemoteClients { get; private set; }
+    public WatchLevel RemoteWatch { get; private set; }
+    /// <summary>An iPhone is asking to connect: (token, name, 4-digit code). Answer with <see cref="AnswerApproval"/>.</summary>
+    public (int Token, string Name, string Code)? PendingApproval { get; private set; }
+    private Action<bool>? pendingAnswer;
     public string DisplayName { get; } = Environment.MachineName;
     public string? PairingCode { get; private set; }
     /// <summary>A problem to show at the top of the window (null: none).</summary>
@@ -90,11 +103,13 @@ internal sealed class AppModel : ObservableObject, IDisposable
 
         pairing = new PairingStore(store.Directory);
         var code = pairing.Load();
-        if (code is not null && PairingSecret.FromCode(code) is PairingSecret secret)
+        if (code is not null && PairingSecret.FromCode(code) is PairingSecret saved)
         {
             PairingCode = Pairing.Formatted(Pairing.Normalize(code)!);
-            Conductor.SetPairing(secret);
+            Conductor.SetPairing(saved);
+            secret = saved;
         }
+        Remote = new RemoteServer(GuidBytes.ToSwiftString(Settings.InstanceId), DisplayName, RemoteServer.DefaultPort);
 
         try { Net.Start(); }
         catch (SocketException e)
@@ -135,6 +150,7 @@ internal sealed class AppModel : ObservableObject, IDisposable
         var installer = Installer;
         if (installer.UpdateIfOutdated()) log.Write($"Live Bridge: installed copy updated to version {installer.BundledVersion}");
         Bridge.Start();
+        StartRemote();
         liveTicker = new Timer(_ => { try { RefreshLive(); } catch (Exception e) { log.Write("Live refresh failed: " + e); } }, null, 500, 500);
 
         // Connect again to the computer used last time (by IP address now; by name when mDNS sees it).
@@ -160,6 +176,7 @@ internal sealed class AppModel : ObservableObject, IDisposable
         var live = on ? Bridge.Snapshot() : null;
         Conductor.SetLocalSet(live is null ? null : SetSummary.Of(live));
         BridgeNeedsRestart = live is not null && (live.Song.BridgeVersion ?? 0) < Installer.BundledVersion;
+        RefreshRemoteStatus();
     }
 
     /// <summary>Installs or updates TwinKeysBridge in Live's User Library. Returns an error, or null.</summary>
@@ -188,6 +205,136 @@ internal sealed class AppModel : ObservableObject, IDisposable
         {
             mainLoss.Update(s.Link, now);
             return !s.SendKeys && !s.ClaimsMain && mainLoss.IsLost(now);
+        }
+    }
+
+    // MARK: TwinKeys Remote (phase 3)
+
+    private void StartRemote()
+    {
+        var r = Remote;
+        r.Log = log.Write;
+        r.IsApproved = h => { lock (remoteLock) return ApprovedDevice.IsApproved(h, Settings.ApprovedDevices); };
+        r.OnApproved = h =>
+        {
+            var d = new ApprovedDevice(h.DeviceId, h.DeviceName, h.DevicePublicKey, DateTimeOffset.UtcNow);
+            lock (remoteLock)
+            {
+                Settings.ApprovedDevices.RemoveAll(x => x.Id == d.Id);
+                Settings.ApprovedDevices.Add(d);
+            }
+            ui.TryEnqueue(() => { Save(); Changed?.Invoke(); });
+        };
+        // The question waits in the main window (it never takes the screen from Live during a show).
+        r.AskApproval = (token, name, code, answer) => ui.TryEnqueue(() =>
+        {
+            pendingAnswer?.Invoke(false);
+            PendingApproval = (token, name, code);
+            pendingAnswer = answer;
+            ApprovalRequested?.Invoke();
+            Changed?.Invoke();
+        });
+        r.CancelApproval = token => ui.TryEnqueue(() =>
+        {
+            if (PendingApproval?.Token != token) return;
+            PendingApproval = null;
+            pendingAnswer = null;
+            ApprovalCancelled?.Invoke();
+            Changed?.Invoke();
+        });
+        r.CurrentStructure = () => Bridge.Structure;
+        r.CurrentSceneCount = () => { var s = Bridge.Snapshot(); return s.Song.SceneCount ?? s.Scenes.Count; };
+        r.RunCommand = (cmd, done, late) =>
+        {
+            // Both computers: forward to the backup and run here at the same moment. Only this computer's
+            // command carries the layout it was aimed at (the backup's layout is its own).
+            uint? id = Conductor.ForwardLive(cmd);
+            Bridge.Run(cmd, checkStructure: true, done: (ok, err) =>
+            {
+                if (id is not uint i || (!ok && err == "no_answer")) { done(ok, err, id is uint j ? Conductor.LiveDelivery(j) : "notLinked"); return; }
+                // Wait for the backup's own Live too (up to 1.2 s), but only until the backup has answered.
+                _ = Task.Run(async () =>
+                {
+                    for (double waited = 0; waited < 1.2 && !Conductor.IsSettledLiveDelivery(Conductor.LiveDelivery(i)); waited += 0.05) await Task.Delay(50);
+                    done(ok, err, Conductor.LiveDelivery(i));
+                });
+            }, late: (ok, _) => late(ok));
+        };
+        r.PressCue = Conductor.PressCue;
+        r.BecomeMain = () => ui.TryEnqueue(BecomeMain);
+        r.AllNotesOff = Conductor.Panic;
+        r.Snapshot = Bridge.Snapshot;
+        r.Status = () => { lock (remoteLock) return statusSnapshot; };
+        r.ClientsChanged = (n, w) => ui.TryEnqueue(() => { RemoteClients = n; RemoteWatch = w; Conductor.SetRemoteSummary(new RemoteSummary(n, w)); Changed?.Invoke(); });
+        r.PortChanged = port => remoteAdvertiser.Advertise(DisplayName, port);
+        remoteAdvertiser.Log = log.Write;
+        Bridge.OnUpdate = r.Broadcast;
+        ConfigureRemote();
+    }
+
+    private void ConfigureRemote() => Remote.Configure(Settings.RemoteEnabled ? secret : null);
+
+    public event Action? ApprovalRequested;
+    public event Action? ApprovalCancelled;
+
+    /// <summary>The person allowed (or did not allow) the iPhone that asked.</summary>
+    public void AnswerApproval(int token, bool allow)
+    {
+        if (PendingApproval?.Token != token) return;
+        var a = pendingAnswer;
+        PendingApproval = null;
+        pendingAnswer = null;
+        log.Write(allow ? "Remote: allowed by the person" : "Remote: not allowed by the person");
+        a?.Invoke(allow);
+        Changed?.Invoke();
+    }
+
+    public void SetRemoteEnabled(bool on)
+    {
+        Settings.RemoteEnabled = on;
+        Save();
+        ConfigureRemote();
+        Changed?.Invoke();
+    }
+
+    public void RemoveDevice(string id)
+    {
+        lock (remoteLock) Settings.ApprovedDevices.RemoveAll(d => d.Id == id);
+        Save();
+        Remote.Revoke(id);
+        Changed?.Invoke();
+    }
+
+    /// <summary>What the iPhones show about both computers (refreshed twice a second, sent when it changes or every second).</summary>
+    private void RefreshRemoteStatus()
+    {
+        var snap = Conductor.Snapshot();
+        string? peerName = snap.LinkedPeer is string p ? snap.PeerNames.GetValueOrDefault(p) ?? Peers.FirstOrDefault(x => x.Id == p)?.Name ?? p : null;
+        var cue = snap.LastCue is CueStatus c
+            ? new RemoteStatus.CueSummary(c.Label, c.Memo, c.Count, c.Delivery switch
+            {
+                CueStatus.DeliveryKind.Delivered => "delivered",
+                CueStatus.DeliveryKind.Waiting => "waiting",
+                CueStatus.DeliveryKind.Missing => "missing",
+                CueStatus.DeliveryKind.Unconfirmed => "unconfirmed",
+                CueStatus.DeliveryKind.NotConnected => "notConnected",
+                _ => "received",
+            })
+            : null;
+        var st = new RemoteStatus(DisplayName, LiveConnected, peerName, peerName is not null,
+            peerName is not null && Conductor.PeerLiveConnected == true, peerName is not null ? snap.LatencyMs : null, cue,
+            Conductor.CueKeys.Select(k => new RemoteStatus.CueKeySummary(k.KeyCode, k.Label, k.Memo)).ToList(), Conductor.SetDifference);
+        bool changed;
+        lock (remoteLock)
+        {
+            changed = !st.SameAs(statusSnapshot);
+            statusSnapshot = st;
+        }
+        double now = clock.Elapsed.TotalSeconds;
+        if (changed || now - lastStatusBroadcast > 1)
+        {
+            lastStatusBroadcast = now;
+            Remote.BroadcastStatus();
         }
     }
 
@@ -416,13 +563,17 @@ internal sealed class AppModel : ObservableObject, IDisposable
             pairing.Save(null);
             PairingCode = null;
             Conductor.SetPairing(null);
+            secret = null;
+            ConfigureRemote();
             Changed?.Invoke();
             return true;
         }
-        if (Pairing.Normalize(code) is not string n || PairingSecret.FromCode(n) is not PairingSecret secret) return false;
+        if (Pairing.Normalize(code) is not string n || PairingSecret.FromCode(n) is not PairingSecret s) return false;
         PairingCode = Pairing.Formatted(n);
         if (!pairing.Save(PairingCode)) log.Write("The pairing code could not be saved");
-        Conductor.SetPairing(secret);
+        Conductor.SetPairing(s);
+        secret = s;
+        ConfigureRemote();
         Changed?.Invoke();
         return true;
     }
@@ -488,6 +639,8 @@ internal sealed class AppModel : ObservableObject, IDisposable
         Net.Flush(TimeSpan.FromSeconds(1));
         ticker.Dispose();
         liveTicker.Dispose();
+        Remote.Dispose();
+        remoteAdvertiser.Dispose();
         Bridge.Dispose();
         hook.Dispose();
         discovery.Dispose();

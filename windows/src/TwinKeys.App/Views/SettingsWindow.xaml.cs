@@ -56,7 +56,7 @@ public sealed partial class SettingsWindow : Window
             ("midi", "", S["PageMidi"], true),
             ("live", "", S["PageLive"], true),
             ("pairing", "", S["PagePairing"], true),
-            ("remote", "", S["PageRemote"], false),
+            ("remote", "", S["PageRemote"], true),
             ("updates", "", S["PageUpdates"], true),
             ("general", "", S["PageGeneral"], true),
         })
@@ -96,6 +96,7 @@ public sealed partial class SettingsWindow : Window
             case "midi": MidiPage(); break;
             case "live": LivePage(); break;
             case "pairing": PairingPage(); break;
+            case "remote": RemotePage(); break;
             case "updates": UpdatesPage(); break;
             case "general": GeneralPage(); break;
             default: CueKeysPage(); break;
@@ -438,6 +439,46 @@ public sealed partial class SettingsWindow : Window
         }
         lib.Children.Add(libButtons);
         PagePanel.Children.Add(Hint(S["LiveUntested"]));
+    }
+
+    /// <summary>TwinKeys Remote (phase 3): accept iPhones, and the devices allowed on this PC.</summary>
+    private void RemotePage()
+    {
+        var S = Strings.Current;
+        Heading(S["PageRemote"], S["RemoteExplain"]);
+        var card = Card();
+        var on = new ToggleSwitch { Header = S["RemoteEnabled"], IsOn = model.Settings.RemoteEnabled };
+        on.Toggled += (_, _) => { model.SetRemoteEnabled(on.IsOn); ShowPage(); };
+        card.Children.Add(on);
+        card.Children.Add(Hint(S["RemoteHelp"]));
+        if (model.Settings.RemoteEnabled)
+        {
+            string line = model.PairingCode is null ? S["RemoteNeedsCode"]
+                : model.Remote.Port is ushort port ? S.F("RemoteListening", port, model.RemoteClients) : S["RemoteNotListening"];
+            card.Children.Add(new TextBlock { Text = line, TextWrapping = TextWrapping.Wrap, FontSize = 13 });
+        }
+
+        var list = Card();
+        list.Children.Add(new TextBlock { Text = S["AllowedDevices"], FontSize = 14, FontWeight = FontWeights.SemiBold });
+        var devices = model.Settings.ApprovedDevices.ToList();
+        if (devices.Count == 0) list.Children.Add(Hint(S["NoAllowedDevices"]));
+        foreach (var d in devices)
+        {
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = d.Name, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(Hint(d.ApprovedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)));
+            row.Children.Add(text);
+            var remove = new Button { Content = S["RemoveDevice"] };
+            ToolTipService.SetToolTip(remove, S.F("RemoveDeviceHelp", d.Name));
+            remove.Click += (_, _) => { model.RemoveDevice(d.Id); ShowPage(); };
+            Grid.SetColumn(remove, 1);
+            row.Children.Add(remove);
+            list.Children.Add(row);
+        }
+        PagePanel.Children.Add(Hint(S["RemoteUntested"]));
     }
 
     private void PairingPage()

@@ -209,4 +209,26 @@ Windows では特別な許可は不要です（管理者として動くアプリ
   <data name="BridgeNeedsRestartLong" xml:space="preserve"><value>Live は古い TwinKeysBridge で動いています。新しい部品は入れてあるので、Live を再起動してください。</value></data>
   <data name="BridgeVersionLine" xml:space="preserve"><value>入っている版 {0}・このアプリの版 {1}</value></data>
   <data name="LiveUntested" xml:space="preserve"><value>本物の Windows PC の Live ではまだ試していません。</value></data>
+  <data name="RemoteExplain" xml:space="preserve"><value>iPhone・iPad の TwinKeys Remote から、この PC を通して Live を操作します（シーン、クリップ、再生と停止、テンポ、ミキサー、キューのボタン、オールノートオフ）。この PC がメインのときは、Live の操作をバックアップにも送ります。</value></data>
+  <data name="RemoteEnabled" xml:space="preserve"><value>TwinKeys Remote からの接続を受け付ける</value></data>
+  <data name="RemoteHelp" xml:space="preserve"><value>同じ合言葉が必要です。iPhone・iPad ごとに、この PC で一度だけ許可します。Windows ファイアウォールが TwinKeys のネットワーク利用を確認してきたら、プライベート ネットワークで許可してください。</value></data>
+  <data name="RemoteNeedsCode" xml:space="preserve"><value>先に合言葉を設定してください（「設定」&gt;「合言葉」）。</value></data>
+  <data name="RemoteListening" xml:space="preserve"><value>TCP ポート {0} で iPhone を待っています・いま {1} 台が接続中</value></data>
+  <data name="RemoteNotListening" xml:space="preserve"><value>いまは iPhone を待てません（ログを見てください）。</value></data>
+  <data name="AllowedDevices" xml:space="preserve"><value>許可した端末</value></data>
+  <data name="NoAllowedDevices" xml:space="preserve"><value>まだありません</value></data>
+  <data name="RemoveDevice" xml:space="preserve"><value>取り消す</value></data>
+  <data name="RemoveDeviceHelp" xml:space="preserve"><value>{0} の許可を取り消します（すぐに切断します）</value></data>
+  <data name="RemoteUntested" xml:space="preserve"><value>本物の iPhone と Windows PC ではまだ試していません。</value></data>
+  <data name="ApproveBanner" xml:space="preserve"><value>「{0}」が TwinKeys で Live を操作しようとしています（番号 {1}）。</value></data>
+  <data name="ApproveReview" xml:space="preserve"><value>確認する…</value></data>
+  <data name="ApproveTitle" xml:space="preserve"><value>この iPhone を許可しますか？</value></data>
+  <data name="ApproveMessage" xml:space="preserve"><value>「{0}」が TwinKeys で Live を操作しようとしています。
+
+iPhone の番号: {1}
+
+iPhone に同じ4桁が出ているときだけ許可してください。</value></data>
+  <data name="ApproveAllow" xml:space="preserve"><value>許可</value></data>
+  <data name="ApproveDeny" xml:space="preserve"><value>許可しない</value></data>
+  <data name="RemoteCount" xml:space="preserve"><value>iPhone {0} 台</value></data>
 </root>

@@ -67,7 +67,7 @@ public partial class App : Application
             XamlCheck.Run(EarlyLog.Write);
             ShowFirstRun();
             ShowMain();
-            foreach (var page in new[] { "cues", "midi", "live", "pairing", "updates", "general" }) ShowSettings(page);
+            foreach (var page in new[] { "cues", "midi", "live", "pairing", "remote", "updates", "general" }) ShowSettings(page);
             EarlyLog.Write("Smoke: all windows opened");
             return;
         }

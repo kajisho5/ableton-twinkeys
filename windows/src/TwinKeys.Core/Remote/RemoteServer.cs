@@ -20,6 +20,8 @@ public sealed class RemoteServer : IDisposable
     /// <summary>Bytes queued to one device: above SlowLimit meters and clip progress are skipped, above DropLimit it is disconnected.</summary>
     public const int SlowLimit = 1 << 20, DropLimit = 8 << 20;
     public const int MaxClients = 8;
+    /// <summary>The TCP port the Windows app asks for (the Mac lets the system choose; both are found with DNS-SD).</summary>
+    public const ushort DefaultPort = 47803;
 
     private readonly object gate = new();
     private readonly string serverId;
@@ -109,23 +111,31 @@ public sealed class RemoteServer : IDisposable
 
     private void StartListenerLocked()
     {
-        Socket s;
-        try
-        {
-            s = new Socket(Socket.OSSupportsIPv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            if (s.AddressFamily == AddressFamily.InterNetworkV6) s.DualMode = true;
-            s.Bind(new IPEndPoint(s.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, wantedPort));
-            s.Listen(16);
-        }
-        catch (SocketException e)
-        {
-            Log?.Invoke($"Remote: cannot listen on TCP ({e.SocketErrorCode})");
-            return;
-        }
+        // The fixed port when it is free (a firewall rule can name it), else any port: the iPhone finds it with DNS-SD.
+        Socket? s = TryListen(wantedPort) ?? (wantedPort != 0 ? TryListen(0) : null);
+        if (s is null) return;
         listener = s;
         Port = (ushort)((IPEndPoint)s.LocalEndPoint!).Port;
         Log?.Invoke($"Remote: waiting for iPhones on TCP port {Port}");
         new Thread(() => AcceptLoop(s)) { IsBackground = true, Name = "TwinKeys Remote accept" }.Start();
+    }
+
+    private Socket? TryListen(ushort port)
+    {
+        var s = new Socket(Socket.OSSupportsIPv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        try
+        {
+            if (s.AddressFamily == AddressFamily.InterNetworkV6) s.DualMode = true;
+            s.Bind(new IPEndPoint(s.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, port));
+            s.Listen(16);
+            return s;
+        }
+        catch (SocketException e)
+        {
+            s.Dispose();
+            Log?.Invoke($"Remote: cannot listen on TCP port {port} ({e.SocketErrorCode})");
+            return null;
+        }
     }
 
     private void AcceptLoop(Socket l)

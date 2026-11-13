@@ -209,4 +209,26 @@ Connect / Disconnect: Ctrl+K · Connect by IP: Ctrl+Shift+K · Settings: Ctrl+, 
   <data name="BridgeNeedsRestartLong" xml:space="preserve"><value>Live is still running an older TwinKeysBridge. The new one is installed: restart Live to use it.</value></data>
   <data name="BridgeVersionLine" xml:space="preserve"><value>Installed version {0} · in this app {1}</value></data>
   <data name="LiveUntested" xml:space="preserve"><value>Not yet tested with Live on a real Windows PC.</value></data>
+  <data name="RemoteExplain" xml:space="preserve"><value>TwinKeys Remote on an iPhone or iPad controls Live through this PC: scenes, clips, transport, tempo and mixer, the cue buttons and All Notes Off. As the main, this PC also sends each Live action to the backup.</value></data>
+  <data name="RemoteEnabled" xml:space="preserve"><value>Allow TwinKeys Remote to connect</value></data>
+  <data name="RemoteHelp" xml:space="preserve"><value>Needs the same pairing code, and each iPhone or iPad is allowed once on this PC. Windows Firewall may ask whether TwinKeys may use the network: allow it on private networks.</value></data>
+  <data name="RemoteNeedsCode" xml:space="preserve"><value>Set a pairing code first (Settings &gt; Pairing Code).</value></data>
+  <data name="RemoteListening" xml:space="preserve"><value>Waiting for iPhones on TCP port {0} · {1} connected now</value></data>
+  <data name="RemoteNotListening" xml:space="preserve"><value>Cannot wait for iPhones right now (see the log).</value></data>
+  <data name="AllowedDevices" xml:space="preserve"><value>Allowed devices</value></data>
+  <data name="NoAllowedDevices" xml:space="preserve"><value>None yet</value></data>
+  <data name="RemoveDevice" xml:space="preserve"><value>Remove</value></data>
+  <data name="RemoveDeviceHelp" xml:space="preserve"><value>Stop allowing {0} (it is disconnected now)</value></data>
+  <data name="RemoteUntested" xml:space="preserve"><value>Not yet tested with a real iPhone and a real Windows PC.</value></data>
+  <data name="ApproveBanner" xml:space="preserve"><value>“{0}” asks to control Live through TwinKeys (code {1}).</value></data>
+  <data name="ApproveReview" xml:space="preserve"><value>Review…</value></data>
+  <data name="ApproveTitle" xml:space="preserve"><value>Allow this iPhone?</value></data>
+  <data name="ApproveMessage" xml:space="preserve"><value>“{0}” wants to control Live through TwinKeys.
+
+Code on the iPhone: {1}
+
+Allow it only if the iPhone shows the same 4 digits.</value></data>
+  <data name="ApproveAllow" xml:space="preserve"><value>Allow</value></data>
+  <data name="ApproveDeny" xml:space="preserve"><value>Don’t Allow</value></data>
+  <data name="RemoteCount" xml:space="preserve"><value>iPhone ×{0}</value></data>
 </root>
