@@ -356,6 +356,7 @@ struct ContentView: View {
         let isLinked = state.linkedPeerID == peer.id
         let mismatch = state.mismatchedPeers.contains(peer.id) && !isLinked
         var detail = peer.isCompatible ? t.modes(peer) : t.incompatible
+        if let os = peer.osDisplayName { detail = os + "  ·  " + detail }    // a Windows PC (TwinKeys for Windows)
         if mismatch { detail += "  ·  " + t.codeMismatch }
         var dot = mismatch ? Theme.warning : Theme.idleDot
         if isLinked {

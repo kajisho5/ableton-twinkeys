@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     private bool updating;
     private string peerSignature = "";
     private string bannerKey = "";
+    private ContentDialog? approvalDialog;
 
     internal MainWindow(AppModel model, Action<string?> showSettings, Action showFirstRun, Action quit)
     {
@@ -46,6 +47,7 @@ public sealed partial class MainWindow : Window
 
         model.LanguageChanged += () => { peerSignature = ""; bannerKey = ""; ApplyStrings(); Refresh(); };
         model.Changed += () => { peerSignature = ""; Refresh(); };
+        model.ApprovalCancelled += () => { approvalDialog?.Hide(); approvalDialog = null; bannerKey = ""; };
         ApplyStrings();
         Refresh();
         timer = DispatcherQueue.CreateTimer();
@@ -80,7 +82,6 @@ public sealed partial class MainWindow : Window
         ReceiveLabel.Text = S["ReceiveNotes"];
         ReceiveHint.Text = S["ReceiveNotesHint"];
         CaptureLabel.Text = S["KeyCapture"];
-        LiveStatus.Text = S["LiveNotYet"];
         VersionText.Text = "v" + AppModel.Version;
         ToolTipService.SetToolTip(VersionText, S["TestVersionNote"]);
     }
@@ -120,6 +121,7 @@ public sealed partial class MainWindow : Window
                 CaptureHint.Foreground = B("TkSecondaryText");
             }
             RefreshFooter(S);
+            RefreshLive(S);
             RefreshBanner(S, s);
         }
         finally
@@ -145,6 +147,8 @@ public sealed partial class MainWindow : Window
                         _ => S["BothOff"],
                     });
                     if (OsName(model.Peers.FirstOrDefault(p => p.Id == c.Peer)?.Os) is string os) parts.Add(S.F("PeerOs", os));
+                    if (model.Conductor.PeerLiveConnected is bool peerLive) parts.Add(peerLive ? S["PeerLiveOK"] : S["PeerLiveNo"]);
+                    if (model.RemoteClients > 0) parts.Add(S.F("RemoteCount", model.RemoteClients));
                     LinkDetail.Text = string.Join(S["Separator"], parts);
                     break;
                 }
@@ -296,15 +300,93 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>The footer's Live status (phase 2).</summary>
+    private void RefreshLive(Strings S)
+    {
+        if (model.LiveConnected)
+        {
+            LiveDot.Fill = model.BridgeNeedsRestart ? B("TkCaution") : B("TkSuccess");
+            LiveStatus.Text = model.BridgeNeedsRestart ? S["LiveNeedsRestart"] : S["LiveConnected"];
+        }
+        else
+        {
+            LiveDot.Fill = B("TkTertiaryText");
+            LiveStatus.Text = model.Installer.IsInstalled ? S["LiveNotConnected"] : S["LiveNotInstalled"];
+        }
+    }
+
+    private async Task ReviewApprovalAsync(int token, string name, string code)
+    {
+        if (approvalDialog is not null) return;
+        var S = Strings.Current;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = S["ApproveTitle"],
+            Content = new TextBlock { Text = S.F("ApproveMessage", name, code), TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = S["ApproveAllow"],
+            CloseButtonText = S["ApproveDeny"],
+            DefaultButton = ContentDialogButton.Close,
+        };
+        approvalDialog = dialog;
+        model.OwnInputHasFocus = true;
+        try
+        {
+            var r = await dialog.ShowAsync();
+            // Hidden because the question ended (time limit, the iPhone left): no answer.
+            if (approvalDialog == dialog) model.AnswerApproval(token, r == ContentDialogResult.Primary);
+        }
+        finally
+        {
+            model.OwnInputHasFocus = false;
+            if (approvalDialog == dialog) approvalDialog = null;
+            bannerKey = "";
+        }
+    }
+
+    private async Task ConfirmBecomeMainAsync()
+    {
+        var S = Strings.Current;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = S["BecomeMainTitle"],
+            Content = new TextBlock { Text = S["BecomeMainMessage"], TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = S["BecomeMainConfirm"],
+            CloseButtonText = S["Cancel"],
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        model.OwnInputHasFocus = true;
+        try
+        {
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary) model.BecomeMain();
+        }
+        finally { model.OwnInputHasFocus = false; }
+        bannerKey = "";
+    }
+
     private void RefreshBanner(Strings S, ConductorSnapshot s)
     {
-        string key = "", text = "";
+        string key = "", text = "", title = "";
         string? action = null;
         Action? onAction = null;
         var severity = InfoBarSeverity.Informational;
-        if (model.Problem is string problem)
+        var diff = model.Conductor.SetDifference;
+        if (model.PendingApproval is (int token, string name, string code))
+        {
+            // An iPhone asks to connect (phase 3). Asked here, not in a window of its own, so it never takes the screen from Live.
+            (key, severity, text, action) = ($"approve:{token}", InfoBarSeverity.Warning, S.F("ApproveBanner", name, code), S["ApproveReview"]);
+            onAction = () => _ = ReviewApprovalAsync(token, name, code);
+        }
+        else if (model.Problem is string problem)
         {
             (key, severity, text) = ("problem:" + problem, InfoBarSeverity.Error, problem);
+        }
+        else if (model.MainLost(s))
+        {
+            // The main computer stopped answering: this PC can take over (the Mac's 2.3 banner).
+            (key, severity, title, text, action) = ("mainLost", InfoBarSeverity.Error, S["MainLostTitle"], S["MainLostMessage"], S["BecomeMainButton"]);
+            onAction = () => _ = ConfirmBecomeMainAsync();
         }
         else if (!s.IsPaired)
         {
@@ -321,11 +403,25 @@ public sealed partial class MainWindow : Window
             (key, severity, text, action) = ("mismatch", InfoBarSeverity.Warning, S["CodeMismatchBanner"], S["SetUpPairing"]);
             onAction = () => showSettings("pairing");
         }
+        else if (s.ClaimsMain)
+        {
+            (key, severity, text, action) = ("claimsMain", InfoBarSeverity.Informational, S["ThisPcIsMain"], S["ReturnToMain"]);
+            onAction = () => { model.ReturnToMain(); bannerKey = ""; };
+        }
+        else if (diff is not null)
+        {
+            var summary = S.F("SetDiffSummary", diff.MainTracks, diff.BackupTracks, diff.MainScenes, diff.BackupScenes, diff.Differences)
+                          + (diff.Complete ? "" : " " + S["SetDiffChecking"]);
+            var rows = diff.Rows.Take(5).Select(r => $"{(r.Kind == "track" ? "T" : "S")}{r.Index + 1}: {r.Main ?? "—"} / {r.Backup ?? "—"}");
+            (key, severity, title, text) = ($"setDiff:{summary}:{string.Join("|", rows)}", InfoBarSeverity.Warning, S["SetDiffTitle"],
+                summary + "\n" + string.Join("\n", rows) + "\n" + S["SetDiffNote"]);
+        }
         key += "#" + S.Language;
         if (key == bannerKey) return;
         bannerKey = key;
         Banner.IsOpen = text.Length > 0;
         Banner.Severity = severity;
+        Banner.Title = title;
         Banner.Message = text;
         if (action is not null && onAction is not null)
         {

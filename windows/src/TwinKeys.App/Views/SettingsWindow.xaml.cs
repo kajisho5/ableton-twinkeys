@@ -56,7 +56,7 @@ public sealed partial class SettingsWindow : Window
             ("midi", "", S["PageMidi"], true),
             ("live", "", S["PageLive"], true),
             ("pairing", "", S["PagePairing"], true),
-            ("remote", "", S["PageRemote"], false),
+            ("remote", "", S["PageRemote"], true),
             ("updates", "", S["PageUpdates"], true),
             ("general", "", S["PageGeneral"], true),
         })
@@ -96,6 +96,7 @@ public sealed partial class SettingsWindow : Window
             case "midi": MidiPage(); break;
             case "live": LivePage(); break;
             case "pairing": PairingPage(); break;
+            case "remote": RemotePage(); break;
             case "updates": UpdatesPage(); break;
             case "general": GeneralPage(); break;
             default: CueKeysPage(); break;
@@ -352,11 +353,132 @@ public sealed partial class SettingsWindow : Window
 
     // MARK: Live, pairing, updates, general
 
+    private (string Text, bool Failed)? bridgeResult;
+
+    /// <summary>Live (phase 2): TwinKeysBridge status, installing it, and where Live's User Library is.</summary>
     private void LivePage()
     {
         var S = Strings.Current;
-        Heading(S["PageLive"]);
-        Card().Children.Add(new TextBlock { Text = S["LivePhase2"], TextWrapping = TextWrapping.Wrap, FontSize = 14 });
+        Heading(S["PageLive"], S["LiveExplain"]);
+        var inst = model.Installer;
+
+        var status = Card();
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        line.Children.Add(new Ellipse
+        {
+            Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center,
+            Fill = !model.LiveConnected ? B("TkTertiaryText") : model.BridgeNeedsRestart ? B("TkCaution") : B("TkSuccess"),
+        });
+        line.Children.Add(new TextBlock
+        {
+            Text = model.LiveConnected ? S["LiveConnected"] : inst.IsInstalled ? S["LiveNotConnected"] : S["LiveNotInstalled"],
+            FontSize = 14, FontWeight = FontWeights.SemiBold,
+        });
+        status.Children.Add(line);
+        if (model.BridgeNeedsRestart)
+            status.Children.Add(new TextBlock { Text = S["BridgeNeedsRestartLong"], TextWrapping = TextWrapping.Wrap, Foreground = B("TkCriticalText") });
+        status.Children.Add(new TextBlock { Text = S["LiveHowTo"], TextWrapping = TextWrapping.Wrap, FontSize = 13 });
+        var result = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        var install = new Button
+        {
+            Content = inst.IsInstalled ? S["UpdateBridge"] : S["InstallBridge"],
+            IsEnabled = inst.HasBundled,
+            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+        };
+        install.Click += (_, _) =>
+        {
+            var err = model.InstallBridge();
+            bridgeResult = (err is null ? S.F("BridgeInstalled", model.Installer.Installed) : S.F("BridgeInstallFailed", err), err is not null);
+            ShowPage();
+        };
+        buttons.Children.Add(install);
+        var show = new Button { Content = S["ShowBridgeFolder"] };
+        show.Click += (_, _) =>
+        {
+            var i = model.Installer;
+            var folder = i.IsInstalled ? i.Installed : Directory.Exists(i.RemoteScripts) ? i.RemoteScripts : i.UserLibrary;
+            if (Directory.Exists(folder)) AppModel.OpenUrl(folder);
+        };
+        buttons.Children.Add(show);
+        status.Children.Add(buttons);
+        if (bridgeResult is (string text, bool failed))
+        {
+            result.Text = text;
+            result.Foreground = failed ? B("TkCriticalText") : B("TkSecondaryText");
+            result.Visibility = Visibility.Visible;
+        }
+        status.Children.Add(result);
+        if (!inst.HasBundled) status.Children.Add(Hint(S["BridgeNotBundled"]));
+        else status.Children.Add(Hint(S.F("BridgeVersionLine", inst.IsInstalled ? inst.InstalledVersion.ToString(System.Globalization.CultureInfo.InvariantCulture) : "—", inst.BundledVersion)));
+
+        var lib = Card();
+        lib.Children.Add(new TextBlock { Text = S.F("UserLibraryLabel", inst.UserLibrary), TextWrapping = TextWrapping.Wrap, FontSize = 14, IsTextSelectionEnabled = true });
+        if (!inst.UserLibraryExists) lib.Children.Add(new TextBlock { Text = S["UserLibraryMissing"], TextWrapping = TextWrapping.Wrap, Foreground = B("TkCriticalText") });
+        var libButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        var choose = new Button { Content = S["ChooseUserLibrary"] };
+        choose.Click += async (_, _) =>
+        {
+            var picker = new Windows.Storage.Pickers.FolderPicker { SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary };
+            picker.FileTypeFilter.Add("*");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WindowHelpers.Handle(this));
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder is null) return;
+            // "Remote Scripts" chosen instead of the User Library itself: take its parent.
+            var path = string.Equals(System.IO.Path.GetFileName(folder.Path), "Remote Scripts", StringComparison.OrdinalIgnoreCase)
+                ? System.IO.Path.GetDirectoryName(folder.Path) ?? folder.Path : folder.Path;
+            model.SetUserLibrary(path);
+            ShowPage();
+        };
+        libButtons.Children.Add(choose);
+        if (model.Settings.LiveUserLibrary is not null)
+        {
+            var reset = new Button { Content = S["UseDefaultUserLibrary"] };
+            reset.Click += (_, _) => { model.SetUserLibrary(null); ShowPage(); };
+            libButtons.Children.Add(reset);
+        }
+        lib.Children.Add(libButtons);
+        PagePanel.Children.Add(Hint(S["LiveUntested"]));
+    }
+
+    /// <summary>TwinKeys Remote (phase 3): accept iPhones, and the devices allowed on this PC.</summary>
+    private void RemotePage()
+    {
+        var S = Strings.Current;
+        Heading(S["PageRemote"], S["RemoteExplain"]);
+        var card = Card();
+        var on = new ToggleSwitch { Header = S["RemoteEnabled"], IsOn = model.Settings.RemoteEnabled };
+        on.Toggled += (_, _) => { model.SetRemoteEnabled(on.IsOn); ShowPage(); };
+        card.Children.Add(on);
+        card.Children.Add(Hint(S["RemoteHelp"]));
+        if (model.Settings.RemoteEnabled)
+        {
+            string line = model.PairingCode is null ? S["RemoteNeedsCode"]
+                : model.Remote.Port is ushort port ? S.F("RemoteListening", port, model.RemoteClients) : S["RemoteNotListening"];
+            card.Children.Add(new TextBlock { Text = line, TextWrapping = TextWrapping.Wrap, FontSize = 13 });
+        }
+
+        var list = Card();
+        list.Children.Add(new TextBlock { Text = S["AllowedDevices"], FontSize = 14, FontWeight = FontWeights.SemiBold });
+        var devices = model.Settings.ApprovedDevices.ToList();
+        if (devices.Count == 0) list.Children.Add(Hint(S["NoAllowedDevices"]));
+        foreach (var d in devices)
+        {
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = d.Name, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(Hint(d.ApprovedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)));
+            row.Children.Add(text);
+            var remove = new Button { Content = S["RemoveDevice"] };
+            ToolTipService.SetToolTip(remove, S.F("RemoveDeviceHelp", d.Name));
+            remove.Click += (_, _) => { model.RemoveDevice(d.Id); ShowPage(); };
+            Grid.SetColumn(remove, 1);
+            row.Children.Add(remove);
+            list.Children.Add(row);
+        }
+        PagePanel.Children.Add(Hint(S["RemoteUntested"]));
     }
 
     private void PairingPage()

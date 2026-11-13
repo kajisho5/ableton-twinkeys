@@ -33,6 +33,8 @@
           <desktop2:FirewallRules Executable="TwinKeys.exe">
             <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="47801" LocalPortMax="47801" Profile="private" />
             <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="47801" LocalPortMax="47801" Profile="domain" />
+            <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="47803" LocalPortMax="47803" Profile="private" />
+            <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="47803" LocalPortMax="47803" Profile="domain" />
           </desktop2:FirewallRules>
         </desktop2:Extension>
       </Extensions>

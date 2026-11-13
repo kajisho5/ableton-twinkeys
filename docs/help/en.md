@@ -296,7 +296,7 @@ The console settings are the same on both Macs: a change on one Mac is copied to
 
 > **This is a test version that has not yet been tried on a real Windows PC.** Try it with your own PC and Live before any show. So far it is only built and tested by GitHub Actions (Windows Server 2025 and Windows 11 Arm64).
 
-TwinKeys for Windows 11 (x64 and ARM64). It speaks the same network protocol as the Mac version, so a **Mac main with a Windows backup**, a **Windows main with a Mac backup**, and two PCs all work. The Live link (TwinKeysBridge) and the iPhone remote are not in the Windows version yet (they come later).
+TwinKeys for Windows 11 (x64 and ARM64). It speaks the same network protocol as the Mac version, so a **Mac main with a Windows backup**, a **Windows main with a Mac backup**, and two PCs all work. From 0.2.0 it also has the Live link (TwinKeysBridge) and the iPhone remote server (TwinKeys Remote). Neither has **been tried on a real Windows PC, with Live on Windows, or with a real iPhone** yet.
 
 ### Installing
 
@@ -328,6 +328,35 @@ If you create the port later, TwinKeys finds it within a few seconds.
 
 The Mac version lists a Windows PC it finds (both use `_twinkeys._udp`). Whether a Mac and a PC find each other has not been checked on real machines yet; if they do not, connect by IP address.
 
+### The Live link (TwinKeysBridge) on Windows
+
+The same TwinKeysBridge as on the Mac (a small script inside Live). Cues still reach Live over MIDI. With the Bridge:
+
+- A backup PC runs the Live actions the main computer (Mac or PC) forwards from the iPhone on its own Live, and reports "delivered" and "ran in Live" (as a Mac backup does).
+- The two computers compare their Live sets (track and scene counts and names) and the window warns when they differ.
+- The bottom line of the window shows "Live: Connected / Not connected".
+
+To install:
+
+1. In Settings > Live, click Install into Live. It is copied to `Documents\Ableton\User Library\Remote Scripts\TwinKeysBridge`.
+2. Restart Live and choose "TwinKeysBridge" as a Control Surface in Settings > Link, Tempo & MIDI (leave Input and Output at None).
+3. If you moved Live's User Library (Live's Settings > Library), choose that folder with Choose User Library… before installing.
+
+The `Remote Scripts` place is the default that third-party guides give; Ableton's own article could not be read to confirm it. If Live does not list TwinKeysBridge, choose the User Library folder shown in Live's Settings > Library again.
+
+### When the main computer has stopped (Windows)
+
+When the link to the main drops unexpectedly, a backup PC shows "⚠ When the main computer has stopped" at the top of the window. Make This PC the Main fires the cues from this PC's keyboard; when the old main comes back, it only receives. Return to Main gives the role back (as on the Mac).
+
+### The iPhone remote (TwinKeys Remote) on Windows
+
+1. In Settings > iPhone Remote, turn on "Allow TwinKeys Remote to connect" (off at first). A pairing code is needed.
+2. When Windows Firewall asks, allow it on private networks (TCP port 47803, or another port if that one is taken).
+3. Choose this PC in TwinKeys Remote on the iPhone. The PC's window shows "… asks to control Live through TwinKeys (code 1234)"; click Review… and Allow only if the iPhone shows the same 4 digits. TwinKeys never opens a window over Live by itself, and the question ends after 60 seconds.
+4. Allowed devices are listed in Settings > iPhone Remote; Remove takes one off at any time.
+
+Actions from the iPhone run on this PC's Live and are forwarded to the backup (Mac or PC). **Not yet tried with a real iPhone and a real Windows PC.**
+
 ### Keys and shortcuts on Windows
 
 - Cue keys are matched by **key position** (the same place on a JIS or US keyboard is the same cue). The defaults are ↑ ↓ ← → Space Enter Esc.
@@ -341,6 +370,7 @@ The Mac version lists a Windows PC it finds (both use `_twinkeys._udp`). Whether
 - Settings: `%LOCALAPPDATA%\TwinKeys\settings.json`
 - Pairing code: `%LOCALAPPDATA%\TwinKeys\pairing.dat` (encrypted, readable only by your Windows user)
 - Logs: `%LOCALAPPDATA%\TwinKeys\Logs\` (open from Settings > General)
+- TwinKeysBridge: the `TwinKeysBridge` folder inside the app (Install into Live copies it to the User Library)
 
 ## Credits
 

@@ -10,6 +10,6 @@
     <Company>SEVENTHWELL</Company>
     <Product>TwinKeys</Product>
     <!-- The Windows version has its own number while it is a test version (not VERSION, which is the Mac app's). -->
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
 </Project>

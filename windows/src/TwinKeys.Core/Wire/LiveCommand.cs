@@ -1,11 +1,13 @@
+using System.Buffers;
 using System.Buffers.Binary;
+using System.Text.Json;
 
 namespace TwinKeys.Core;
 
 /// <summary>
 /// A Live command forwarded between the two computers (packet 0x18). Port of LiveCommand in
-/// Sources/TwinKeysCore/LiveModel.swift: the binary form and the range checks. Running the
-/// commands (TwinKeysBridge) is phase 2; phase 1 only needs to read and write the packet.
+/// Sources/TwinKeysCore/LiveModel.swift: the binary form, the range checks and the TwinKeysBridge
+/// JSON (run by <see cref="BridgeClient"/>).
 /// </summary>
 public abstract record LiveCommand
 {
@@ -105,7 +107,33 @@ public abstract record LiveCommand
         return c is not null && c.IsValid ? c : null;
     }
 
-    /// <summary>The JSON command for the TwinKeysBridge script (LiveBridge/README.md). Used from phase 2.</summary>
+    /// <summary>Aimed at a track or scene by its position (so it must not run after Live's layout changed).</summary>
+    public bool TargetsLayout => this is not (Play or Stop or ContinuePlaying or SetTempo or StopAll);
+
+    /// <summary>The JSON datagram for TwinKeysBridge, with the optional "structure" check (LiveBridge/README.md).</summary>
+    public byte[] BridgeJsonBytes(int id, int? structure = null)
+    {
+        var buf = new ArrayBufferWriter<byte>();
+        using (var w = new Utf8JsonWriter(buf))
+        {
+            w.WriteStartObject();
+            foreach (var (k, v) in BridgeJson(id))
+            {
+                switch (v)
+                {
+                    case int i: w.WriteNumber(k, i); break;
+                    case double d: w.WriteNumber(k, d); break;
+                    case bool b: w.WriteBoolean(k, b); break;
+                    case string s: w.WriteString(k, s); break;
+                }
+            }
+            if (structure is int st) w.WriteNumber("structure", st);
+            w.WriteEndObject();
+        }
+        return buf.WrittenSpan.ToArray();
+    }
+
+    /// <summary>The JSON command for the TwinKeysBridge script (LiveBridge/README.md).</summary>
     public Dictionary<string, object> BridgeJson(int id)
     {
         var d = new Dictionary<string, object> { ["id"] = id };

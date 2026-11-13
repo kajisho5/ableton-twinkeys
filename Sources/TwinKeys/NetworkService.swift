@@ -290,6 +290,7 @@ final class NetworkService: PacketSink {
         txt[TXTKeys.version] = String(WireProtocol.version)
         txt[TXTKeys.modes] = TXTKeys.modes(sends: sends, receives: receives)
         txt[TXTKeys.boot] = ownBoot
+        txt[TXTKeys.os] = TXTKeys.osMac     // read by TwinKeys for Windows; older Macs ignore it
         return NWListener.Service(name: serviceName, type: Self.serviceType, domain: nil, txtRecord: txt)
     }
 

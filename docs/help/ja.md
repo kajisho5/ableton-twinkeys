@@ -296,7 +296,7 @@ TwinKeys 2.4 以降の試験的な機能で、初期状態はオフです。実�
 
 > **まだ本物の Windows PC で試していない試験版です。** 本番で使う前に、必ず自分の PC と Live で試してください。動作の確認は GitHub Actions（Windows Server 2025 と Windows 11 Arm64 のビルド・テスト）だけで行っています。
 
-Windows 11（x64 と ARM64）で動く TwinKeys です。Mac と同じ通信を使うので、**Mac メイン＋Windows バックアップ**も、**Windows メイン＋Mac バックアップ**も、Windows 2台もつながります。Live との連携（TwinKeysBridge）と iPhone リモートは、まだ Windows 版にはありません（次の版から）。
+Windows 11（x64 と ARM64）で動く TwinKeys です。Mac と同じ通信を使うので、**Mac メイン＋Windows バックアップ**も、**Windows メイン＋Mac バックアップ**も、Windows 2台もつながります。0.2.0 から、Live との連携（TwinKeysBridge）と iPhone リモート（TwinKeys Remote）の受け口も入りました。どちらも**本物の Windows PC・Live・iPhone ではまだ試していません**。
 
 ### 入れ方
 
@@ -328,6 +328,35 @@ Windows には Mac のような「アプリが自分で MIDI 入力を作る」�
 
 Windows の相手を Mac 版が見つけると、Mac の一覧にもその PC が出ます（同じ `_twinkeys._udp` を使います）。Mac と PC が互いに見つかるかは、まだ本物の機械で確かめていません。見つからないときは IP アドレスで接続してください。
 
+### Live との連携（TwinKeysBridge、Windows）
+
+Mac 版と同じ TwinKeysBridge（Live の中で動く小さなスクリプト）を使います。キューは今までどおり MIDI で届きます。Bridge があると、次のことができます。
+
+- バックアップの PC が、メインのコンピューター（Mac でも PC でも）が iPhone から送った Live の操作を自分の Live でも行い、「届いた」「Live で動いた」を返します（Mac のバックアップと同じ）。
+- 2台の Live のセット（トラックとシーンの数と名前）を見比べ、違うとウインドウの上に出します。
+- ウインドウ下の行に「Live: 接続済み／未接続」が出ます。
+
+入れ方：
+
+1. 「設定」>「Live」で「Live に組み込む」を押します。`ドキュメント\Ableton\User Library\Remote Scripts\TwinKeysBridge` にコピーされます。
+2. Live を再起動し、「設定」>「Link, Tempo & MIDI」の「コントロールサーフェス」で「TwinKeysBridge」を選びます（入力と出力は「なし」のまま）。
+3. Live のユーザーライブラリを別の場所に移しているとき（Live の「設定」>「ライブラリ」）は、「ユーザーライブラリを選ぶ…」でそのフォルダーを選んでから組み込みます。
+
+`Remote Scripts` の場所はほかの手順書と同じ既定の場所にしていますが、Ableton の公式の説明では確かめられていません。Live が TwinKeysBridge を見つけないときは、Live の「設定」>「ライブラリ」に出ているユーザーライブラリの場所を選び直してください。
+
+### メインのコンピューターが止まったときは（Windows）
+
+バックアップの PC は、メインとの接続が予期せず切れると、ウインドウの上に「⚠ メインのコンピューターが止まったときは」と出します。「この PC をメインにする」を押すと、この PC のキーボードでキューを出せます。元のメインが戻ってくると、そちらは受信だけになります。戻すときは「メインに戻す」を押します（Mac と同じ）。
+
+### iPhone リモート（TwinKeys Remote、Windows）
+
+1. 「設定」>「iPhone リモート」で「TwinKeys Remote からの接続を受け付ける」をオンにします（初めはオフです）。合言葉が必要です。
+2. Windows ファイアウォールの確認が出たら、プライベート ネットワークで許可します（TCP 47803 番。使えないときは別の番号を使います）。
+3. iPhone の TwinKeys Remote でこの PC を選びます。PC のウインドウの上に「…が TwinKeys で Live を操作しようとしています（番号 1234）」と出るので、「確認する…」を押し、iPhone と同じ4桁なら「許可」を押します。勝手にウインドウを開いて Live の前に出ることはありません。60 秒たつと取り消されます。
+4. 許可した端末は「設定」>「iPhone リモート」に出ます。「取り消す」でいつでも外せます。
+
+iPhone からの操作は、この PC の Live で動かし、バックアップ（Mac でも PC でも）にも送ります。**本物の iPhone と Windows PC の組み合わせではまだ試していません。**
+
 ### Windows 版のキーとショートカット
 
 - キューのキーは**キーの位置**で判定します（JIS 配列でも US 配列でも同じ場所なら同じキュー）。初めは ↑ ↓ ← → Space Enter Esc です。
@@ -341,6 +370,7 @@ Windows の相手を Mac 版が見つけると、Mac の一覧にもその PC �
 - 設定 …… `%LOCALAPPDATA%\TwinKeys\settings.json`
 - 合言葉 …… `%LOCALAPPDATA%\TwinKeys\pairing.dat`（このユーザーだけが読める形で暗号化）
 - ログ …… `%LOCALAPPDATA%\TwinKeys\Logs\`（「設定」>「一般」から開けます）
+- TwinKeysBridge …… アプリの中の `TwinKeysBridge` フォルダー（「Live に組み込む」でユーザーライブラリにコピー）
 
 ## 制作
 

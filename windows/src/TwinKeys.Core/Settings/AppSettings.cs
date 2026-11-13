@@ -40,6 +40,11 @@ public sealed class AppSettings
     /// <summary>Closing the window keeps TwinKeys in the notification area (it always does; kept for the Mac's key).</summary>
     public bool TrayOnly { get; set; }
 
+    /// <summary>iPhones / iPads allowed to control Live through this computer (TwinKeys Remote, phase 3).</summary>
+    public List<ApprovedDevice> ApprovedDevices { get; set; } = [];
+    /// <summary>Wait for TwinKeys Remote on the network. Off until the person turns it on (as on the Mac).</summary>
+    public bool RemoteEnabled { get; set; }
+
     // Windows only.
     public MidiOutputMode MidiMode { get; set; } = MidiOutputMode.Loopback;
     public string MidiPortName { get; set; } = "TwinKeys";
@@ -49,6 +54,11 @@ public sealed class AppSettings
     public string HotkeyAllNotesOff { get; set; } = "Ctrl+Alt+P";
     /// <summary>Closing the window keeps TwinKeys running in the notification area (as on the Mac).</summary>
     public bool CloseToTray { get; set; } = true;
+    /// <summary>Live's User Library chosen by the person (null: the default Documents\Ableton\User Library). Phase 2.</summary>
+    public string? LiveUserLibrary { get; set; }
+
+    /// <summary>Swift's Date reference (Codable dates are seconds since 2001-01-01 UTC).</summary>
+    private static readonly DateTimeOffset Reference2001 = new(2001, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     public AppSettings Clone() => FromJson(ToJson())!;
 
@@ -78,6 +88,15 @@ public sealed class AppSettings
             ["block_cue_keys"] = BlockCueKeys,
             ["auto_update"] = AutoUpdate,
             ["tray_only"] = TrayOnly,
+            // The Mac's keys and shape (Codable ApprovedDevice: Data as Base64, Date as seconds since 2001).
+            ["approved_devices"] = new JsonArray(ApprovedDevices.Select(d => (JsonNode)new JsonObject
+            {
+                ["id"] = d.Id,
+                ["name"] = d.Name,
+                ["publicKey"] = Convert.ToBase64String(d.PublicKey),
+                ["approvedAt"] = (d.ApprovedAt - Reference2001).TotalSeconds,
+            }).ToArray()),
+            ["remote_enabled"] = RemoteEnabled,
             ["windows"] = new JsonObject
             {
                 ["midi_output"] = new JsonObject
@@ -87,6 +106,7 @@ public sealed class AppSettings
                 },
                 ["first_run_done"] = FirstRunDone,
                 ["close_to_tray"] = CloseToTray,
+                ["live"] = new JsonObject { ["user_library"] = LiveUserLibrary },
                 ["hotkeys"] = new JsonObject { ["key_capture"] = HotkeyKeyCapture, ["all_notes_off"] = HotkeyAllNotesOff },
             },
         };
@@ -129,6 +149,19 @@ public sealed class AppSettings
         s.BlockCueKeys = Bool(o, "block_cue_keys") ?? s.BlockCueKeys;
         s.AutoUpdate = Bool(o, "auto_update") ?? s.AutoUpdate;
         s.TrayOnly = Bool(o, "tray_only") ?? s.TrayOnly;
+        if (o["approved_devices"] is JsonArray devices)
+        {
+            foreach (var item in devices)
+            {
+                // One unreadable entry drops only that entry.
+                if (item is not JsonObject d || Str(d, "id") is not string did || did.Length == 0 || Str(d, "publicKey") is not string pk) continue;
+                byte[] key;
+                try { key = Convert.FromBase64String(pk); } catch (FormatException) { continue; }
+                if (key.Length != 32) continue;
+                s.ApprovedDevices.Add(new ApprovedDevice(did, Str(d, "name") ?? "iPhone", key, Reference2001.AddSeconds(Dbl(d, "approvedAt") ?? 0)));
+            }
+        }
+        s.RemoteEnabled = Bool(o, "remote_enabled") ?? s.RemoteEnabled;
         if (o["windows"] is JsonObject w)
         {
             if (w["midi_output"] is JsonObject m)
@@ -139,6 +172,7 @@ public sealed class AppSettings
             }
             s.FirstRunDone = Bool(w, "first_run_done") ?? false;
             s.CloseToTray = Bool(w, "close_to_tray") ?? true;
+            if (w["live"] is JsonObject lv && Str(lv, "user_library") is string ul && !string.IsNullOrWhiteSpace(ul)) s.LiveUserLibrary = ul;
             if (w["hotkeys"] is JsonObject h)
             {
                 s.HotkeyKeyCapture = Str(h, "key_capture") ?? s.HotkeyKeyCapture;

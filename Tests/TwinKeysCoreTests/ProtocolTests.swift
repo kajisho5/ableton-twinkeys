@@ -95,4 +95,24 @@ final class ProtocolTests: XCTestCase {
         XCTAssertFalse(TXTKeys.isDuplicateOfUs(["id": "me", "boot": "b1"], ownID: "me", ownBoot: "b1"))
         XCTAssertFalse(TXTKeys.isDuplicateOfUs(["id": "other", "boot": "b2"], ownID: "me", ownBoot: "b1"))
     }
+
+    /// The OS key ("os=mac" from 2.4.1 Macs, "os=win" from TwinKeys for Windows) is optional both ways.
+    func testPeerOSFromTXTIsOptional() {
+        let win = TXTKeys.peer(from: ["id": "pc", "v": "2", "modes": "r", "os": "win"], serviceName: "Stage PC", ownID: "me")
+        XCTAssertEqual(win?.os, "win")
+        XCTAssertEqual(win?.osDisplayName, "Windows")
+        XCTAssertTrue(win!.isCompatible)
+        let mac = TXTKeys.peer(from: ["id": "m", "modes": "s", "os": "mac"], serviceName: "Backup Stage Mac", ownID: "me")
+        XCTAssertEqual(mac?.os, "mac")
+        XCTAssertNil(mac?.osDisplayName)                  // a Mac is not labelled, as before
+        // An older Mac (no os key) reads exactly as before.
+        let old = TXTKeys.peer(from: ["id": "o", "modes": "r"], serviceName: "Old Mac", ownID: "me")
+        XCTAssertEqual(old, PeerInfo(id: "o", name: "Old Mac", sends: false, receives: true))
+        XCTAssertNil(old?.os)
+        XCTAssertNil(old?.osDisplayName)
+        XCTAssertNil(TXTKeys.peer(from: ["id": "e", "os": ""], serviceName: "E", ownID: "me")?.os)
+        XCTAssertEqual(TXTKeys.os, "os")
+        XCTAssertEqual(TXTKeys.osMac, "mac")
+        XCTAssertEqual(TXTKeys.osWindows, "win")
+    }
 }

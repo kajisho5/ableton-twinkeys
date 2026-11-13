@@ -4,6 +4,43 @@ Kept here, not in `release-notes/`, because that folder holds the Mac app's note
 the Mac release workflow read every file in it).
 
 ---
+version: 0.2.0 (test version)
+date: 2026-11-13
+---
+
+## 日本語
+
+> **試験版です。まだ本物の Windows PC・Windows の Live・本物の iPhone では試していません。** ビルドとテストは GitHub Actions（Windows Server 2025、Windows 11 Arm64、Linux、macOS）だけで行っています。本番の前に必ず自分の PC・Live・iPhone で試してください。
+
+### 新しくなったこと
+- Live との連携（TwinKeysBridge）：「設定」>「Live」から Live のユーザーライブラリに組み込めます。ウインドウの下に Live の状態が出ます。
+- バックアップの PC が、メイン（Mac でも PC でも）が iPhone から送った Live の操作を自分の Live で行い、届いたことと Live で動いたことを返します。これまでは Mac に「届いていない」と出ていました。
+- 2台の Live のセット（トラックとシーンの名前）を見比べ、違うときはウインドウに出します。
+- 「メインのコンピューターが止まったときは」の帯と「この PC をメインにする」「メインに戻す」。
+- iPhone リモート（TwinKeys Remote）の受け口：「設定」>「iPhone リモート」でオンにすると、iPhone から Live を操作できます。端末ごとに一度、4桁の番号を確かめて許可します。
+- Mac 版の TwinKeys も、Windows の相手を一覧で「Windows」と表示するようになります（Mac 版の次の版から）。
+
+### まだできないこと
+- キューのキーを MIDI を使わずに Live の操作へ結びつける方式（M3）。TwinKeysBridge の変更が要るので、Mac 版と一緒に入れます。
+- Yamaha 卓の引き継ぎ、TwinKeys が自分で MIDI 入力を作る方式、Microsoft Store 版と自動アップデート。
+
+## English
+
+> **Test version, not yet tried on a real Windows PC, with Live on Windows, or with a real iPhone.** It is only built and tested by GitHub Actions (Windows Server 2025, Windows 11 Arm64, Linux, macOS). Try it with your own PC, Live and iPhone before any show.
+
+### New
+- The Live link (TwinKeysBridge): install it into Live's User Library from Settings > Live. The bottom of the window shows Live's status.
+- A backup PC runs the Live actions the main (Mac or PC) forwards from the iPhone on its own Live, and reports that they arrived and ran. Before, the Mac showed them as not delivered.
+- The two computers compare their Live sets (track and scene names) and the window warns when they differ.
+- The "When the main computer has stopped" banner with Make This PC the Main, and Return to Main.
+- The iPhone remote server (TwinKeys Remote): turn it on in Settings > iPhone Remote to control Live from an iPhone. Each device is allowed once, after checking its 4-digit code.
+- The Mac version of TwinKeys labels a Windows peer "Windows" in its list (from the Mac's next version).
+
+### Not yet
+- Tying cue keys directly to Live actions without MIDI (M3). It needs a TwinKeysBridge change, which will come together with the Mac version.
+- The Yamaha console takeover, TwinKeys creating its own MIDI input, a Microsoft Store version and automatic updates.
+
+---
 version: 0.1.0 (test version)
 date: 2026-11-13
 ---

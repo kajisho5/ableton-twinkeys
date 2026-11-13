@@ -341,9 +341,146 @@ final class InteropVectorsTests: XCTestCase {
         ]
     }
 
+    /// Phase 2 of the Windows version: the set check (names cut to 60 UTF-8 bytes, FNV-1a hash).
+    static let setCheckCases: [(name: String, tracks: [String], scenes: [String])] = [
+        ("empty", [], []),
+        ("simple", ["Music", "SE"], ["1 Intro", "2 Main"]),
+        ("japanese", ["音楽", "効果音", "FX"], ["1 オープニング", "2 本編", "3 カーテンコール"]),
+        ("empty_names", ["", ""], [""]),
+        ("long_names_cut", [String(repeating: "あ", count: 40), String(repeating: "a", count: 59) + "é", String(repeating: "b", count: 60)],
+         [String(repeating: "c", count: 61)]),
+        ("tracks_only", ["Click", "Guide", "Band"], []),
+    ]
+
+    static func setCheckFile() -> [String: Any] {
+        [
+            "about": "Set check (2.1): track and scene names cut to 60 UTF-8 bytes, and the FNV-1a hash sent in setSummary. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+            "cases": setCheckCases.map { c -> [String: Any] in
+                let s = SetSummary(tracks: c.tracks, scenes: c.scenes)
+                return ["name": c.name, "tracks": c.tracks, "scenes": c.scenes,
+                        "cut_tracks": s.tracks, "cut_scenes": s.scenes, "hash": Int(s.hash)]
+            },
+        ]
+    }
+
+    // MARK: remote.json (phase 3 of the Windows version: the iPhone link)
+
+    static let devicePrivate: [UInt8] = (0..<32).map { UInt8(0x40 + $0) }
+    static let ephemeralPrivate: [UInt8] = (0..<32).map { UInt8(0x60 + $0) }
+    static let remoteNonceClient: [UInt8] = (1...16).map { UInt8($0) }
+    static let remoteNonceServer: [UInt8] = (0..<16).map { UInt8(0x81 + $0) }
+
+    static func remoteMessages() -> [(String, RemoteMessage)] {
+        var song = LiveSong()
+        song.tempo = 124.5; song.playing = true; song.beat = "17.3.1"; song.selectedTrack = 1; song.selectedScene = 2
+        song.setName = ""; song.trackCount = 2; song.sceneCount = 3; song.structure = 42; song.bridgeVersion = 3
+        let scenes = [LiveScene(index: 0, name: "1 Intro", color: "#FF3A34", triggered: false, playing: true),
+                      LiveScene(index: 1, name: "2 本編", color: "#888888", triggered: true, playing: false)]
+        let tracks = [LiveTrack(index: 0, name: "Music", color: "#1A2B3C", volume: 0.75, pan: 0, mute: false, solo: false,
+                                playingSlot: 0, firedSlot: -1, sends: [0.5, 0.25]),
+                      LiveTrack(index: 1, name: "SE", color: "#888888", volume: 0.5, pan: -0.25, mute: true, solo: false,
+                                playingSlot: -1, firedSlot: -1, sends: [])]
+        var master = LiveState.MasterStrip(); master.volume = 0.75; master.pan = 0
+        let clips = [LiveClip(scene: 0, hasClip: true, name: "Opening", color: "#FFA500", isPlaying: true, isTriggered: false, lengthBeats: 16),
+                     LiveClip(scene: 1, hasClip: false, name: "", color: "#888888", isPlaying: false, isTriggered: false, lengthBeats: 0)]
+        var state = LiveState()
+        state.song = song; state.scenes = scenes; state.tracks = tracks; state.master = master
+        state.clips = [clips, []]; state.meters = [0: [0.5, 0.25]]; state.masterMeter = [0.75, 0.5]; state.progress = [0: [4, 16]]
+        let diff = SetDiff(mainTracks: 2, backupTracks: 1, mainScenes: 3, backupScenes: 3, differences: 2,
+                           rows: [.init(kind: "track", index: 1, main: "SE", backup: nil), .init(kind: "scene", index: 1, main: "2 本編", backup: "2 Main")],
+                           complete: true)
+        let status = RemoteStatus(mainName: "Stage PC", mainLiveConnected: true, backupName: "Backup Stage Mac", backupLinked: true,
+                                  backupLiveConnected: false, latencyMs: 1.5,
+                                  lastCue: .init(label: "↓", memo: "次のシーン", count: 12, delivery: "delivered"),
+                                  cueKeys: [.init(keycode: 336, label: "↓", memo: "次のシーン"), .init(keycode: 328, label: "↑", memo: "")],
+                                  setDiff: diff)
+        let minimal = RemoteStatus(mainName: "Stage PC", mainLiveConnected: false, backupName: nil, backupLinked: false,
+                                   backupLiveConnected: false, latencyMs: nil, lastCue: nil, cueKeys: [])
+        return [
+            ("command", .command(id: 1, .fireScene(3))),
+            ("command_fireClip", .command(id: 2, .fireClip(track: 1, scene: 2))),
+            ("commandAt", .commandAt(id: 3, .setVolume(track: -1, value: 0.5), structure: 42)),
+            ("commandAt_no_structure", .commandAt(id: 4, .stopAll, structure: nil)),
+            ("commandAt_setSend", .commandAt(id: 5, .setSend(track: 2, send: 1, value: 0.25), structure: 7)),
+            ("command_setMute", .command(id: 6, .setMute(track: 0, on: true))),
+            ("command_setTempo", .command(id: 7, .setTempo(128.5))),
+            ("command_continuePlaying", .command(id: 8, .continuePlaying)),
+            ("go", .go(id: 9, scene: 4, structure: 42)),
+            ("lockScope", .lockScope(on: true, scope: 19)),
+            ("becomeMain", .becomeMain(id: 10)),
+            ("cue", .cue(id: 11, keycode: 336)),
+            ("allNotesOff", .allNotesOff(id: 12)),
+            ("ping", .ping(12.5, watch: nil)),
+            ("ping_watch", .ping(13.25, watch: RemoteWatchState(paired: true, appInstalled: true, reachable: false))),
+            ("lock", .lock(true)),
+            ("waitingForApproval", .waitingForApproval(code: "0427")),
+            ("welcome", .welcome(macName: "Stage PC", features: RemoteFeature.all)),
+            ("denied", .denied),
+            ("result", .result(id: 1, ok: true, error: nil, backup: "delivered")),
+            ("result_error", .result(id: 2, ok: false, error: "structure_changed", backup: "notSent")),
+            ("pong", .pong(12.5)),
+            ("update_song", .update(.song(song))),
+            ("update_scenes", .update(.scenes(scenes))),
+            ("update_tracks", .update(.tracks(tracks, master))),
+            ("update_clips", .update(.clips(track: 0, clips))),
+            ("update_meters", .update(.meters([0: [0.5, 0.25], 3: [0.125, 0]], [0.75, 0.5]))),
+            ("update_progress", .update(.progress([1: [4, 16]]))),
+            ("update_full", .update(.full(state))),
+            ("status", .status(status)),
+            ("status_minimal", .status(minimal)),
+        ]
+    }
+
+    static func remoteFile() -> [String: Any] {
+        let secret = PairingSecret(code: code)!
+        let k = keyBytes(secret.key)
+        let dev = try! Curve25519.KeyAgreement.PrivateKey(rawRepresentation: devicePrivate)
+        let eph = try! Curve25519.KeyAgreement.PrivateKey(rawRepresentation: ephemeralPrivate)
+        let shared = try! eph.sharedSecretFromKeyAgreement(with: dev.publicKey).withUnsafeBytes { Array($0) }
+        let devPub = Array(dev.publicKey.rawRepresentation), ephPub = Array(eph.publicKey.rawRepresentation)
+        let ch = "{\"version\":1,\"deviceID\":\"5B0E7C1A-2D4F-4E8B-9A36-7C1D2E3F4A5B\",\"deviceName\":\"Stage iPhone\",\"devicePublicKey\":\"\(Data(devPub).base64EncodedString())\",\"nonce\":\"\(Data(remoteNonceClient).base64EncodedString())\"}"
+        let sh = "{\"version\":1,\"serverID\":\"8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34\",\"serverName\":\"Stage PC\",\"ephemeralPublicKey\":\"\(Data(ephPub).base64EncodedString())\",\"nonce\":\"\(Data(remoteNonceServer).base64EncodedString())\"}"
+        let chb = Array(ch.utf8), shb = Array(sh.utf8)
+        func tag(_ d: [UInt8]) -> [UInt8] { Array(HMAC<SHA256>.authenticationCode(for: Array("remote".utf8) + d, using: secret.key)) }
+        let info = Array("TwinKeys remote v1".utf8) + Array(SHA256.hash(data: chb + shb))
+        let km = HKDF<SHA256>.deriveKey(inputKeyMaterial: SymmetricKey(data: shared), salt: k, info: info, outputByteCount: 64)
+        let kmb = keyBytes(km)
+        let c2s = Array(kmb[0..<32]), s2c = Array(kmb[32..<64])
+        func seal(_ key: [UInt8], _ counter: UInt64, _ plain: String) -> [UInt8] {
+            let n = RemoteSession.nonce(counter)
+            let box = try! ChaChaPoly.seal(Array(plain.utf8), using: SymmetricKey(data: key), nonce: ChaChaPoly.Nonce(data: n))
+            return RemoteSession.frame(Array(n.prefix(8)) + Array(box.ciphertext) + Array(box.tag))
+        }
+        let sealed: [(String, String, UInt64, String)] = [
+            ("ping_from_iphone", "c2s", 1, "{\"ping\":{\"_0\":12.5}}"),
+            ("command_from_iphone", "c2s", 2, "{\"command\":{\"id\":1,\"_1\":{\"fireScene\":{\"_0\":3}}}}"),
+            ("welcome_to_iphone", "s2c", 1, "{\"welcome\":{\"macName\":\"Stage PC\",\"features\":[\"commandAt\",\"go\",\"lockScope\",\"becomeMain\",\"skipsUnknown\"]}}"),
+            ("pong_to_iphone", "s2c", 2, "{\"pong\":{\"_0\":12.5}}"),
+        ]
+        return [
+            "about": "TwinKeys Remote (iPhone link, phase 3): X25519 with fixed keys, the hellos, tags, HKDF session keys, the 4-digit code, sealed frames, and every message as Swift's JSONEncoder writes it. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+            "pairing_code": code,
+            "device_private": hex(devicePrivate), "device_public": hex(devPub),
+            "ephemeral_private": hex(ephemeralPrivate), "ephemeral_public": hex(ephPub),
+            "shared": hex(shared), "client_hello_json": ch, "server_hello_json": sh,
+            "client_hello_frame": hex(RemoteSession.frame(chb + tag(chb))),
+            "server_hello_frame": hex(RemoteSession.frame(shb + tag(chb + shb))),
+            "client_tag": hex(tag(chb)), "server_tag": hex(tag(chb + shb)), "info": hex(info),
+            "key_c2s": hex(c2s), "key_s2c": hex(s2c), "confirm_code": RemoteSession.confirmCode(chb),
+            "sealed": sealed.map { s -> [String: Any] in
+                ["name": s.0, "direction": s.1, "counter": Int(s.2), "plain": s.3, "frame": hex(seal(s.1 == "c2s" ? c2s : s2c, s.2, s.3))]
+            },
+            "messages": remoteMessages().map { m -> [String: Any] in
+                let obj = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(m.1))
+                return ["name": m.0, "message": obj]
+            },
+        ]
+    }
+
     static var files: [(String, () -> [String: Any])] {
         [("pairing.json", pairingFile), ("packets.json", packetsFile), ("secure.json", secureFile),
-         ("hkdf.json", hkdfFile), ("sequence.json", sequenceFile), ("livecommand.json", liveCommandFile)]
+         ("hkdf.json", hkdfFile), ("sequence.json", sequenceFile), ("livecommand.json", liveCommandFile),
+         ("setcheck.json", setCheckFile), ("remote.json", remoteFile)]
     }
 
     // MARK: Compare or write
@@ -398,6 +535,27 @@ final class InteropVectorsTests: XCTestCase {
     }
 
     /// The sealed vectors also open again with the receiver's channel (sanity check of the inputs).
+    /// The committed remote hellos are accepted by the Mac's own server session, and its messages decode back.
+    func testRemoteVectorsWorkWithTheMacSession() throws {
+        let url = Self.directory.appendingPathComponent("remote.json")
+        guard let f = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any] else { return XCTFail("remote.json") }
+        let server = RemoteSession(serverWith: PairingSecret(code: Self.code)!)
+        let frame = try XCTUnwrap(f["client_hello_frame"] as? String)
+        let bytes = stride(from: 0, to: frame.count, by: 2).map { i -> UInt8 in
+            let a = frame.index(frame.startIndex, offsetBy: i)
+            return UInt8(frame[a..<frame.index(a, offsetBy: 2)], radix: 16)!
+        }
+        let events = try server.receive(bytes)
+        guard case let .clientHello(hello, code)? = events.first else { return XCTFail("no client hello") }
+        XCTAssertEqual(code, f["confirm_code"] as? String)
+        XCTAssertEqual(hello.deviceName, "Stage iPhone")
+        for (name, m) in Self.remoteMessages() {
+            let committed = try XCTUnwrap((f["messages"] as? [[String: Any]])?.first { $0["name"] as? String == name }?["message"], name)
+            let back = try JSONDecoder().decode(RemoteMessage.self, from: JSONSerialization.data(withJSONObject: committed))
+            XCTAssertEqual(back, m, name)
+        }
+    }
+
     func testSealedVectorsOpen() throws {
         let secret = PairingSecret(code: Self.code)!
         let a = SecureChannel(secret: secret, myNonce: Self.nonceA)

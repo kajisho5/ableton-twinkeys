@@ -46,5 +46,7 @@
     <EmbeddedResource Include="App.xaml" LogicalName="Xaml.App.xaml" />
     <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Phase 2: the TwinKeysBridge Remote Script (the same files as the Mac app ships), installed into Live by Settings > Live. -->
+    <Content Include="..\..\..\LiveBridge\TwinKeysBridge\*.py" Link="TwinKeysBridge\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

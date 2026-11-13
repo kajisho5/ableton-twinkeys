@@ -25,11 +25,22 @@ public class SettingsTests : IDisposable
             SendKeys = false, KeyCapture = false, AutoNoteOffSeconds = 5, MidiChannel = 3, Language = "ja",
             ManualAddress = "192.168.1.20", CueKeys = [CueKey.Make(KeyIds.Down, 37, "次のシーン")], BlockCueKeys = false,
             MidiMode = MidiOutputMode.BridgeOnly, MidiPortName = "TwinKeys A", FirstRunDone = true,
+            LiveUserLibrary = @"D:\Music\Ableton\User Library", RemoteEnabled = true,
+            ApprovedDevices = [new ApprovedDevice("PHONE-1", "Stage iPhone", Enumerable.Range(0, 32).Select(i => (byte)i).ToArray(), new DateTimeOffset(2026, 11, 13, 0, 0, 0, TimeSpan.Zero))],
         };
         var back = AppSettings.FromJson(s.ToJson())!;
         Assert.Equal(s.ToJson(), back.ToJson());
         Assert.Contains("\"sc:0x50:e\"", s.ToJson());
         Assert.Contains("次のシーン", s.ToJson());
+        Assert.Equal(@"D:\Music\Ableton\User Library", back.LiveUserLibrary);
+        Assert.Null(AppSettings.FromJson("{}")!.LiveUserLibrary);
+        Assert.True(back.RemoteEnabled);
+        Assert.Equal("Stage iPhone", Assert.Single(back.ApprovedDevices).Name);
+        Assert.Equal(s.ApprovedDevices[0].ApprovedAt, back.ApprovedDevices[0].ApprovedAt);
+        // The Mac's shape: a device written by the Mac app reads here (and a bad entry is dropped).
+        var mac = AppSettings.FromJson("""{"approved_devices":[{"id":"A","name":"iPad","publicKey":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=","approvedAt":784684800},{"id":"B"}],"remote_enabled":true}""")!;
+        Assert.Equal("A", Assert.Single(mac.ApprovedDevices).Id);
+        Assert.Equal(2025, mac.ApprovedDevices[0].ApprovedAt.Year);
     }
 
     [Fact]
