@@ -292,6 +292,56 @@ TwinKeys 2.4 以降の試験的な機能で、初期状態はオフです。実�
 - 設定 …… ~/Library/Application Support/TwinKeys/settings.json
 - ログ …… ~/Library/Logs/TwinKeys/（「ヘルプ」メニューから開けます）
 
+## Windows 版（試験版）
+
+> **まだ本物の Windows PC で試していない試験版です。** 本番で使う前に、必ず自分の PC と Live で試してください。動作の確認は GitHub Actions（Windows Server 2025 と Windows 11 Arm64 のビルド・テスト）だけで行っています。
+
+Windows 11（x64 と ARM64）で動く TwinKeys です。Mac と同じ通信を使うので、**Mac メイン＋Windows バックアップ**も、**Windows メイン＋Mac バックアップ**も、Windows 2台もつながります。Live との連携（TwinKeysBridge）と iPhone リモートは、まだ Windows 版にはありません（次の版から）。
+
+### 入れ方
+
+1. GitHub のリリース（または Actions の成果物）から `TwinKeys-Windows-x64-….zip`（ARM の PC は `arm64`）をダウンロードし、好きな場所に展開します。
+2. `TwinKeys.exe` を開きます。署名していないので「Windows によって PC が保護されました」と出たら、「詳細情報」>「実行」を押します。
+3. 「Windows ファイアウォール」の確認が出たら、**プライベート ネットワーク**で許可します（UDP 47801 番で相手からの接続を待ちます）。パブリック ネットワークでは許可しないでください。許可しなかったときは、「Windows セキュリティ」>「ファイアウォールとネットワーク保護」>「ファイアウォールによるアプリケーションの許可」で TwinKeys にチェックを入れます。
+
+### Live に音を届ける（ループバック MIDI ポート「TwinKeys」を作る）
+
+Windows には Mac のような「アプリが自分で MIDI 入力を作る」標準の方法がまだないため、**ループバック MIDI ポート**を自分で作ります。TwinKeys はそこへ送るだけです。
+
+- **Windows MIDI Services がある Windows 11 の場合**：「MIDI Settings」アプリでループバック（Basic Loopback）を作り、片側の名前を「TwinKeys」にします。TwinKeys はこの「TwinKeys」に送り、Live はもう片側を入力として読みます。
+- **loopMIDI を使う場合**：loopMIDI（Tobias Erichsen 作、https://www.tobias-erichsen.de/software/loopmidi.html ）を入れ、「TwinKeys」という名前のポートを作ります。TwinKeys には同梱していません。
+
+どちらの方法が自分の PC と Live で動くかは、まだ確かめていません。
+
+1. 初めて開いたときの「TwinKeys の準備」で「ループバック MIDI ポート「TwinKeys」」を選び、「送ってみる」を押します。ポートが見つかると「見つかりました：TwinKeys」と出ます。
+2. Live の「設定」>「Link, Tempo & MIDI」で、ループバックの入力の「トラック」と「リモート」をオンにします。
+3. 「送ってみる」で Live の MIDI インジケーターが光れば準備完了です。あとは Mac と同じく MIDI マップモードでキーを割り当てます（キューは ch1、C1=36 から順、ベロシティ 127。Mac と同じノートです）。
+
+ポートはあとから作っても、TwinKeys が数秒以内に自動で見つけます。
+
+### Mac と Windows を混ぜてつなぐ
+
+1. 片方（Mac でも PC でも）で合言葉を作り、もう片方に同じ10文字を入れます（Windows 版は「設定」>「合言葉」）。合言葉は Windows のユーザーごとに暗号化して保存します。
+2. 両方を同じネットワークにつなぎます。相手が「近くの TwinKeys」に出たら「接続」を押します。
+3. 一覧に出ないときは「IP アドレスで接続…」（Ctrl+Shift+K）で相手の IP アドレスを入れます。PC の IP アドレスは「設定」>「合言葉」に出ています。
+4. メインとバックアップの決め方、届いた確認、回数、オールノートオフは Mac 同士と同じです。
+
+Windows の相手を Mac 版が見つけると、Mac の一覧にもその PC が出ます（同じ `_twinkeys._udp` を使います）。Mac と PC が互いに見つかるかは、まだ本物の機械で確かめていません。見つからないときは IP アドレスで接続してください。
+
+### Windows 版のキーとショートカット
+
+- キューのキーは**キーの位置**で判定します（JIS 配列でも US 配列でも同じ場所なら同じキュー）。初めは ↑ ↓ ← → Space Enter Esc です。
+- 「キューのキーを、ほかのアプリに渡さない（おすすめ）」に、特別な許可は要りません。ただし**管理者として動いているアプリが前面にあるときは効きません**。Live はふだんどおり起動してください。
+- TwinKeys の文字入力欄やダイアログを使っている間は、キーはそちらに入ります（Mac と同じ）。
+- Ctrl+K 接続／接続解除、Ctrl+Shift+K IP アドレスで接続、Ctrl+, 設定、F1 この説明。**Ctrl+Alt+K**（キー入力のオン／オフ）と **Ctrl+Alt+P**（オールノートオフ）は、どのアプリが前にあっても効きます。
+- ウインドウを閉じても TwinKeys は通知領域（タスクトレイ）で動き続けます。終了は通知領域のアイコンを右クリック >「TwinKeys を終了」。
+
+### Windows 版のファイル
+
+- 設定 …… `%LOCALAPPDATA%\TwinKeys\settings.json`
+- 合言葉 …… `%LOCALAPPDATA%\TwinKeys\pairing.dat`（このユーザーだけが読める形で暗号化）
+- ログ …… `%LOCALAPPDATA%\TwinKeys\Logs\`（「設定」>「一般」から開けます）
+
 ## 制作
 
 Shogo Kajiyama / SEVENTHWELL ・ MIT License

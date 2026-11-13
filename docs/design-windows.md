@@ -1,6 +1,6 @@
 # TwinKeys for Windows 詳細設計書（案）
 
-- 状態：**設計のみ（承認待ち）**。Windows 版のプログラムはまだ書きません。
+- 状態：**承認済み。フェーズ1を実装しました（`windows/`）。ただし本物の Windows PC ではまだ一度も動かしていません**（CI のビルドとテストだけ）。実装で設計と変えた点は 14 章。
 - 調べた日：2026-11-13（バージョンと値段はこの日の公式ページの内容です）
 - 対象：TwinKeys（Mac 版 2.3.0、`VERSION`）と同じ通信で動く Windows 版
 
@@ -712,3 +712,47 @@ TwinKeysBridge（`LiveBridge/`）は Mac と Windows で同じものを使いま
 - Tauri：https://v2.tauri.app/start/ 、https://v2.tauri.app/distribute/windows-installer/
 - Swift on Windows：https://www.swift.org/install/windows/
 - Swift の Codable（enum）：https://github.com/swiftlang/swift-evolution/blob/main/proposals/0295-codable-synthesis-for-enums-with-associated-values.md
+
+---
+
+## 14. フェーズ1の実装メモ（2026-11-13）
+
+> **本物の Windows PC では未確認です。** 確かめたのは、Linux での Core のテスト（.NET 10.0.404 SDK）と、CI（windows-2025、windows-11-arm、macos-26）です。9.3 の R1〜R9 はすべて残っています。
+
+### 14.1 できたもの
+
+| 場所 | 中身 |
+|---|---|
+| `windows/src/TwinKeys.Core` | 6.1〜6.4 の通信（全パケット、合言葉、PBKDF2、署名と ChaCha20-Poly1305、HKDF、SequenceFilter）、LinkStateMachine、NoteGuard、Safety、PerformanceEngine、Conductor（キュー、届いた確認と再送、回数と名前、held、オールノートオフ、roleClaim／roleHandover）、設定ファイル、UDP（47801） |
+| `windows/src/TwinKeys.App` | WinUI 3：メインウインドウ、設定、トレイ、はじめての準備、キーボードフック、WinMM、mDNS（DNS-SD）、DPAPI、サインイン時に起動、ja/en の文言 |
+| `windows/src/TwinKeys.PeerCli` | テスト用のコマンドラインの相手役（6.6） |
+| `windows/tests` | Core のテスト（Swift のテストの移植＋127.0.0.1 の実 UDP）、共通テストデータのテスト、文言のテスト |
+| `Tests/TwinKeysCoreTests/InteropVectorsTests.swift` | 共通テストデータの書き出しと照合（6.6） |
+| `Tests/TwinKeysCoreTests/InteropPeerTests.swift` | Swift の Conductor と C# の相手役を 127.0.0.1 でつなぐテスト（環境変数があるときだけ動く。アプリは変えていない） |
+| `.github/workflows/windows.yml` | Linux の Core テスト、x64／ARM64 のビルドと ZIP、macOS の相互接続テスト |
+
+### 14.2 設計と変えたところ（理由つき）
+
+1. **CsWin32 は使っていません。** Win32 の呼び出し（フック、WinMM、Shell_NotifyIcon、DNS-SD、DPAPI、RegisterHotKey）は `Platform/NativeMethods.cs` に手で書きました。外部パッケージを1つ減らすためです。使うパッケージは Microsoft.WindowsAppSDK 2.6.5、CommunityToolkit.Mvvm 8.4.2（App）、xunit.v3 4.0.3（テスト）だけです。
+2. **UDP の部分（`UdpTransport`）は Platform ではなく Core に置きました。** `System.Net.Sockets` は OS に関係なく動き、macOS の CI で動かす相手役（PeerCli）でも同じものを使うためです。mDNS は Windows の API なので App 側です。
+3. **共通テストデータの最初の JSON は、Swift ではなく別に書いた Python の実装で作りました**（作業環境に Swift がないため）。C# の結果とは一致を確かめ済みです。Swift の結果との一致は macOS の CI（`InteropVectorsTests`）が確かめます。違ったときは CI が Swift の書き出した JSON を成果物として残します。
+4. **Mac 版の TXT に `os` は足していません**（3.1 の「任意」）。Windows 版は `os=win` を出します。相手の OS は分かったときだけ表示するので、Mac の相手には OS を出しません（モックアップの「相手は macOS」は出ません）。
+5. **Yamaha 卓のパケット（0x22）は中身を確かめずに読み捨てます。** そのため bad-packets のテストデータには 0x22 を入れていません。
+6. **Live のパケット（liveCommand など）は、生きている印としてだけ使います**（フェーズ2）。Windows のバックアップは liveAck を返さないので、Mac メインが iPhone から送った Live の操作は Mac の画面で「届いていない」と出ます。
+7. **トレイのメニューは Windows 標準のポップアップメニューです。** 並びと文言はモックアップどおりですが、色（赤い「オールノートオフ」）と上の2行の書体は再現していません。
+8. **フックが黙って外れたときの検出は、GetLastInputInfo ではなく「15 秒ごとに付け直す」にしました**（新しいフックを付けてから古いものを外すので、すき間はありません）。GetLastInputInfo はマウスの動きでも進むため、キーボードだけの判定に使えませんでした。
+9. **ソフトウェアが送ったキー（LLKHF_INJECTED）はキューにしません**（遠隔操作ソフトなどの二重送信を避けるため）。
+10. **設定ファイルに `windows.first_run_done` と `windows.close_to_tray` を足しました。** MIDI のチャンネルは画面に出さず、ch1 固定です（F1）。
+11. **文言は resw を自分で読みます**（`Platform/Strings.cs`）。言語の切り替えをすぐに反映するためです。両言語のキーがそろっていることは Linux のテストで確かめます。
+12. **ZIP 版のアップデート確認（7.3）は、まだ「GitHub のリリースを開く」ボタンだけです。** MSIX は作っていません（`Package.appxmanifest` はフェーズ2用に置いてあるだけ）。CI の起動テスト（smoke）は、ランナーの画面の事情で失敗しうるので、今は失敗してもジョブを落としません。
+13. **CI で .NET を入れるため `actions/setup-dotnet` v6.1.0 を使います**（この文書に書いていなかった依存。checkout と同じく SHA で固定：`0f4a354dd5547a28c70b7853dbd95d5b67886e73`、https://github.com/actions/setup-dotnet ）。SDK の版は `windows/global.json`（10.0 系、`dotnet test` を Microsoft Testing Platform で動かす設定）で決めます。
+14. 「メインの Mac が止まったときは」の帯（MainLossWatch）は Core にありますが、画面にはまだ出していません。
+
+### 14.3 本物の Windows PC で確かめること（9.3 に加えて）
+
+- WinUI のウインドウがモックアップどおりの大きさ・色で出るか（ライトとダーク、拡大率 100%／150%）。
+- キーボードフックが Live にキューのキーを渡さないか（R3）、Ctrl+Alt+K／Ctrl+Alt+P が効くか、日本語入力（IME）がオンのときにキーが届くか。
+- トレイのアイコンとメニュー、ウインドウを閉じても動き続けるか、サインイン時に起動。
+- WinMM が MIDI Services のループバックと loopMIDI の「TwinKeys」を見つけて送れるか（R1）。MIDI Services のループバックでは、どちらの端の名前が WinMM の出力として見えるか。
+- DnsServiceRegister／DnsServiceBrowse で Mac と互いに見つかるか（R4）、ファイアウォールの確認の出方。
+- 合言葉の DPAPI 保存、settings.json の場所、日本語の PC 名が mDNS で正しく出るか。
