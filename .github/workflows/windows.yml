@@ -106,17 +106,19 @@ jobs:
           Compress-Archive -Path out/TwinKeys/* -DestinationPath $zip
           "{0}: {1:N1} MB" -f $zip, ((Get-Item $zip).Length / 1MB) | Tee-Object size.txt
           Get-ChildItem out/TwinKeys | Select-Object -First 40 Name, Length
-      - name: Launch smoke test (starts, stays up 5 s, quits)
-        continue-on-error: true
+      - name: Launch smoke test (opens every window and settings page, stays up, quits)
         working-directory: windows
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath out/TwinKeys/TwinKeys.exe -PassThru
-          Start-Sleep -Seconds 5
+          $p = Start-Process -FilePath out/TwinKeys/TwinKeys.exe -ArgumentList '--smoke-windows' -PassThru
+          Start-Sleep -Seconds 8
+          $failed = $false
           if ($p.HasExited) { "TwinKeys exited early (code $($p.ExitCode))"; $failed = $true }
           else { "Working set: {0:N1} MB" -f ($p.WorkingSet64 / 1MB) | Tee-Object memory.txt; Stop-Process -Id $p.Id }
-          Get-ChildItem "$env:LOCALAPPDATA/TwinKeys" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length
-          Get-Content "$env:LOCALAPPDATA/TwinKeys/Logs/*.log" -ErrorAction SilentlyContinue
+          $log = Get-Content "$env:LOCALAPPDATA/TwinKeys/Logs/*.log" -ErrorAction SilentlyContinue
+          $log
+          if (-not ($log -match 'Smoke: all windows opened')) { "::error::the windows did not all open"; $failed = $true }
+          if ($log -match 'window failed|XAML resource reference failed|Unhandled') { "::error::a window failed (see the log above)"; $failed = $true }
           if ($failed) { exit 1 }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -145,14 +147,18 @@ jobs:
       - name: The committed vectors still match the Swift code
         run: swift test --skip-build --filter InteropVectorsTests
       - name: Link the Swift Conductor with the C# peer
+        timeout-minutes: 6
         run: |
           dotnet windows/src/TwinKeys.PeerCli/bin/Release/net10.0/twinkeys-peer.dll --code K7MQ2-WX9TP --port 47901 \
             --name "CI Windows Peer (C#)" --script interop --timeout 120 > peer.log 2>&1 &
           PEER=$!
           sleep 2
           set +e
-          TWINKEYS_INTEROP_PEER=127.0.0.1:47901 swift test --skip-build --filter InteropPeerTests 2>&1 | tee swift.log
+          # perl alarm: a hard limit, so a hang shows its log instead of using up the job.
+          TWINKEYS_INTEROP_PEER=127.0.0.1:47901 perl -e 'alarm 180; exec @ARGV' swift test --skip-build --filter InteropPeerTests 2>&1 | tee swift.log
           SWIFT=${PIPESTATUS[0]}
+          kill -0 $PEER 2>/dev/null && sleep 25
+          kill $PEER 2>/dev/null
           wait $PEER; PEER_RESULT=$?
           set -e
           echo "----- C# peer"; cat peer.log

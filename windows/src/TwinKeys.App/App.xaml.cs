@@ -18,6 +18,7 @@ public partial class App : Application
     private Mutex? single;
     private EventWaitHandle? showEvent;
     private AppModel? model;
+    private static readonly FileLog EarlyLog = new(Path.Combine(TwinKeys.Core.SettingsStore.DefaultDirectory, "Logs"));
     private MainWindow? main;
     private SettingsWindow? settings;
     private FirstRunWindow? firstRun;
@@ -28,7 +29,10 @@ public partial class App : Application
         InitializeComponent();
         // Keep running with no window open (notification area only, or started at sign-in).
         DispatcherShutdownMode = DispatcherShutdownMode.OnExplicitShutdown;
-        UnhandledException += (_, e) => model?.Log("Unhandled: " + e.Exception);
+        UnhandledException += (_, e) => EarlyLog.Write("Unhandled: " + e.Message + " | " + e.Exception);
+        // A XAML resource that cannot be found only shows in a debugger otherwise: write it to the log.
+        DebugSettings.XamlResourceReferenceFailed += (_, e) => EarlyLog.Write("XAML resource reference failed: " + e.Message);
+        DebugSettings.BindingFailed += (_, e) => EarlyLog.Write("XAML binding failed: " + e.Message);
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -53,7 +57,17 @@ public partial class App : Application
         model.ShowSettingsRequested += () => ShowSettings(null);
         tray = new TrayIcon(model, Quit);
 
-        bool background = Environment.GetCommandLineArgs().Contains("--background");
+        var cmd = Environment.GetCommandLineArgs();
+        if (cmd.Contains("--smoke-windows"))
+        {
+            // CI: open every window and settings page once, so a XAML error shows up in the log.
+            ShowFirstRun();
+            ShowMain();
+            foreach (var page in new[] { "cues", "midi", "live", "pairing", "updates", "general" }) ShowSettings(page);
+            EarlyLog.Write("Smoke: all windows opened");
+            return;
+        }
+        bool background = cmd.Contains("--background");
         if (!model.Settings.FirstRunDone && !background) ShowFirstRun();
         else if (!background) ShowMain();
     }
@@ -61,31 +75,56 @@ public partial class App : Application
     private void ShowMain()
     {
         if (model is null) return;
-        main ??= new MainWindow(model, ShowSettings, ShowFirstRun, Quit);
-        WindowHelpers.Show(main);
+        try
+        {
+            main ??= new MainWindow(model, ShowSettings, ShowFirstRun, Quit);
+            WindowHelpers.Show(main);
+        }
+        catch (Exception e)
+        {
+            EarlyLog.Write("Main window failed: " + e);
+        }
     }
 
     private void ShowSettings(string? page)
     {
         if (model is null) return;
-        if (settings is null)
+        try
         {
-            settings = new SettingsWindow(model, ShowFirstRun);
-            settings.Closed += (_, _) => settings = null;
+            if (settings is null)
+            {
+                settings = new SettingsWindow(model, ShowFirstRun);
+                settings.Closed += (_, _) => settings = null;
+            }
+            if (page is not null) settings.SelectPage(page);
+            WindowHelpers.Show(settings);
         }
-        if (page is not null) settings.SelectPage(page);
-        WindowHelpers.Show(settings);
+        catch (Exception e)
+        {
+            EarlyLog.Write("Settings window failed: " + e);
+            settings = null;
+        }
     }
 
     private void ShowFirstRun()
     {
         if (model is null) return;
-        if (firstRun is null)
+        try
         {
-            firstRun = new FirstRunWindow(model);
-            firstRun.Closed += (_, _) => { firstRun = null; ShowMain(); };
+            if (firstRun is null)
+            {
+                firstRun = new FirstRunWindow(model);
+                firstRun.Closed += (_, _) => { firstRun = null; ShowMain(); };
+            }
+            WindowHelpers.Show(firstRun);
         }
-        WindowHelpers.Show(firstRun);
+        catch (Exception e)
+        {
+            // Never leave the person without a window: the main window still works without this one.
+            EarlyLog.Write("First-run window failed: " + e);
+            firstRun = null;
+            ShowMain();
+        }
     }
 
     private void Quit()

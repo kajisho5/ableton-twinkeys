@@ -54,7 +54,13 @@ if (opts.TryGetValue("connect", out var target))
     conductor.Connect(placeholder);
 }
 
-if (script == "interop") return RunInterop();
+if (script == "interop")
+{
+    int exitCode = RunInterop();
+    // Exit at once: on macOS, closing a socket another thread is blocked reading can wait (seen in CI).
+    Console.Out.Flush();
+    Environment.Exit(exitCode);
+}
 
 // Interactive.
 string? line;
