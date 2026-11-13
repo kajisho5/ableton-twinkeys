@@ -11,6 +11,9 @@ internal static class XamlCheck
 {
     public static void Run(Action<string> log)
     {
+        var res = Microsoft.UI.Xaml.Application.Current.Resources;
+        log($"XAML check: application theme {Microsoft.UI.Xaml.Application.Current.RequestedTheme}, "
+            + $"TkCritical {(res.ContainsKey("TkCritical") ? "found" : "missing")}, theme dictionaries: {string.Join(",", res.ThemeDictionaries.Keys)}");
         foreach (var name in new[] { "MainWindow", "SettingsWindow", "FirstRunWindow" })
         {
             try

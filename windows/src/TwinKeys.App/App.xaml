@@ -8,9 +8,47 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
-            <!-- Colours of the approved mockups (docs/design/windows-*.svg), light and dark. -->
+            <!-- Colours of the approved mockups (docs/design/windows-*.svg), light and dark. Every theme key is listed
+                 (Default, Dark, Light, HighContrast): a theme without its own dictionary made every window fail to load. -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="TkWindowBackground" Color="#202020" />
+                    <SolidColorBrush x:Key="TkCardBackground" Color="#2B2B2B" />
+                    <SolidColorBrush x:Key="TkCardStroke" Color="#3B3B3B" />
+                    <SolidColorBrush x:Key="TkText" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TkSecondaryText" Color="#C8C8C8" />
+                    <SolidColorBrush x:Key="TkTertiaryText" Color="#9A9A9A" />
+                    <SolidColorBrush x:Key="TkAccent" Color="#4CC2FF" />
+                    <SolidColorBrush x:Key="TkOnAccent" Color="#000000" />
+                    <SolidColorBrush x:Key="TkSuccess" Color="#6CCB5F" />
+                    <SolidColorBrush x:Key="TkCaution" Color="#FCE100" />
+                    <SolidColorBrush x:Key="TkCriticalText" Color="#FF99A4" />
+                    <SolidColorBrush x:Key="TkSelectedRow" Color="#2D3A47" />
+                    <SolidColorBrush x:Key="TkKeycapBackground" Color="#323232" />
+                    <SolidColorBrush x:Key="TkKeycapStroke" Color="#5A5A5A" />
+                    <SolidColorBrush x:Key="TkButtonBackground" Color="#373737" />
+                    <SolidColorBrush x:Key="TkButtonStroke" Color="#454545" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="TkWindowBackground" Color="#202020" />
+                    <SolidColorBrush x:Key="TkCardBackground" Color="#2B2B2B" />
+                    <SolidColorBrush x:Key="TkCardStroke" Color="#3B3B3B" />
+                    <SolidColorBrush x:Key="TkText" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TkSecondaryText" Color="#C8C8C8" />
+                    <SolidColorBrush x:Key="TkTertiaryText" Color="#9A9A9A" />
+                    <SolidColorBrush x:Key="TkAccent" Color="#4CC2FF" />
+                    <SolidColorBrush x:Key="TkOnAccent" Color="#000000" />
+                    <SolidColorBrush x:Key="TkSuccess" Color="#6CCB5F" />
+                    <SolidColorBrush x:Key="TkCaution" Color="#FCE100" />
+                    <SolidColorBrush x:Key="TkCriticalText" Color="#FF99A4" />
+                    <SolidColorBrush x:Key="TkSelectedRow" Color="#2D3A47" />
+                    <SolidColorBrush x:Key="TkKeycapBackground" Color="#323232" />
+                    <SolidColorBrush x:Key="TkKeycapStroke" Color="#5A5A5A" />
+                    <SolidColorBrush x:Key="TkButtonBackground" Color="#373737" />
+                    <SolidColorBrush x:Key="TkButtonStroke" Color="#454545" />
+                </ResourceDictionary>
+                <!-- High contrast: the same keys, so a window never fails to load; the system colours come from the controls. -->
+                <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="TkWindowBackground" Color="#202020" />
                     <SolidColorBrush x:Key="TkCardBackground" Color="#2B2B2B" />
                     <SolidColorBrush x:Key="TkCardStroke" Color="#3B3B3B" />
