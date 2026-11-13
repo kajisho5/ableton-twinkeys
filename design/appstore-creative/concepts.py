@@ -126,5 +126,146 @@ def main():
     print("written")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and len(sys.argv) == 1:
     main()
+
+
+# ------------------------------------------------------------------------------------------------
+# Chosen: 2. TWIN LINES, as the 15 s header video and the search image (approved 2026-11-13)
+
+RED = "#FF3B30"
+TXT2 = {
+    "ja": {"head": "ワンタップで、2台が同時に。", "c1": "MAIN と BACKUP、同じキューを同じ瞬間に。",
+           "c2": "メインの Mac が止まっても、バックアップは鳴り続ける。",
+           "c3": "iPhone の操作をバックアップへ。そのまま続行。",
+           "search_head": "ワンタップで、2台の Mac が同時に。",
+           "search_sub": "iPhone・Apple Watch から、メインとバックアップの Live を操作"},
+    "en": {"head": "One tap. Two Macs.", "c1": "Main and backup fire the same cue at the same moment.",
+           "c2": "If the main Mac stops, the backup keeps playing.",
+           "c3": "Send your iPhone's controls to the backup and carry on.",
+           "search_head": "One tap. Two Macs at once.",
+           "search_sub": "Control Live on the main and the backup Mac from iPhone and Apple Watch"},
+}
+
+
+def beam_defs():
+    return ('<defs><linearGradient id="beamR" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FF3B30" stop-opacity="0"/>'
+            '<stop offset="0.5" stop-color="#FF3B30" stop-opacity="1"/><stop offset="1" stop-color="#FF3B30" stop-opacity="0"/></linearGradient></defs>')
+
+
+def line_row(y, label, state, a=1.0, xl=760, xr=3080):
+    """state: 'on' (green), 'dead' (red, dim), 'lead' (green, brighter)."""
+    grad, col = ("url(#beamR)", RED) if state == "dead" else ("url(#beam)", G)
+    op = (0.35 if state == "dead" else 1.0) * a
+    thick = 12 if state == "lead" else 8
+    return (f'<rect x="0" y="{y - thick / 2}" width="3840" height="{thick}" fill="{grad}" opacity="{op:.3f}"/>'
+            f'<rect x="0" y="{y - 34}" width="3840" height="68" fill="{grad}" opacity="{(0.12 if state == "dead" else 0.3 if state == "lead" else 0.22) * a:.3f}" filter="url(#glow)"/>'
+            + led(xl, y, col, 14) + M.txt(xl - 50, y + 16, label, 48, "#EDEDED", 700, "end", family=MONO)
+            + led(xr, y, col, 14) + M.txt(xr + 50, y + 16, label + (" ✕" if state == "dead" else ""), 48, "#EDEDED" if state != "dead" else "#FF9A92", 700, family=MONO))
+
+
+def c2_frame(t, lang, w=3840, h=1646, phone_xyw=(1260, 330, 1320), ys=(560, 1090), head_y=190, cap_y=1480, head=None, caption=None):
+    L = TXT2[lang]
+    ph = M.timeline(t)
+    st = {"lang": lang, "phase": ph}
+    if ph == "idle":
+        st["progress"] = 0.5 + 0.02 * t
+    elif ph == "press":
+        st["progress"], st["press"] = 0.55, M.clamp((t - 2.4) / 0.5)
+    else:
+        st["progress"] = 0.04 + 0.02 * (t - 2.9)
+    if ph == "hold":
+        st["hold"] = M.clamp((t - 9.2) / 1.0)
+    dead = ph in ("lost", "hold", "switched") or (ph == "fired" and t > 5.3)
+    # the main line fades from green to red over 5.3-5.9 s
+    k = M.clamp((t - 5.3) / 0.6)
+    main_state = "dead" if dead and k >= 0.5 else "on"
+    back_state = "lead" if ph == "switched" else "on"
+    px, py, pw = phone_xyw
+    phone_svg, _ = M.phone(px, py, pw, st, t)
+    o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">', defs(), beam_defs(),
+         M.rect(0, 0, w, h, 0, "#000"),
+         line_row(ys[0], "MAIN", main_state, a=(1 - abs(k - 0.5) * 2 * 0.6) if 5.3 <= t < 5.9 else 1.0),
+         line_row(ys[1], "BACKUP", back_state)]
+    # GO pulses race from the phone to both ends of both lines
+    if 2.9 <= t < 4.1:
+        q = M.ease((t - 2.9) / 1.2)
+        cx = px + pw / 2
+        for y in ys:
+            for x in (cx + (3080 - cx) * q, cx - (cx - 760) * q):
+                o.append(f'<circle cx="{x:.1f}" cy="{y}" r="34" fill="{G}" filter="url(#glow)"/><circle cx="{x:.1f}" cy="{y}" r="16" fill="#EAFFEF"/>')
+    if 4.0 <= t < 4.6:  # the four lamps flash when the cue arrives
+        a = 1 - (t - 4.0) / 0.6
+        for y in ys:
+            for x in (760, 3080):
+                o.append(f'<circle cx="{x}" cy="{y}" r="{40 + 60 * (1 - a):.1f}" fill="none" stroke="{G}" stroke-width="6" opacity="{a:.3f}"/>')
+    o.append(phone_svg)
+    cap = caption or (L["c1"] if t < 5.6 else L["c2"] if t < 10.6 else L["c3"])
+    o += [M.txt(w / 2, head_y, head or L["head"], 120, "#FFFFFF", 800, "middle"),
+          M.txt(w / 2, cap_y, cap, 56, "#C9D1E0", 700, "middle"),
+          M.rect(0, 0, w, h, 0, "url(#vig)")]
+    if t >= 13.9:  # loop: fade to black, then the first frame fades in
+        fade = M.clamp((t - 13.9) / 0.5) if t < 14.4 else 1.0
+        o.append(M.rect(0, 0, w, h, 0, "#000", opacity=fade))
+    o.append("</svg>")
+    svg = "".join(o)
+    if t >= 14.4:
+        base = c2_frame(0.0, lang, w, h, phone_xyw, ys, head_y, cap_y, head, caption)
+        return base.replace("</svg>", M.rect(0, 0, w, h, 0, "#000", opacity=M.clamp(1 - (t - 14.4) / 0.6)) + "</svg>")
+    return svg
+
+
+def c2_search(lang):
+    L = TXT2[lang]
+    return c2_frame(1.0, lang, 3840, 2560, (1110, 860, 1620), (1090, 1760), 380, 2300,
+                    head=L["search_head"], caption=L["search_sub"])
+
+
+def storyboard2(lang):
+    frames = [1.0, 3.6, 9.6, 12.0]
+    sw, sh = 1880, 1880 * 1646 / 3840
+    o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="{2 * sh + 120:.0f}" viewBox="0 0 3840 {2 * sh + 120:.0f}">',
+         M.rect(0, 0, 3840, 2 * sh + 120, 0, "#0B0D12")]
+    for i, t in enumerate(frames):
+        cx, cy = 40 + (i % 2) * (sw + 40), 40 + (i // 2) * (sh + 40)
+        inner = c2_frame(t, lang).split(">", 1)[1].rsplit("</svg>", 1)[0].replace('id="scr"', f'id="scr{i}"').replace("url(#scr)", f"url(#scr{i})")
+        o.append(f'<svg x="{cx}" y="{cy}" width="{sw}" height="{sh:.1f}" viewBox="0 0 3840 1646">{inner}</svg>')
+    o.append("</svg>")
+    return "".join(o)
+
+
+def final2():
+    out = os.path.join(M.ROOT, "deliverables", "appstore-creative")
+    os.makedirs(out, exist_ok=True)
+    from concurrent.futures import ThreadPoolExecutor
+    fps, seconds = 30, 15
+    for lang in ("ja", "en"):
+        M.render(c2_search(lang), os.path.join(out, f"search-results-{lang}-3840x2560.png"))
+        M.render(c2_frame(0.0, lang), os.path.join(out, f"header-poster-{lang}-3840x1646.png"))
+        with tempfile.TemporaryDirectory() as tmp:
+            with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
+                list(pool.map(lambda i: M.render(c2_frame(i / fps, lang), os.path.join(tmp, f"f{i:04d}.png")), range(fps * seconds)))
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(fps), "-i", os.path.join(tmp, "f%04d.png"),
+                            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+                            "-map", "0:v", "-map", "1:a", "-shortest", "-c:v", "libx264", "-profile:v", "high",
+                            "-pix_fmt", "yuv420p", "-crf", "16", "-maxrate", "20M", "-bufsize", "40M", "-r", str(fps),
+                            "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart",
+                            os.path.join(out, f"header-{lang}-3840x1646-15s.mp4")], check=True)
+        print(f"{lang}: written")
+    for name in os.listdir(out):
+        if name.endswith(".png"):
+            p = os.path.join(out, name)
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", p, "-pix_fmt", "rgb24", p + ".tmp.png"], check=True)
+            os.replace(p + ".tmp.png", p)
+
+
+if __name__ == "__main__" and len(sys.argv) > 1:
+    if sys.argv[1] == "preview2":
+        d = os.path.join(M.ROOT, "docs", "design")
+        for lang in ("ja", "en"):
+            for name, svg in ((f"appstore-twinlines-storyboard-{lang}", storyboard2(lang)), (f"appstore-twinlines-search-{lang}", c2_search(lang))):
+                open(os.path.join(d, name + ".svg"), "w", encoding="utf-8").write(svg + "\n")
+                render(svg, os.path.join(d, name + ".png"), 1920)
+        print("preview written")
+    elif sys.argv[1] == "final2":
+        final2()
