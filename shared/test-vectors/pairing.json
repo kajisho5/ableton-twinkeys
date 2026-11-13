@@ -1,0 +1,80 @@
+{
+  "about": "Pairing code -> key K (PBKDF2-HMAC-SHA256, salt \"TwinKeys pairing v2\", 100000 rounds, 32 bytes) -> fingerprint. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "alphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+  "codes": [
+    {
+      "fingerprint": "3f8694b0",
+      "formatted": "K7MQ2-WX9TP",
+      "input": "K7MQ2-WX9TP",
+      "key": "0492acda7ee0505a32db267d3fc206f5d1394de2d02b87da48f0e271e1c6ae34",
+      "normalized": "K7MQ2WX9TP",
+      "valid": true
+    },
+    {
+      "fingerprint": "3f8694b0",
+      "formatted": "K7MQ2-WX9TP",
+      "input": " k7mq2 wx9tp ",
+      "key": "0492acda7ee0505a32db267d3fc206f5d1394de2d02b87da48f0e271e1c6ae34",
+      "normalized": "K7MQ2WX9TP",
+      "valid": true
+    },
+    {
+      "fingerprint": "3f8694b0",
+      "formatted": "K7MQ2-WX9TP",
+      "input": "K7MQ2‐WX9TP",
+      "key": "0492acda7ee0505a32db267d3fc206f5d1394de2d02b87da48f0e271e1c6ae34",
+      "normalized": "K7MQ2WX9TP",
+      "valid": true
+    },
+    {
+      "fingerprint": "3f8694b0",
+      "formatted": "K7MQ2-WX9TP",
+      "input": "K7MQ2－WX9TP",
+      "key": "0492acda7ee0505a32db267d3fc206f5d1394de2d02b87da48f0e271e1c6ae34",
+      "normalized": "K7MQ2WX9TP",
+      "valid": true
+    },
+    {
+      "fingerprint": "5e33b31e",
+      "formatted": "Z3H8N-RT4QW",
+      "input": "Z3H8N-RT4QW",
+      "key": "87297f32b5e9fb7e2976b12d834a6da0150545e3693a51a622b249ea8b248880",
+      "normalized": "Z3H8NRT4QW",
+      "valid": true
+    },
+    {
+      "input": "K7MQ2-WX9T",
+      "valid": false
+    },
+    {
+      "input": "K7MQ2-WX9T0",
+      "valid": false
+    },
+    {
+      "input": "K7MQ2-WX9TPX",
+      "valid": false
+    },
+    {
+      "input": "k7mq2-wx9tl",
+      "valid": false
+    }
+  ],
+  "iterations": 100000,
+  "pbkdf2_rfc7914": [
+    {
+      "iterations": 1,
+      "key": "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783",
+      "length": 64,
+      "password": "passwd",
+      "salt": "salt"
+    },
+    {
+      "iterations": 80000,
+      "key": "4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56a1d425a1225833549adb841b51c9b3176a272bdebba1d078478f62b397f33c8d",
+      "length": 64,
+      "password": "Password",
+      "salt": "NaCl"
+    }
+  ],
+  "salt": "TwinKeys pairing v2"
+}

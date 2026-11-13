@@ -1,0 +1,182 @@
+name: Windows
+
+# TwinKeys for Windows (docs/design-windows.md, chapter 9): the C# core and its tests on Linux and
+# Windows, the WinUI app for x64 and ARM64 as unsigned ZIP files, and the link between the C# core and
+# the Mac's Swift Conductor on macOS.
+on:
+  push:
+    paths:
+      - 'windows/**'
+      - 'shared/**'
+      - 'Sources/TwinKeysCore/**'
+      - 'Tests/**'
+      - 'Package.swift'
+      - '.github/workflows/windows.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+jobs:
+  core-tests:
+    name: Core tests and shared vectors (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # https://github.com/actions/setup-dotnet (v6.1.0); the SDK version comes from windows/global.json.
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: windows/global.json
+      - name: Core tests
+        working-directory: windows
+        run: dotnet test --project tests/TwinKeys.Core.Tests -c Release
+      - name: Shared test vectors (shared/test-vectors, written by the Swift tests)
+        working-directory: windows
+        run: dotnet test --project tests/TwinKeys.Interop.Tests -c Release
+      - name: Two command-line peers link over 127.0.0.1
+        working-directory: windows
+        run: |
+          dotnet build src/TwinKeys.PeerCli -c Release
+          PEER="dotnet src/TwinKeys.PeerCli/bin/Release/net10.0/twinkeys-peer.dll"
+          $PEER --code K7MQ2-WX9TP --port 47911 --name "Backup PC" --script interop --timeout 60 > a.log 2>&1 &
+          A=$!
+          sleep 2
+          (sleep 3; echo "cue down"; sleep 4; echo disconnect; sleep 1; echo quit) | $PEER --code k7mq2wx9tp --port 47912 --name "Stage PC" --connect 127.0.0.1:47911 > b.log 2>&1
+          set +e; wait $A; RESULT=$?; set -e
+          cat a.log; echo "-----"; cat b.log
+          exit $RESULT
+
+  build:
+    name: Build and package (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2025
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: windows/global.json
+      - name: Toolchain
+        run: |
+          dotnet --info
+          [System.Environment]::OSVersion
+      - name: Core tests on Windows (ChaCha20-Poly1305 and sockets of this Windows)
+        working-directory: windows
+        run: |
+          dotnet test --project tests/TwinKeys.Core.Tests -c Release
+          dotnet test --project tests/TwinKeys.Interop.Tests -c Release
+      - name: Build the app (self-contained, unpackaged)
+        working-directory: windows
+        run: >
+          dotnet publish src/TwinKeys.App/TwinKeys.App.csproj -c Release -r win-${{ matrix.arch }}
+          -p:Platform=${{ matrix.arch == 'x64' && 'x64' || 'ARM64' }} -o out/TwinKeys
+      - name: Make the ZIP
+        working-directory: windows
+        shell: pwsh
+        run: |
+          Copy-Item ../LICENSE out/TwinKeys/LICENSE.txt
+          @"
+          TwinKeys for Windows $env:GITHUB_RUN_NUMBER (test version, unsigned)
+          Not yet tested on a real Windows PC. Windows 11 (x64 / ARM64) only.
+          Unzip anywhere and run TwinKeys.exe. Windows SmartScreen warns because the app is not signed:
+          choose "More info" > "Run anyway". How to set up: docs/help/en.md (Windows) in the repository.
+          "@ | Set-Content -Encoding UTF8 out/TwinKeys/README.txt
+          $zip = "TwinKeys-Windows-${{ matrix.arch }}-0.1.0-ci.$env:GITHUB_RUN_NUMBER.zip"
+          Compress-Archive -Path out/TwinKeys/* -DestinationPath $zip
+          "{0}: {1:N1} MB" -f $zip, ((Get-Item $zip).Length / 1MB) | Tee-Object size.txt
+          Get-ChildItem out/TwinKeys -Filter *.pri | Select-Object Name, Length
+          Get-ChildItem out/TwinKeys -File | Select-Object -First 60 Name, Length
+      - name: Launch smoke test (opens every window and settings page, stays up, quits)
+        working-directory: windows
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath out/TwinKeys/TwinKeys.exe -ArgumentList '--smoke-windows' -PassThru
+          # Wait until every window has opened (the ARM64 runner is slower), at most 40 s, then 3 s more.
+          for ($i = 0; $i -lt 40; $i++) {
+            Start-Sleep -Seconds 1
+            if ((Get-Content "$env:LOCALAPPDATA/TwinKeys/Logs/*.log" -ErrorAction SilentlyContinue) -match 'Smoke: all windows opened') { break }
+          }
+          Start-Sleep -Seconds 3
+          $failed = $false
+          if ($p.HasExited) { "TwinKeys exited early (code $($p.ExitCode))"; $failed = $true }
+          else { "Working set: {0:N1} MB" -f ($p.WorkingSet64 / 1MB) | Tee-Object memory.txt; Stop-Process -Id $p.Id }
+          $log = Get-Content "$env:LOCALAPPDATA/TwinKeys/Logs/*.log" -ErrorAction SilentlyContinue
+          $log
+          if (-not ($log -match 'Smoke: all windows opened')) { "::error::the windows did not all open"; $failed = $true }
+          if ($log -match 'window failed|XAML resource reference failed|Unhandled') { "::error::a window failed (see the log above)"; $failed = $true }
+          if ($failed) { exit 1 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: TwinKeys-Windows-${{ matrix.arch }}
+          path: windows/TwinKeys-Windows-*.zip
+          if-no-files-found: error
+
+  interop-macos:
+    name: Swift Conductor and C# core linked over 127.0.0.1 (macOS)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: windows/global.json
+      - name: C# shared vectors on macOS
+        working-directory: windows
+        run: dotnet test --project tests/TwinKeys.Interop.Tests -c Release
+      - name: Build the C# peer and the Swift tests
+        run: |
+          dotnet build windows/src/TwinKeys.PeerCli -c Release
+          swift build --build-tests
+      - name: The committed vectors still match the Swift code
+        run: swift test --skip-build --filter InteropVectorsTests
+      - name: Link the Swift Conductor with the C# peer
+        timeout-minutes: 6
+        run: |
+          dotnet windows/src/TwinKeys.PeerCli/bin/Release/net10.0/twinkeys-peer.dll --code K7MQ2-WX9TP --port 47901 \
+            --name "CI Windows Peer (C#)" --script interop --timeout 120 > peer.log 2>&1 &
+          PEER=$!
+          sleep 2
+          set +e
+          # perl alarm: a hard limit, so a hang shows its log instead of using up the job.
+          TWINKEYS_INTEROP_PEER=127.0.0.1:47901 perl -e 'alarm 180; exec @ARGV' swift test --skip-build --filter InteropPeerTests 2>&1 | tee swift.log
+          SWIFT=${PIPESTATUS[0]}
+          kill -0 $PEER 2>/dev/null && sleep 25
+          kill $PEER 2>/dev/null
+          wait $PEER; PEER_RESULT=$?
+          set -e
+          echo "----- C# peer"; cat peer.log
+          grep -q "PASS: linked with the C# peer" swift.log || { echo "::error::the Swift side did not run the interop test"; exit 1; }
+          if [ $SWIFT -ne 0 ] || [ $PEER_RESULT -ne 0 ]; then echo "::error::interop failed (Swift $SWIFT, C# $PEER_RESULT)"; exit 1; fi
+      - name: If the vectors changed on purpose, these are the files the Swift code writes
+        if: failure()
+        run: TWINKEYS_WRITE_VECTORS=1 swift test --skip-build --filter InteropVectorsTests || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: swift-written-test-vectors
+          path: shared/test-vectors/*.json
+          if-no-files-found: ignore

@@ -104,7 +104,7 @@ def storyboard(lang):
     return "".join(o)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and len(sys.argv) == 1:
     d = os.path.join(M.ROOT, "docs", "design")
     for lang in ("ja", "en"):
         svg = storyboard(lang)
@@ -113,3 +113,85 @@ if __name__ == "__main__":
             src = os.path.join(tmp, "a.svg"); open(src, "w", encoding="utf-8").write(svg)
             subprocess.run(["rsvg-convert", "-w", "1920", "-o", os.path.join(d, f"appstore-keynote-storyboard-{lang}.png"), src], check=True)
     print("written")
+
+
+# ---- animation (approved 2026-11-13) --------------------------------------------------------------
+BEATS = [(0.0, 3.0), (3.0, 6.0), (6.0, 8.6), (8.6, 11.4)]   # then 11.4-12.0 back to beat 0
+XF = 0.45
+
+
+def inner(svg):
+    return svg.split(">", 1)[1].rsplit("</svg>", 1)[0]
+
+
+def beat_t(i, lang, local):
+    """Beat i with its in-beat motion: a slow push-in, the tap on beat 0."""
+    s = beat(i, lang) if i != 0 else beat0(lang, local)
+    z = 1.0 + 0.035 * min(1.0, local / 3.0)
+    return f'<g transform="translate({W / 2} {H / 2}) scale({z:.4f}) translate({-W / 2} {-H / 2})">{inner(s)}</g>'
+
+
+def beat0(lang, local):
+    L = TXT[lang]
+    tap = M.clamp((local - 1.2) / 1.2) if local >= 1.2 else 0.0
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">' + defs()
+            + M.rect(0, 0, W, H, 0, "#000") + iphone(W / 2, H / 2 + 120, 0.56, tap=tap if 0 < tap < 1 else 0.0)
+            + title(L[0], 250, 150) + "</svg>")
+
+
+def kframe(t, lang):
+    o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">', defs(), M.rect(0, 0, W, H, 0, "#000")]
+    if t >= 11.4:  # back to the start
+        a = M.clamp((t - 11.4) / 0.6)
+        o.append(f'<g opacity="{1 - a:.3f}">{beat_t(3, lang, t - 8.6)}</g><g opacity="{a:.3f}">{beat_t(0, lang, 0.0)}</g>')
+    else:
+        for i, (s, e) in enumerate(BEATS):
+            if s <= t < e:
+                o.append(beat_t(i, lang, t - s))
+                if i + 1 < len(BEATS) and t > e - XF:
+                    a = M.clamp((t - (e - XF)) / XF)
+                    o.append(f'<g opacity="{a:.3f}">' + M.rect(0, 0, W, H, 0, "#000") + beat_t(i + 1, lang, 0.0) + '</g>')
+                break
+    o.append("</svg>")
+    return "".join(o)
+
+
+def ksearch(lang):
+    """3:2 search image: beat 4's message with both Macs and the iPhone."""
+    L = TXT[lang]
+    sub = {"ja": "iPhone・Apple Watch から、メインとバックアップの Mac を同時に操作", "en": "Control the main and the backup Mac at once from iPhone and Apple Watch"}[lang]
+    head = {"ja": "ワンタップで、2台が同時に。", "en": "One tap. Two Macs. At once."}[lang]
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2560" viewBox="0 0 3840 2560">' + defs()
+            + M.rect(0, 0, 3840, 2560, 0, "#000") + M.txt(1920, 330, head, 170, "#FFFFFF", 800, "middle")
+            + macbook(1270, 1050, 1060, "play") + macbook(2570, 1050, 1060, "play")
+            + iphone(1920, 1880, 0.42) + M.txt(1920, 2400, sub, 72, "#C9D1E0", 700, "middle") + "</svg>")
+
+
+def kfinal():
+    out = os.path.join(M.ROOT, "deliverables", "appstore-creative")
+    from concurrent.futures import ThreadPoolExecutor
+    fps, secs = 30, 12
+    for lang in ("ja", "en"):
+        M.render(ksearch(lang), os.path.join(out, f"search-results-{lang}-3840x2560.png"))
+        M.render(kframe(0.0, lang), os.path.join(out, f"header-poster-{lang}-3840x1646.png"))
+        with tempfile.TemporaryDirectory() as tmp:
+            with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
+                list(pool.map(lambda i: M.render(kframe(i / fps, lang), os.path.join(tmp, f"f{i:04d}.png")), range(fps * secs)))
+            for old in os.listdir(out):
+                if old.startswith(f"header-{lang}-") and old.endswith(".mp4"):
+                    os.remove(os.path.join(out, old))
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(fps), "-i", os.path.join(tmp, "f%04d.png"),
+                            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000", "-map", "0:v", "-map", "1:a",
+                            "-shortest", "-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p", "-crf", "16",
+                            "-maxrate", "20M", "-bufsize", "40M", "-r", str(fps), "-c:a", "aac", "-b:a", "256k",
+                            "-movflags", "+faststart", os.path.join(out, f"header-{lang}-3840x1646-12s.mp4")], check=True)
+        print(lang, "done")
+    for name in os.listdir(out):
+        if name.endswith(".png"):
+            p = os.path.join(out, name)
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", p, "-pix_fmt", "rgb24", p + ".t.png"], check=True)
+            os.replace(p + ".t.png", p)
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "final":
+    kfinal()

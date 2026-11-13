@@ -1,0 +1,259 @@
+{
+  "about": "LiveCommand binary form (packet 0x18) and the TwinKeysBridge JSON (phase 2). Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "bad": [
+    {
+      "bytes": "",
+      "decodes": false,
+      "name": "empty"
+    },
+    {
+      "bytes": "63",
+      "decodes": false,
+      "name": "unknown_op"
+    },
+    {
+      "bytes": "0100",
+      "decodes": false,
+      "name": "fireScene_cut_short"
+    },
+    {
+      "bytes": "012710",
+      "decodes": false,
+      "name": "fireScene_10000"
+    },
+    {
+      "bytes": "01ffff",
+      "decodes": false,
+      "name": "fireScene_negative"
+    },
+    {
+      "bytes": "084024000000000000",
+      "decodes": false,
+      "name": "setTempo_too_slow"
+    },
+    {
+      "bytes": "0900013ff8000000000000",
+      "decodes": false,
+      "name": "setVolume_above_1"
+    },
+    {
+      "bytes": "0e0004023fe0000000000000",
+      "decodes": false,
+      "name": "setSend_send_2"
+    },
+    {
+      "bytes": "0e0004010000",
+      "decodes": false,
+      "name": "setSend_cut_short"
+    },
+    {
+      "bytes": "0b0002",
+      "decodes": false,
+      "name": "setMute_cut_short"
+    }
+  ],
+  "commands": [
+    {
+      "bridge": {
+        "cmd": "fire_scene",
+        "id": 7,
+        "scene": 3
+      },
+      "bytes": "010003",
+      "command": {
+        "op": "fireScene",
+        "scene": 3
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "fire_clip",
+        "id": 7,
+        "scene": 5,
+        "track": 2
+      },
+      "bytes": "0200020005",
+      "command": {
+        "op": "fireClip",
+        "scene": 5,
+        "track": 2
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "stop_track",
+        "id": 7,
+        "track": 1
+      },
+      "bytes": "030001",
+      "command": {
+        "op": "stopTrack",
+        "track": 1
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "stop_all",
+        "id": 7
+      },
+      "bytes": "04",
+      "command": {
+        "op": "stopAll"
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "play",
+        "id": 7
+      },
+      "bytes": "05",
+      "command": {
+        "op": "play"
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "stop",
+        "id": 7
+      },
+      "bytes": "06",
+      "command": {
+        "op": "stop"
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "continue",
+        "id": 7
+      },
+      "bytes": "07",
+      "command": {
+        "op": "continuePlaying"
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "bpm": 128.5,
+        "cmd": "set_tempo",
+        "id": 7
+      },
+      "bytes": "084060100000000000",
+      "command": {
+        "bpm": 128.5,
+        "op": "setTempo"
+      },
+      "continuous": true,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "set_volume",
+        "id": 7,
+        "track": -1,
+        "value": 0.85
+      },
+      "bytes": "09ffff3feb333333333333",
+      "command": {
+        "op": "setVolume",
+        "track": -1,
+        "value": 0.85
+      },
+      "continuous": true,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "set_pan",
+        "id": 7,
+        "track": 4,
+        "value": -0.5
+      },
+      "bytes": "0a0004bfe0000000000000",
+      "command": {
+        "op": "setPan",
+        "track": 4,
+        "value": -0.5
+      },
+      "continuous": true,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "set_mute",
+        "id": 7,
+        "on": true,
+        "track": 2
+      },
+      "bytes": "0b000201",
+      "command": {
+        "on": true,
+        "op": "setMute",
+        "track": 2
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "set_solo",
+        "id": 7,
+        "on": false,
+        "track": 3
+      },
+      "bytes": "0c000300",
+      "command": {
+        "on": false,
+        "op": "setSolo",
+        "track": 3
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "select_scene",
+        "id": 7,
+        "scene": 7
+      },
+      "bytes": "0d0007",
+      "command": {
+        "op": "selectScene",
+        "scene": 7
+      },
+      "continuous": false,
+      "valid": true
+    },
+    {
+      "bridge": {
+        "cmd": "set_send",
+        "id": 7,
+        "send": 1,
+        "track": 4,
+        "value": 0.25
+      },
+      "bytes": "0e0004013fd0000000000000",
+      "command": {
+        "op": "setSend",
+        "send": 1,
+        "track": 4,
+        "value": 0.25
+      },
+      "continuous": true,
+      "valid": true
+    }
+  ]
+}

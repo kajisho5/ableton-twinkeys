@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Texts of TwinKeys for Windows. The same keys in ja-JP and en-US (checked by TwinKeys.Core.Tests/StringsTests). -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Separator" xml:space="preserve"><value> · </value></data>
+  <data name="AllNotesOff" xml:space="preserve"><value>All Notes Off</value></data>
+  <data name="AllNotesOffHelp" xml:space="preserve"><value>Stop every sounding note on this PC and the connected computer ({0})</value></data>
+  <data name="AnotherComputer" xml:space="preserve"><value>the other computer</value></data>
+  <data name="NotConnected" xml:space="preserve"><value>Not connected</value></data>
+  <data name="ConnectedTo" xml:space="preserve"><value>Connected to {0}</value></data>
+  <data name="ConnectingTo" xml:space="preserve"><value>Connecting to {0}…</value></data>
+  <data name="Latency" xml:space="preserve"><value>Latency {0} ms</value></data>
+  <data name="TrayLatency" xml:space="preserve"><value>Latency {0} ms</value></data>
+  <data name="Measuring" xml:space="preserve"><value>measuring…</value></data>
+  <data name="SendingAndReceiving" xml:space="preserve"><value>Sending and receiving</value></data>
+  <data name="Sending" xml:space="preserve"><value>Sending</value></data>
+  <data name="Receiving" xml:space="preserve"><value>Receiving</value></data>
+  <data name="BothOff" xml:space="preserve"><value>Sending and receiving are off</value></data>
+  <data name="PeerOs" xml:space="preserve"><value>the other runs {0}</value></data>
+  <data name="Retrying" xml:space="preserve"><value>No answer yet, retrying (attempt {0})</value></data>
+  <data name="WaitingForAnswer" xml:space="preserve"><value>Waiting for an answer…</value></data>
+  <data name="Searching" xml:space="preserve"><value>Searching for TwinKeys…</value></data>
+  <data name="ChooseComputer" xml:space="preserve"><value>Choose a computer below and click Connect</value></data>
+  <data name="NeedsPairing" xml:space="preserve"><value>Set a pairing code to connect</value></data>
+  <data name="NeedsPairingDetail" xml:space="preserve"><value>Both computers need the same pairing code</value></data>
+  <data name="NeedsPairingBanner" xml:space="preserve"><value>To connect, both computers need the same pairing code. You only need to do this once.</value></data>
+  <data name="SetUpPairing" xml:space="preserve"><value>Set Up Pairing Code…</value></data>
+  <data name="LastCue" xml:space="preserve"><value>Last cue</value></data>
+  <data name="NoCueYet" xml:space="preserve"><value>No cue yet. Press a cue key.</value></data>
+  <data name="NoCueReceivedYet" xml:space="preserve"><value>No cue received yet.</value></data>
+  <data name="CueDetail" xml:space="preserve"><value>{0} · Cue {1} since connecting</value></data>
+  <data name="DeliveredToBackup" xml:space="preserve"><value>Reached the backup</value></data>
+  <data name="WaitingForBackup" xml:space="preserve"><value>Waiting for the backup…</value></data>
+  <data name="NotConfirmed" xml:space="preserve"><value>No confirmation</value></data>
+  <data name="NotConfirmedDetail" xml:space="preserve"><value>Check that this cue fired on the backup.</value></data>
+  <data name="CannotConfirm" xml:space="preserve"><value>Delivery cannot be checked</value></data>
+  <data name="CannotConfirmDetail" xml:space="preserve"><value>The other computer runs TwinKeys older than 1.0.0</value></data>
+  <data name="CueNotConnected" xml:space="preserve"><value>Not connected</value></data>
+  <data name="CueNotConnectedDetail" xml:space="preserve"><value>Only this PC got the cue.</value></data>
+  <data name="ReceivedFromMain" xml:space="preserve"><value>Received from the main computer</value></data>
+  <data name="NearbyTwinKeys" xml:space="preserve"><value>Nearby TwinKeys</value></data>
+  <data name="ConnectByIp" xml:space="preserve"><value>Connect by IP Address…</value></data>
+  <data name="ConnectByIpHint" xml:space="preserve"><value>If the other computer is not listed (Ctrl+Shift+K)</value></data>
+  <data name="ConnectByIpTitle" xml:space="preserve"><value>Connect by IP Address</value></data>
+  <data name="ConnectByIpExplain" xml:space="preserve"><value>Use this when the other computer is not listed. Type the IP address shown on the other computer under Settings &gt; Pairing Code. Both need the same pairing code.</value></data>
+  <data name="InvalidAddress" xml:space="preserve"><value>Type an IP address such as 192.168.1.20.</value></data>
+  <data name="ThisPcAddress" xml:space="preserve"><value>This PC's IP address: {0}</value></data>
+  <data name="NoAddress" xml:space="preserve"><value>none (not on a network)</value></data>
+  <data name="PortLabel" xml:space="preserve"><value>UDP port {0}</value></data>
+  <data name="NoPeersTitle" xml:space="preserve"><value>No TwinKeys found on this network</value></data>
+  <data name="NoPeersHint" xml:space="preserve"><value>Make sure both computers are on the same network and that Windows Firewall allows TwinKeys on private networks. You can also connect by IP address.</value></data>
+  <data name="Connect" xml:space="preserve"><value>Connect</value></data>
+  <data name="Disconnect" xml:space="preserve"><value>Disconnect</value></data>
+  <data name="ConnectTo" xml:space="preserve"><value>Connect to {0}</value></data>
+  <data name="DisconnectFrom" xml:space="preserve"><value>Disconnect from {0}</value></data>
+  <data name="ConnectingShort" xml:space="preserve"><value>connecting…</value></data>
+  <data name="Incompatible" xml:space="preserve"><value>Different TwinKeys version. Use the same version on both computers.</value></data>
+  <data name="CodeMismatch" xml:space="preserve"><value>Different pairing code</value></data>
+  <data name="CodeMismatchBanner" xml:space="preserve"><value>A computer on this network uses a different pairing code. Enter the same code on both.</value></data>
+  <data name="ModeSendReceive" xml:space="preserve"><value>Send + Receive</value></data>
+  <data name="ModeSend" xml:space="preserve"><value>Send</value></data>
+  <data name="ModeReceive" xml:space="preserve"><value>Receive</value></data>
+  <data name="ModeAndKeyboard" xml:space="preserve"><value>Mode and Keyboard</value></data>
+  <data name="SendKeys" xml:space="preserve"><value>Send my keys</value></data>
+  <data name="SendKeysHint" xml:space="preserve"><value>Cue keys you press on this PC go to both Lives</value></data>
+  <data name="ReceiveNotes" xml:space="preserve"><value>Receive notes</value></data>
+  <data name="ReceiveNotesHint" xml:space="preserve"><value>Cues from the other computer play in this PC's Live</value></data>
+  <data name="KeyCapture" xml:space="preserve"><value>Key capture</value></data>
+  <data name="CaptureHintOn" xml:space="preserve"><value>On: cue keys are kept from other apps (switch with {0})</value></data>
+  <data name="CaptureHintOnPassThrough" xml:space="preserve"><value>On: cue keys also reach other apps (switch with {0})</value></data>
+  <data name="CaptureHintOff" xml:space="preserve"><value>Off: keys work as usual (switch with {0})</value></data>
+  <data name="HookMissing" xml:space="preserve"><value>Key capture could not start. Quit and reopen TwinKeys.</value></data>
+  <data name="MidiReady" xml:space="preserve"><value>MIDI: {0} (loopback)</value></data>
+  <data name="MidiNotFound" xml:space="preserve"><value>MIDI: "{0}" not found</value></data>
+  <data name="MidiError" xml:space="preserve"><value>MIDI: error ({0})</value></data>
+  <data name="MidiOff" xml:space="preserve"><value>MIDI: not used</value></data>
+  <data name="MidiMissingBanner" xml:space="preserve"><value>The loopback MIDI port "{0}" was not found, so cues cannot reach Live on this PC. Create it, then it is found automatically.</value></data>
+  <data name="OpenMidiSetup" xml:space="preserve"><value>How to Set Up…</value></data>
+  <data name="LiveNotYet" xml:space="preserve"><value>Live: link with TwinKeysBridge comes in a later version</value></data>
+  <data name="TestVersionNote" xml:space="preserve"><value>Test version: not yet tested on a real Windows PC.</value></data>
+  <data name="ProblemSettingsBroken" xml:space="preserve"><value>settings.json could not be read. It was kept as {0} and default settings are in use.</value></data>
+  <data name="ProblemNoChaCha" xml:space="preserve"><value>This Windows cannot encrypt TwinKeys traffic (ChaCha20-Poly1305 needs Windows 11). Connecting will not work.</value></data>
+  <data name="ProblemListen" xml:space="preserve"><value>Could not start listening for other computers (UDP).</value></data>
+  <data name="ProblemDuplicateId" xml:space="preserve"><value>Another computer uses the same TwinKeys ID (its settings were copied from this PC). Delete settings.json on one of them and restart TwinKeys there.</value></data>
+  <data name="ProblemHook" xml:space="preserve"><value>Key capture could not start. Quit and reopen TwinKeys.</value></data>
+  <data name="OpenTwinKeys" xml:space="preserve"><value>Open TwinKeys</value></data>
+  <data name="SettingsMenu" xml:space="preserve"><value>Settings…</value></data>
+  <data name="StartAtSignIn" xml:space="preserve"><value>Start at Sign-in</value></data>
+  <data name="QuitTwinKeys" xml:space="preserve"><value>Quit TwinKeys</value></data>
+  <data name="SettingsTitle" xml:space="preserve"><value>TwinKeys Settings</value></data>
+  <data name="PageCueKeys" xml:space="preserve"><value>Cue Keys</value></data>
+  <data name="PageMidi" xml:space="preserve"><value>MIDI Output</value></data>
+  <data name="PageLive" xml:space="preserve"><value>Live</value></data>
+  <data name="PagePairing" xml:space="preserve"><value>Pairing Code</value></data>
+  <data name="PageRemote" xml:space="preserve"><value>iPhone Remote</value></data>
+  <data name="PageUpdates" xml:space="preserve"><value>Updates</value></data>
+  <data name="PageGeneral" xml:space="preserve"><value>General</value></data>
+  <data name="Coming" xml:space="preserve"><value>Coming</value></data>
+  <data name="CueKeysByPosition" xml:space="preserve"><value>Keys are matched by position (the same place on a JIS or US keyboard is the same cue).</value></data>
+  <data name="CueKeyColumn" xml:space="preserve"><value>Key</value></data>
+  <data name="CueMemoColumn" xml:space="preserve"><value>Memo (your own name)</value></data>
+  <data name="CueKeysNone" xml:space="preserve"><value>No cue keys. Add them below.</value></data>
+  <data name="MemoPlaceholder" xml:space="preserve"><value>e.g. Next scene</value></data>
+  <data name="MemoFor" xml:space="preserve"><value>Memo for {0}</value></data>
+  <data name="RemoveCueKey" xml:space="preserve"><value>Remove {0}</value></data>
+  <data name="AddCueKey" xml:space="preserve"><value>Add Key…</value></data>
+  <data name="AddLettersAndDigits" xml:space="preserve"><value>Add A–Z and 0–9</value></data>
+  <data name="AddCueKeyHint" xml:space="preserve"><value>Click, then press the keys to add, one after another</value></data>
+  <data name="AddedKeys" xml:space="preserve"><value>Added: {0}</value></data>
+  <data name="CueKeysFull" xml:space="preserve"><value>No free notes left.</value></data>
+  <data name="AddKeyTitle" xml:space="preserve"><value>Add Key</value></data>
+  <data name="PressKeyToAdd" xml:space="preserve"><value>Press the keys to add</value></data>
+  <data name="PressKeyHint" xml:space="preserve"><value>Press several keys in a row to add them all. Ctrl, Alt, Shift and Windows keys are not used.</value></data>
+  <data name="KeyAlreadyUsed" xml:space="preserve"><value>{0} is already a cue key.</value></data>
+  <data name="Done" xml:space="preserve"><value>Done</value></data>
+  <data name="BlockCueKeys" xml:space="preserve"><value>Keep cue keys from other apps (recommended)</value></data>
+  <data name="BlockCueKeysHelp" xml:space="preserve"><value>Stops Live on the main computer from also reacting to the arrows or Space, which would move it twice.
+Windows needs no special permission for this (it does not work while an app running as administrator is in front).</value></data>
+  <data name="AutoNoteOffLabel" xml:space="preserve"><value>When a note-off does not arrive, stop the note after</value></data>
+  <data name="AutoNoteOffHelp" xml:space="preserve"><value>Protects against stuck notes if a note-off is lost. Notes from the other computer wait at least 3 s.</value></data>
+  <data name="Off" xml:space="preserve"><value>Off</value></data>
+  <data name="Seconds" xml:space="preserve"><value>{0} s</value></data>
+  <data name="PortName" xml:space="preserve"><value>Port name</value></data>
+  <data name="LookAgain" xml:space="preserve"><value>Look Again</value></data>
+  <data name="MidiOutputsFound" xml:space="preserve"><value>MIDI outputs on this PC: {0}</value></data>
+  <data name="None" xml:space="preserve"><value>none</value></data>
+  <data name="LoopbackHowTo" xml:space="preserve"><value>Create a loopback MIDI port named "TwinKeys" with the MIDI Settings app (Windows MIDI Services) or with loopMIDI, then turn on its input in Live (Settings &gt; Link, Tempo &amp; MIDI). TwinKeys sends to it; it does not create the port itself.</value></data>
+  <data name="TestSendLabel" xml:space="preserve"><value>Test: send cue C1 once to "{0}"</value></data>
+  <data name="TestSend" xml:space="preserve"><value>Send a Test</value></data>
+  <data name="TestSendDone" xml:space="preserve"><value>Sent C1. Check that Live's MIDI input indicator lit up.</value></data>
+  <data name="OpenFirstRun" xml:space="preserve"><value>Open the First-Run Setup…</value></data>
+  <data name="FoundPort" xml:space="preserve"><value>Found: {0}</value></data>
+  <data name="SentHere" xml:space="preserve"><value> (sending checked on this PC)</value></data>
+  <data name="PortMissingCreate" xml:space="preserve"><value>Not found: create a loopback port named "{0}"</value></data>
+  <data name="ModeLoopback" xml:space="preserve"><value>Loopback MIDI port "TwinKeys" (recommended)</value></data>
+  <data name="ModeLoopbackDetail" xml:space="preserve"><value>Sends to a port made with MIDI Settings or loopMIDI.</value></data>
+  <data name="ModeVirtual" xml:space="preserve"><value>TwinKeys makes its own MIDI input (later)</value></data>
+  <data name="ModeVirtualDetail" xml:space="preserve"><value>A Windows MIDI Services virtual device. Turned on after the SDK's final release is checked.</value></data>
+  <data name="ModeVirtualUnavailable" xml:space="preserve"><value>Not available on this PC: needs Windows 11 25H2 and the MIDI Services runtime</value></data>
+  <data name="ModeBridge" xml:space="preserve"><value>No MIDI (TwinKeysBridge only)</value></data>
+  <data name="ModeBridgeDetail" xml:space="preserve"><value>Ties cue keys directly to Live actions (playing scenes and so on).</value></data>
+  <data name="ModeBridgeUnavailable" xml:space="preserve"><value>Set up the Live link first</value></data>
+  <data name="FirstRunTitle" xml:space="preserve"><value>TwinKeys Setup</value></data>
+  <data name="FirstRunHeading" xml:space="preserve"><value>Choose how cues reach Live</value></data>
+  <data name="FirstRunSubtitle" xml:space="preserve"><value>Cue notes go to the MIDI input "TwinKeys" that Live can read.</value></data>
+  <data name="Later" xml:space="preserve"><value>Later</value></data>
+  <data name="Next" xml:space="preserve"><value>Next</value></data>
+  <data name="LivePhase2" xml:space="preserve"><value>The link with Live through TwinKeysBridge (status, set check, Live actions from the other computer) comes in a later version (phase 2). For now, cues reach Live over MIDI.</value></data>
+  <data name="PairingExplain" xml:space="preserve"><value>Computers that use the same pairing code can connect to each other, and nothing else can. Their traffic is also encrypted. A Mac and a PC use the same code.</value></data>
+  <data name="ThisPcCode" xml:space="preserve"><value>This PC's pairing code</value></data>
+  <data name="NoCodeYet" xml:space="preserve"><value>Not set</value></data>
+  <data name="MakeNewCode" xml:space="preserve"><value>Make New Code</value></data>
+  <data name="Copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="EnterCode" xml:space="preserve"><value>Enter Code…</value></data>
+  <data name="PairingSameOnBoth" xml:space="preserve"><value>Make a code on one computer and enter the same 10 characters on the other (Mac or PC). It is kept encrypted for this Windows user.</value></data>
+  <data name="ReplaceCodeTitle" xml:space="preserve"><value>Make a new pairing code?</value></data>
+  <data name="ReplaceCodeMessage" xml:space="preserve"><value>The current code stops working. Enter the new code on the other computer too.</value></data>
+  <data name="MakeNew" xml:space="preserve"><value>Make New</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="EnterCodeTitle" xml:space="preserve"><value>Enter Pairing Code</value></data>
+  <data name="EnterCodeExplain" xml:space="preserve"><value>Type the 10 characters shown on the other computer under Settings &gt; Pairing Code.</value></data>
+  <data name="EnterCodeRule" xml:space="preserve"><value>Upper or lower case and hyphens do not matter.</value></data>
+  <data name="InvalidCode" xml:space="preserve"><value>That is not a valid code: it has 10 letters and digits (no 0, 1, I, L or O).</value></data>
+  <data name="FirewallHint" xml:space="preserve"><value>Windows Firewall asks once: allow TwinKeys on private networks.</value></data>
+  <data name="CurrentVersion" xml:space="preserve"><value>Current version: {0} (test version)</value></data>
+  <data name="UpdatesZipNote" xml:space="preserve"><value>This ZIP version does not update itself. New versions are on the GitHub releases page; the Microsoft Store version (later) updates through the Store.</value></data>
+  <data name="OpenReleases" xml:space="preserve"><value>Open GitHub Releases</value></data>
+  <data name="Language" xml:space="preserve"><value>Language</value></data>
+  <data name="LanguageSystem" xml:space="preserve"><value>Same as Windows</value></data>
+  <data name="CloseToTray" xml:space="preserve"><value>Keep running in the notification area when the window is closed</value></data>
+  <data name="CloseToTrayHelp" xml:space="preserve"><value>Recommended: closing the window then does not stop the show. Quit from the notification-area menu.</value></data>
+  <data name="ShortcutsTitle" xml:space="preserve"><value>Shortcuts</value></data>
+  <data name="ShortcutsList" xml:space="preserve"><value>Key capture on/off: {0} (any app)
+All Notes Off: {1} (any app)
+Connect / Disconnect: Ctrl+K · Connect by IP: Ctrl+Shift+K · Settings: Ctrl+, · Help: F1</value></data>
+  <data name="ShowLogs" xml:space="preserve"><value>Open the Log Folder</value></data>
+</root>

@@ -1,0 +1,328 @@
+{
+  "about": "SequenceFilter: (session, seq, allow_late) in order and whether each is accepted. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "cases": [
+    {
+      "name": "duplicates_and_reordered_notes",
+      "steps": [
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 10,
+          "session": 7
+        },
+        {
+          "accepted": false,
+          "allow_late": false,
+          "seq": 10,
+          "session": 7
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 12,
+          "session": 7
+        },
+        {
+          "accepted": false,
+          "allow_late": false,
+          "seq": 11,
+          "session": 7
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 13,
+          "session": 7
+        }
+      ]
+    },
+    {
+      "name": "wrap_around",
+      "steps": [
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 4294967294,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 4294967295,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 0,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": false,
+          "seq": 4294967295,
+          "session": 1
+        }
+      ]
+    },
+    {
+      "name": "restart_drops_old_session",
+      "steps": [
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 10,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 5,
+          "session": 2
+        },
+        {
+          "accepted": false,
+          "allow_late": false,
+          "seq": 11,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": false,
+          "seq": 5,
+          "session": 2
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 6,
+          "session": 2
+        }
+      ]
+    },
+    {
+      "name": "new_session_starts_over",
+      "steps": [
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 500,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 0,
+          "session": 2
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 2
+        }
+      ]
+    },
+    {
+      "name": "late_order_free_packets_once",
+      "steps": [
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 10,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 12,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": false,
+          "seq": 11,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": true,
+          "seq": 11,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": true,
+          "seq": 11,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": true,
+          "seq": 12,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 200,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": true,
+          "seq": 100,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": true,
+          "seq": 199,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": true,
+          "seq": 136,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": true,
+          "seq": 135,
+          "session": 1
+        }
+      ]
+    },
+    {
+      "name": "jump_of_64_or_more_forgets_the_window",
+      "steps": [
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 2,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 70,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": true,
+          "seq": 2,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": true,
+          "seq": 69,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": true,
+          "seq": 6,
+          "session": 1
+        }
+      ]
+    },
+    {
+      "name": "only_8_retired_sessions_are_kept",
+      "steps": [
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 1
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 2
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 3
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 4
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 5
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 6
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 7
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 8
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 9
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 1,
+          "session": 10
+        },
+        {
+          "accepted": true,
+          "allow_late": false,
+          "seq": 5,
+          "session": 1
+        },
+        {
+          "accepted": false,
+          "allow_late": false,
+          "seq": 5,
+          "session": 3
+        },
+        {
+          "accepted": false,
+          "allow_late": false,
+          "seq": 2,
+          "session": 10
+        }
+      ]
+    }
+  ]
+}

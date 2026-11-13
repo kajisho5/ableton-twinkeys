@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- xUnit v3 4.0.3 (stable): https://www.nuget.org/packages/xunit.v3/4.0.3 . Runs with "dotnet test"
+       (Microsoft Testing Platform, see windows/global.json) on Linux, macOS and Windows. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>TwinKeys.Interop.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" Version="4.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/TwinKeys.Core/TwinKeys.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="TwinKeys.Core" />
+  </ItemGroup>
+</Project>

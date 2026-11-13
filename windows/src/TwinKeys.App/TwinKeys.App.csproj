@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    TwinKeys for Windows (WinUI 3). docs/design-windows.md chapters 3, 5 and 10.
+    Packages (stable, exact versions):
+      Microsoft.WindowsAppSDK 2.6.5    https://www.nuget.org/packages/Microsoft.WindowsAppSDK/2.6.5
+      CommunityToolkit.Mvvm 8.4.2      https://www.nuget.org/packages/CommunityToolkit.Mvvm/8.4.2
+    Phase 1 ships as an unsigned, self-contained ZIP (unpackaged: WindowsPackageType None). The MSIX
+    manifest (Package.appxmanifest) is what the Store version (phase 2) will use; it is not packaged yet.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.22000.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
+    <RootNamespace>TwinKeys.App</RootNamespace>
+    <AssemblyName>TwinKeys</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\TwinKeys.ico</ApplicationIcon>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <!-- As in the WinUI templates: without it no resources.pri is made, and WinUI cannot load any XAML (seen in CI). -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefaultLanguage>ja-JP</DefaultLanguage>
+    <!-- Unpackaged app whose exe (TwinKeys.exe) is not named like the project: the resource index must be
+         resources.pri, or WinUI finds neither App.xaml nor its own themeresources.xaml (seen in CI). -->
+    <ProjectPriFileName>resources.pri</ProjectPriFileName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../TwinKeys.Core/TwinKeys.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The texts are read by Platform/Strings.cs (so the language can change without a restart). -->
+    <EmbeddedResource Include="Strings\ja-JP\Resources.resw" LogicalName="Strings.ja.resw" />
+    <EmbeddedResource Include="Strings\en-US\Resources.resw" LogicalName="Strings.en.resw" />
+    <!-- For the CI XAML check (Platform/XamlCheck.cs). -->
+    <EmbeddedResource Include="Views\*.xaml" LogicalName="Xaml.%(Filename).xaml" />
+    <EmbeddedResource Include="App.xaml" LogicalName="Xaml.App.xaml" />
+    <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,21 @@
+{
+  "about": "HKDF-SHA256 (used by the iPhone link, phase 3). Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "hkdf_sha256": [
+    {
+      "ikm": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+      "info": "f0f1f2f3f4f5f6f7f8f9",
+      "length": 42,
+      "name": "rfc5869_case_1",
+      "okm": "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865",
+      "salt": "000102030405060708090a0b0c"
+    },
+    {
+      "ikm": "000306090c0f1215181b1e2124272a2d303336393c3f4245484b4e5154575a5d",
+      "info": "5477696e4b6579732072656d6f7465207631b51f08b698d88d8027a935d9db649774949f5fb41a0c559bfee6a9a13225c72d",
+      "length": 64,
+      "name": "twinkeys_remote_shape",
+      "okm": "5f71147a6eb126ae8f23fce88b8f7edb2ee31925437848a85ada721d61a253c6d59d4379bf21abf2318d245f0a6f3c3f8e6d2636bc15c73b0eee1eda08fc8670",
+      "salt": "0492acda7ee0505a32db267d3fc206f5d1394de2d02b87da48f0e271e1c6ae34"
+    }
+  ]
+}

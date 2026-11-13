@@ -292,6 +292,56 @@ The console settings are the same on both Macs: a change on one Mac is copied to
 - Settings — ~/Library/Application Support/TwinKeys/settings.json
 - Logs — ~/Library/Logs/TwinKeys/ (open from the Help menu)
 
+## Windows (test version)
+
+> **This is a test version that has not yet been tried on a real Windows PC.** Try it with your own PC and Live before any show. So far it is only built and tested by GitHub Actions (Windows Server 2025 and Windows 11 Arm64).
+
+TwinKeys for Windows 11 (x64 and ARM64). It speaks the same network protocol as the Mac version, so a **Mac main with a Windows backup**, a **Windows main with a Mac backup**, and two PCs all work. The Live link (TwinKeysBridge) and the iPhone remote are not in the Windows version yet (they come later).
+
+### Installing
+
+1. Download `TwinKeys-Windows-x64-….zip` (`arm64` for an ARM PC) from the GitHub releases (or the Actions artifacts) and unzip it anywhere.
+2. Open `TwinKeys.exe`. It is not signed: if "Windows protected your PC" appears, click More info > Run anyway.
+3. When Windows Firewall asks, allow TwinKeys on **private networks** (it listens on UDP port 47801). Do not allow public networks. If you missed the prompt: Windows Security > Firewall & network protection > Allow an app through firewall, and tick TwinKeys.
+
+### Getting cues into Live (create the loopback MIDI port "TwinKeys")
+
+Windows has no standard way yet for an app to create its own MIDI input (as the Mac does), so you create a **loopback MIDI port** yourself. TwinKeys only sends to it.
+
+- **Windows 11 with Windows MIDI Services**: in the MIDI Settings app, create a loopback (Basic Loopback) and name one side "TwinKeys". TwinKeys sends to "TwinKeys"; Live reads the other side as an input.
+- **With loopMIDI**: install loopMIDI (by Tobias Erichsen, https://www.tobias-erichsen.de/software/loopmidi.html) and create a port named "TwinKeys". It is not included with TwinKeys.
+
+Which of the two works with your PC and Live has not been checked yet.
+
+1. In "TwinKeys Setup" (shown the first time), choose "Loopback MIDI port "TwinKeys"" and click Send a Test. When the port is found, "Found: TwinKeys" appears.
+2. In Live's Settings > Link, Tempo & MIDI, turn on Track and Remote for the loopback input.
+3. If Live's MIDI indicator lights up on Send a Test, you are ready. Map the keys in MIDI Map Mode as on the Mac (cues on channel 1, from C1 = 36 upwards, velocity 127: the same notes as the Mac).
+
+If you create the port later, TwinKeys finds it within a few seconds.
+
+### Mixing a Mac and a PC
+
+1. Make a pairing code on one computer (Mac or PC) and enter the same 10 characters on the other (on Windows: Settings > Pairing Code). Windows keeps it encrypted for your Windows user.
+2. Put both on the same network. When the other appears under Nearby TwinKeys, click Connect.
+3. If it is not listed, use Connect by IP Address… (Ctrl+Shift+K) and type its IP address. The PC's IP address is shown under Settings > Pairing Code.
+4. Main and backup, the delivery check, the cue count and All Notes Off work as between two Macs.
+
+The Mac version lists a Windows PC it finds (both use `_twinkeys._udp`). Whether a Mac and a PC find each other has not been checked on real machines yet; if they do not, connect by IP address.
+
+### Keys and shortcuts on Windows
+
+- Cue keys are matched by **key position** (the same place on a JIS or US keyboard is the same cue). The defaults are ↑ ↓ ← → Space Enter Esc.
+- "Keep cue keys from other apps (recommended)" needs no special permission, but **it does not work while an app running as administrator is in front**. Start Live as usual.
+- While you type in a TwinKeys text box or dialog, keys go there (as on the Mac).
+- Ctrl+K connect / disconnect, Ctrl+Shift+K connect by IP address, Ctrl+, settings, F1 this help. **Ctrl+Alt+K** (key capture on/off) and **Ctrl+Alt+P** (All Notes Off) work whichever app is in front.
+- Closing the window keeps TwinKeys running in the notification area (system tray). To quit, right-click its icon > Quit TwinKeys.
+
+### Files on Windows
+
+- Settings: `%LOCALAPPDATA%\TwinKeys\settings.json`
+- Pairing code: `%LOCALAPPDATA%\TwinKeys\pairing.dat` (encrypted, readable only by your Windows user)
+- Logs: `%LOCALAPPDATA%\TwinKeys\Logs\` (open from Settings > General)
+
 ## Credits
 
 Shogo Kajiyama / SEVENTHWELL · MIT License

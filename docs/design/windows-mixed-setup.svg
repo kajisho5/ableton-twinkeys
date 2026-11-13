@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="800" viewBox="0 0 1100 800">
+<rect x="0" y="0" width="1100" height="800" fill="#FFFFFF"/>
+<text x="40" y="46" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="24" font-weight="700" text-anchor="start">Mac と Windows を混ぜた構成</text>
+<text x="40" y="72" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">どちらがメインでも同じ通信（UDP 47801・合言葉で署名と暗号化）。見つけ方は mDNS/Bonjour、だめなら IP アドレスで直接。</text>
+<text x="40" y="118" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="16" font-weight="700" text-anchor="start">構成A：Mac がメイン、Windows がバックアップ</text>
+<rect x="40" y="132" width="330" height="230" rx="12" fill="#F6F6F6" stroke="#8A8A8A" stroke-width="2"/>
+<text x="58" y="162" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="17" font-weight="700" text-anchor="start">メイン（macOS）</text>
+<rect x="58" y="178" width="294" height="56" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="72" y="202" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="14" font-weight="600" text-anchor="start">TwinKeys</text>
+<text x="72" y="222" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">キーを読む・ノートを送る</text>
+<rect x="58" y="246" width="294" height="44" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="72" y="273" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">仮想 MIDI 入力「TwinKeys」（CoreMIDI）</text>
+<rect x="58" y="302" width="294" height="44" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="72" y="329" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">Ableton Live（同じセット・同じ割り当て）</text>
+<line x1="205" y1="235" x2="205" y2="245" stroke="#5C5C5C" stroke-width="1.5"/>
+<path d="M200 241 l5 5 l5 -5" stroke="#5C5C5C" stroke-width="1.5" fill="none"/>
+<line x1="205" y1="291" x2="205" y2="301" stroke="#5C5C5C" stroke-width="1.5"/>
+<path d="M200 297 l5 5 l5 -5" stroke="#5C5C5C" stroke-width="1.5" fill="none"/>
+<rect x="730" y="132" width="330" height="230" rx="12" fill="#F2F7FC" stroke="#005FB8" stroke-width="2"/>
+<text x="748" y="162" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="17" font-weight="700" text-anchor="start">バックアップ（Windows）</text>
+<rect x="748" y="178" width="294" height="56" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="762" y="202" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="14" font-weight="600" text-anchor="start">TwinKeys</text>
+<text x="762" y="222" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">ノートを受けて鳴らす</text>
+<rect x="748" y="246" width="294" height="44" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="762" y="273" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">MIDI「TwinKeys」（MIDI Services / loopMIDI）</text>
+<rect x="748" y="302" width="294" height="44" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="762" y="329" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">Ableton Live（同じセット・同じ割り当て）</text>
+<line x1="895" y1="235" x2="895" y2="245" stroke="#5C5C5C" stroke-width="1.5"/>
+<path d="M890 241 l5 5 l5 -5" stroke="#5C5C5C" stroke-width="1.5" fill="none"/>
+<line x1="895" y1="291" x2="895" y2="301" stroke="#5C5C5C" stroke-width="1.5"/>
+<path d="M890 297 l5 5 l5 -5" stroke="#5C5C5C" stroke-width="1.5" fill="none"/>
+<line x1="370" y1="210" x2="730" y2="210" stroke="#0F7B0F" stroke-width="3"/>
+<path d="M720 203 l10 7 l-10 7" stroke="#0F7B0F" stroke-width="3" fill="none"/>
+<path d="M380 233 l-10 7 l10 7" stroke="#8A8A8A" stroke-width="2" fill="none"/>
+<line x1="370" y1="240" x2="730" y2="240" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="550.0" y="198" fill="#0F7B0F" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="middle">ノート・名前・回数（暗号化）</text>
+<text x="550.0" y="262" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="middle">届いた確認・遅延・状態</text>
+<line x1="470" y1="335" x2="352" y2="206" stroke="#005FB8" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="470" y="290" width="54" height="90" rx="11" fill="#FFFFFF" stroke="#1A1A1A" stroke-width="2"/>
+<rect x="476" y="301" width="42" height="64" rx="3" fill="#E5EFF9"/>
+<text x="497" y="338" fill="#005FB8" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="700" text-anchor="middle">GO</text>
+<text x="536" y="328" fill="#005FB8" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">iPhone（TwinKeys Remote）は</text>
+<text x="536" y="344" fill="#005FB8" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">メインだけにつなぐ</text>
+<text x="536" y="360" fill="#005FB8" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">TCP・_twinkeys-remote._tcp</text>
+<text x="40" y="448" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="16" font-weight="700" text-anchor="start">構成B：Windows がメイン、Mac がバックアップ</text>
+<rect x="40" y="462" width="330" height="230" rx="12" fill="#F2F7FC" stroke="#005FB8" stroke-width="2"/>
+<text x="58" y="492" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="17" font-weight="700" text-anchor="start">メイン（Windows）</text>
+<rect x="58" y="508" width="294" height="56" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="72" y="532" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="14" font-weight="600" text-anchor="start">TwinKeys</text>
+<text x="72" y="552" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">キーを読む・ノートを送る</text>
+<rect x="58" y="576" width="294" height="44" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="72" y="603" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">MIDI「TwinKeys」（MIDI Services / loopMIDI）</text>
+<rect x="58" y="632" width="294" height="44" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="72" y="659" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">Ableton Live（同じセット・同じ割り当て）</text>
+<line x1="205" y1="565" x2="205" y2="575" stroke="#5C5C5C" stroke-width="1.5"/>
+<path d="M200 571 l5 5 l5 -5" stroke="#5C5C5C" stroke-width="1.5" fill="none"/>
+<line x1="205" y1="621" x2="205" y2="631" stroke="#5C5C5C" stroke-width="1.5"/>
+<path d="M200 627 l5 5 l5 -5" stroke="#5C5C5C" stroke-width="1.5" fill="none"/>
+<rect x="730" y="462" width="330" height="230" rx="12" fill="#F6F6F6" stroke="#8A8A8A" stroke-width="2"/>
+<text x="748" y="492" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="17" font-weight="700" text-anchor="start">バックアップ（macOS）</text>
+<rect x="748" y="508" width="294" height="56" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="762" y="532" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="14" font-weight="600" text-anchor="start">TwinKeys</text>
+<text x="762" y="552" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">ノートを受けて鳴らす</text>
+<rect x="748" y="576" width="294" height="44" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="762" y="603" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">仮想 MIDI 入力「TwinKeys」（CoreMIDI）</text>
+<rect x="748" y="632" width="294" height="44" rx="8" fill="#FFFFFF" stroke="#C8C8C8" stroke-width="1"/>
+<text x="762" y="659" fill="#1A1A1A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">Ableton Live（同じセット・同じ割り当て）</text>
+<line x1="895" y1="565" x2="895" y2="575" stroke="#5C5C5C" stroke-width="1.5"/>
+<path d="M890 571 l5 5 l5 -5" stroke="#5C5C5C" stroke-width="1.5" fill="none"/>
+<line x1="895" y1="621" x2="895" y2="631" stroke="#5C5C5C" stroke-width="1.5"/>
+<path d="M890 627 l5 5 l5 -5" stroke="#5C5C5C" stroke-width="1.5" fill="none"/>
+<line x1="370" y1="540" x2="730" y2="540" stroke="#0F7B0F" stroke-width="3"/>
+<path d="M720 533 l10 7 l-10 7" stroke="#0F7B0F" stroke-width="3" fill="none"/>
+<path d="M380 563 l-10 7 l10 7" stroke="#8A8A8A" stroke-width="2" fill="none"/>
+<line x1="370" y1="570" x2="730" y2="570" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="550.0" y="528" fill="#0F7B0F" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="middle">ノート・名前・回数（暗号化）</text>
+<text x="550.0" y="592" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="middle">届いた確認・遅延・状態</text>
+<rect x="400" y="600" width="300" height="54" rx="8" fill="#FFF8E5" stroke="#9D5D00" stroke-width="1"/>
+<text x="414" y="622" fill="#9D5D00" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="start">フェーズ3 までは、Windows メインに</text>
+<text x="414" y="640" fill="#9D5D00" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="600" text-anchor="start">iPhone はつなげません（Mac メインのみ）</text>
+<text x="40" y="740" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">変わらないこと：合言葉（10文字）・ポート 47801・パケット形式（プロトコル v2）・ノート番号（C1 から順）。</text>
+<text x="40" y="760" fill="#5C5C5C" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">OS ごとに違うこと：キーの読み方（Mac はイベントタップ、Windows は低レベルキーボードフック）と、Live への MIDI の渡し方。</text>
+</svg>
