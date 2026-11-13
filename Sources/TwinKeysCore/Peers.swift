@@ -7,9 +7,16 @@ public struct PeerInfo: Identifiable, Equatable, Sendable {
     public var receives: Bool
     /// Wire protocol version the peer advertises (nil if it did not say).
     public var version: String?
-    public init(id: String, name: String, sends: Bool, receives: Bool, version: String? = nil) {
-        self.id = id; self.name = name; self.sends = sends; self.receives = receives; self.version = version
+    /// The operating system the peer advertises ("mac", "win"); nil for versions that do not say
+    /// (every Mac before 2.4.1 and anything unknown).
+    public var os: String?
+    public init(id: String, name: String, sends: Bool, receives: Bool, version: String? = nil, os: String? = nil) {
+        self.id = id; self.name = name; self.sends = sends; self.receives = receives; self.version = version; self.os = os
     }
+
+    /// The name to show for the peer's OS. Only Windows is named: a peer that does not say is a Mac
+    /// (or an older TwinKeys), as before.
+    public var osDisplayName: String? { os == TXTKeys.osWindows ? "Windows" : nil }
 
     /// False when the peer speaks another protocol version: connecting would never work.
     public var isCompatible: Bool { version == nil || version == String(WireProtocol.version) }
@@ -33,6 +40,11 @@ public enum TXTKeys {
     public static let modes = "modes"
     /// Random per launch. Our own ID with another boot value means another Mac copied our ID.
     public static let boot = "boot"
+    /// The operating system ("mac" or "win", docs/design-windows.md 3.1). Optional: older versions
+    /// neither send nor read it, and a record without it is read as before.
+    public static let os = "os"
+    public static let osMac = "mac"
+    public static let osWindows = "win"
 
     public static func modes(sends: Bool, receives: Bool) -> String {
         (sends ? "s" : "") + (receives ? "r" : "")
@@ -42,7 +54,8 @@ public enum TXTKeys {
     public static func peer(from txt: [String: String], serviceName: String, ownID: String) -> PeerInfo? {
         guard let id = txt[Self.id], !id.isEmpty, id != ownID else { return nil }
         let m = txt[Self.modes] ?? ""
-        return PeerInfo(id: id, name: serviceName, sends: m.contains("s"), receives: m.contains("r"), version: txt[Self.version])
+        let os = txt[Self.os].flatMap { $0.isEmpty ? nil : $0 }
+        return PeerInfo(id: id, name: serviceName, sends: m.contains("s"), receives: m.contains("r"), version: txt[Self.version], os: os)
     }
 
     /// True if the record carries our ID but comes from another running instance

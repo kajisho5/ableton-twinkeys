@@ -20,8 +20,8 @@ public static class TxtKeys
     /// <summary>Random per launch. Our own ID with another boot value means another computer copied our ID.</summary>
     public const string Boot = "boot";
     /// <summary>
-    /// Windows only (docs/design-windows.md 3.1): "win". The Mac version does not send or read it
-    /// (it ignores unknown keys), so the window shows the other OS only when it is known.
+    /// The OS (docs/design-windows.md 3.1): "win" from this app, "mac" from Macs with the os key
+    /// (older Macs do not send it), so the window shows the other OS only when it is known.
     /// </summary>
     public const string Os = "os";
 
