@@ -70,7 +70,8 @@ export const t = {
       'A big GO button for the next scene, and a show lock against slips',
       'See at a glance that both Lives answer and both sets match',
     ],
-    remoteStatus: 'In beta testing now. The App Store release is being prepared.',
+    remoteStatus: 'On the App Store: ¥1,000 (iPhone, iPad and Apple Watch). Not available in the EU.',
+    remoteStore: 'Get it on the App Store',
     remoteNeeds: 'iOS 17 or later · TwinKeys 2.0 or later on the Macs',
     remoteMore: 'How to set it up',
     remoteShotAlt:
@@ -145,7 +146,8 @@ export const t = {
       '大きな GO ボタンで次のシーンを再生。本番ロックで誤操作を防ぐ',
       '2台の Live が応答しているか、セットが同じかをひと目で確認',
     ],
-    remoteStatus: 'いまはベータ版をテスト中です。App Store での公開を準備しています。',
+    remoteStatus: 'App Store で配信中：¥1,000（iPhone・iPad・Apple Watch）。EU では配信していません。',
+    remoteStore: 'App Store で見る',
     remoteNeeds: 'iOS 17 以降・Mac に TwinKeys 2.0 以降',
     remoteMore: 'つなぎかたを見る',
     remoteShotAlt:

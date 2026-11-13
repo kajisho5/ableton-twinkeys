@@ -91,6 +91,7 @@ const suffix = lang === 'ja' ? '-ja' : '';
           {s.remotePoints.map((p) => <li>{p}</li>)}
         </ul>
         <p class="remote-status">{s.remoteStatus}</p>
+        <p><a class="btn btn-primary" href={lang === 'ja' ? 'https://apps.apple.com/jp/app/twinkeys-remote/id6832469018' : 'https://apps.apple.com/app/twinkeys-remote/id6832469018'}>{s.remoteStore}</a></p>
         <p class="remote-needs">{s.remoteNeeds}</p>
         <p class="remote-more"><a href={pageUrl(lang, 'guide')}>{s.remoteMore}</a></p>
       </div>

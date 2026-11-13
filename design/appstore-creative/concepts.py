@@ -269,3 +269,22 @@ if __name__ == "__main__" and len(sys.argv) > 1:
         print("preview written")
     elif sys.argv[1] == "final2":
         final2()
+
+
+def social(lang, w, h):
+    """Share card (og:image, GitHub social preview) in the twin-lines look, w x h at 4x scale for crispness."""
+    W, H = w * 3, h * 3
+    head = {"ja": "TwinKeys — 2台の Mac を、同時に。", "en": "TwinKeys — two Macs, one cue."}[lang]
+    cap = {"ja": "Ableton Live の本番用。Mac アプリは無料・iPhone / Apple Watch 対応", "en": "For Ableton Live shows. Free Mac app · iPhone and Apple Watch remote"}[lang]
+    pw = int(W * 0.40)
+    ph_h = pw * 0.456
+    return c2_frame(1.0, lang, W, H, (int(W / 2 - pw / 2), int(H * 0.30), pw), (int(H * 0.30 + ph_h * 0.42), int(H * 0.30 + ph_h + H * 0.09)),
+                    int(H * 0.17), int(H * 0.90), head=head, caption=cap)
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "social":
+    pub = os.path.join(M.ROOT, "site", "public", "images")
+    for lang in ("ja", "en"):
+        render(social(lang, 1200, 630), os.path.join(pub, f"og-{lang}.png"), 1200)
+    render(social("en", 1280, 640), os.path.join(M.ROOT, "deliverables", "github-social-preview-1280x640.png"), 1280)
+    print("social written")

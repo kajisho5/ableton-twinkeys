@@ -38,7 +38,14 @@ const nav = [
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description ?? s.siteDescription} />
     <meta property="og:url" content={canonical.href} />
-    <meta property="og:image" content={new URL(url('images/icon-512.png'), Astro.site).href} />
+    <meta property="og:image" content={new URL(url(lang === 'ja' ? 'images/og-ja.png' : 'images/og-en.png'), Astro.site).href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="TwinKeys" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description ?? s.siteDescription} />
+    <meta name="twitter:image" content={new URL(url(lang === 'ja' ? 'images/og-ja.png' : 'images/og-en.png'), Astro.site).href} />
     <meta property="og:locale" content={lang === 'ja' ? 'ja_JP' : 'en_US'} />
   </head>
   <body>
