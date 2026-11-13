@@ -11,6 +11,8 @@ on:
       - 'Sources/TwinKeysCore/**'
       - 'Tests/**'
       - 'Package.swift'
+      - 'LiveBridge/**'
+      - 'scripts/fake-live-bridge.py'
       - '.github/workflows/windows.yml'
   pull_request:
   workflow_dispatch:
@@ -39,8 +41,10 @@ jobs:
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: windows/global.json
-      - name: Core tests
+      - name: Core tests (with the real TwinKeysBridge script on a fake Live, scripts/fake-live-bridge.py)
         working-directory: windows
+        env:
+          TWINKEYS_PYTHON: python3
         run: dotnet test --project tests/TwinKeys.Core.Tests -c Release
       - name: Shared test vectors (shared/test-vectors, written by the Swift tests)
         working-directory: windows
@@ -81,9 +85,12 @@ jobs:
         run: |
           dotnet --info
           [System.Environment]::OSVersion
-      - name: Core tests on Windows (ChaCha20-Poly1305 and sockets of this Windows)
+      - name: Core tests on Windows (ChaCha20-Poly1305 and sockets of this Windows; the real TwinKeysBridge on a fake Live)
         working-directory: windows
+        env:
+          TWINKEYS_PYTHON: python
         run: |
+          python --version
           dotnet test --project tests/TwinKeys.Core.Tests -c Release
           dotnet test --project tests/TwinKeys.Interop.Tests -c Release
       - name: Build the app (self-contained, unpackaged)
@@ -95,6 +102,8 @@ jobs:
         working-directory: windows
         shell: pwsh
         run: |
+          if (-not (Test-Path out/TwinKeys/TwinKeysBridge/__init__.py)) { "::error::TwinKeysBridge is not in the build"; exit 1 }
+          Get-ChildItem out/TwinKeys/TwinKeysBridge | Select-Object Name, Length
           Copy-Item ../LICENSE out/TwinKeys/LICENSE.txt
           @"
           TwinKeys for Windows $env:GITHUB_RUN_NUMBER (test version, unsigned)

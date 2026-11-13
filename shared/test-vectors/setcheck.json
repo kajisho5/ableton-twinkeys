@@ -1,0 +1,111 @@
+{
+  "about": "Set check (2.1): track and scene names cut to 60 UTF-8 bytes, and the FNV-1a hash sent in setSummary. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "cases": [
+    {
+      "cut_scenes": [],
+      "cut_tracks": [],
+      "hash": 3739591841,
+      "name": "empty",
+      "scenes": [],
+      "tracks": []
+    },
+    {
+      "cut_scenes": [
+        "1 Intro",
+        "2 Main"
+      ],
+      "cut_tracks": [
+        "Music",
+        "SE"
+      ],
+      "hash": 1530927814,
+      "name": "simple",
+      "scenes": [
+        "1 Intro",
+        "2 Main"
+      ],
+      "tracks": [
+        "Music",
+        "SE"
+      ]
+    },
+    {
+      "cut_scenes": [
+        "1 オープニング",
+        "2 本編",
+        "3 カーテンコール"
+      ],
+      "cut_tracks": [
+        "音楽",
+        "効果音",
+        "FX"
+      ],
+      "hash": 2163699872,
+      "name": "japanese",
+      "scenes": [
+        "1 オープニング",
+        "2 本編",
+        "3 カーテンコール"
+      ],
+      "tracks": [
+        "音楽",
+        "効果音",
+        "FX"
+      ]
+    },
+    {
+      "cut_scenes": [
+        ""
+      ],
+      "cut_tracks": [
+        "",
+        ""
+      ],
+      "hash": 2402340305,
+      "name": "empty_names",
+      "scenes": [
+        ""
+      ],
+      "tracks": [
+        "",
+        ""
+      ]
+    },
+    {
+      "cut_scenes": [
+        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      ],
+      "cut_tracks": [
+        "ああああああああああああああああああああ",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ],
+      "hash": 4122197876,
+      "name": "long_names_cut",
+      "scenes": [
+        "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      ],
+      "tracks": [
+        "ああああああああああああああああああああああああああああああああああああああああ",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaé",
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ]
+    },
+    {
+      "cut_scenes": [],
+      "cut_tracks": [
+        "Click",
+        "Guide",
+        "Band"
+      ],
+      "hash": 2422448634,
+      "name": "tracks_only",
+      "scenes": [],
+      "tracks": [
+        "Click",
+        "Guide",
+        "Band"
+      ]
+    }
+  ]
+}

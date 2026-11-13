@@ -25,11 +25,14 @@ public class SettingsTests : IDisposable
             SendKeys = false, KeyCapture = false, AutoNoteOffSeconds = 5, MidiChannel = 3, Language = "ja",
             ManualAddress = "192.168.1.20", CueKeys = [CueKey.Make(KeyIds.Down, 37, "次のシーン")], BlockCueKeys = false,
             MidiMode = MidiOutputMode.BridgeOnly, MidiPortName = "TwinKeys A", FirstRunDone = true,
+            LiveUserLibrary = @"D:\Music\Ableton\User Library",
         };
         var back = AppSettings.FromJson(s.ToJson())!;
         Assert.Equal(s.ToJson(), back.ToJson());
         Assert.Contains("\"sc:0x50:e\"", s.ToJson());
         Assert.Contains("次のシーン", s.ToJson());
+        Assert.Equal(@"D:\Music\Ableton\User Library", back.LiveUserLibrary);
+        Assert.Null(AppSettings.FromJson("{}")!.LiveUserLibrary);
     }
 
     [Fact]

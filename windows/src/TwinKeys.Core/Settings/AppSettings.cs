@@ -49,6 +49,8 @@ public sealed class AppSettings
     public string HotkeyAllNotesOff { get; set; } = "Ctrl+Alt+P";
     /// <summary>Closing the window keeps TwinKeys running in the notification area (as on the Mac).</summary>
     public bool CloseToTray { get; set; } = true;
+    /// <summary>Live's User Library chosen by the person (null: the default Documents\Ableton\User Library). Phase 2.</summary>
+    public string? LiveUserLibrary { get; set; }
 
     public AppSettings Clone() => FromJson(ToJson())!;
 
@@ -87,6 +89,7 @@ public sealed class AppSettings
                 },
                 ["first_run_done"] = FirstRunDone,
                 ["close_to_tray"] = CloseToTray,
+                ["live"] = new JsonObject { ["user_library"] = LiveUserLibrary },
                 ["hotkeys"] = new JsonObject { ["key_capture"] = HotkeyKeyCapture, ["all_notes_off"] = HotkeyAllNotesOff },
             },
         };
@@ -139,6 +142,7 @@ public sealed class AppSettings
             }
             s.FirstRunDone = Bool(w, "first_run_done") ?? false;
             s.CloseToTray = Bool(w, "close_to_tray") ?? true;
+            if (w["live"] is JsonObject lv && Str(lv, "user_library") is string ul && !string.IsNullOrWhiteSpace(ul)) s.LiveUserLibrary = ul;
             if (w["hotkeys"] is JsonObject h)
             {
                 s.HotkeyKeyCapture = Str(h, "key_capture") ?? s.HotkeyKeyCapture;

@@ -352,11 +352,92 @@ public sealed partial class SettingsWindow : Window
 
     // MARK: Live, pairing, updates, general
 
+    private (string Text, bool Failed)? bridgeResult;
+
+    /// <summary>Live (phase 2): TwinKeysBridge status, installing it, and where Live's User Library is.</summary>
     private void LivePage()
     {
         var S = Strings.Current;
-        Heading(S["PageLive"]);
-        Card().Children.Add(new TextBlock { Text = S["LivePhase2"], TextWrapping = TextWrapping.Wrap, FontSize = 14 });
+        Heading(S["PageLive"], S["LiveExplain"]);
+        var inst = model.Installer;
+
+        var status = Card();
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        line.Children.Add(new Ellipse
+        {
+            Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center,
+            Fill = !model.LiveConnected ? B("TkTertiaryText") : model.BridgeNeedsRestart ? B("TkCaution") : B("TkSuccess"),
+        });
+        line.Children.Add(new TextBlock
+        {
+            Text = model.LiveConnected ? S["LiveConnected"] : inst.IsInstalled ? S["LiveNotConnected"] : S["LiveNotInstalled"],
+            FontSize = 14, FontWeight = FontWeights.SemiBold,
+        });
+        status.Children.Add(line);
+        if (model.BridgeNeedsRestart)
+            status.Children.Add(new TextBlock { Text = S["BridgeNeedsRestartLong"], TextWrapping = TextWrapping.Wrap, Foreground = B("TkCriticalText") });
+        status.Children.Add(new TextBlock { Text = S["LiveHowTo"], TextWrapping = TextWrapping.Wrap, FontSize = 13 });
+        var result = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        var install = new Button
+        {
+            Content = inst.IsInstalled ? S["UpdateBridge"] : S["InstallBridge"],
+            IsEnabled = inst.HasBundled,
+            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+        };
+        install.Click += (_, _) =>
+        {
+            var err = model.InstallBridge();
+            bridgeResult = (err is null ? S.F("BridgeInstalled", model.Installer.Installed) : S.F("BridgeInstallFailed", err), err is not null);
+            ShowPage();
+        };
+        buttons.Children.Add(install);
+        var show = new Button { Content = S["ShowBridgeFolder"] };
+        show.Click += (_, _) =>
+        {
+            var i = model.Installer;
+            var folder = i.IsInstalled ? i.Installed : Directory.Exists(i.RemoteScripts) ? i.RemoteScripts : i.UserLibrary;
+            if (Directory.Exists(folder)) AppModel.OpenUrl(folder);
+        };
+        buttons.Children.Add(show);
+        status.Children.Add(buttons);
+        if (bridgeResult is (string text, bool failed))
+        {
+            result.Text = text;
+            result.Foreground = failed ? B("TkCriticalText") : B("TkSecondaryText");
+            result.Visibility = Visibility.Visible;
+        }
+        status.Children.Add(result);
+        if (!inst.HasBundled) status.Children.Add(Hint(S["BridgeNotBundled"]));
+        else status.Children.Add(Hint(S.F("BridgeVersionLine", inst.IsInstalled ? inst.InstalledVersion.ToString(System.Globalization.CultureInfo.InvariantCulture) : "—", inst.BundledVersion)));
+
+        var lib = Card();
+        lib.Children.Add(new TextBlock { Text = S.F("UserLibraryLabel", inst.UserLibrary), TextWrapping = TextWrapping.Wrap, FontSize = 14, IsTextSelectionEnabled = true });
+        if (!inst.UserLibraryExists) lib.Children.Add(new TextBlock { Text = S["UserLibraryMissing"], TextWrapping = TextWrapping.Wrap, Foreground = B("TkCriticalText") });
+        var libButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        var choose = new Button { Content = S["ChooseUserLibrary"] };
+        choose.Click += async (_, _) =>
+        {
+            var picker = new Windows.Storage.Pickers.FolderPicker { SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary };
+            picker.FileTypeFilter.Add("*");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WindowHelpers.Handle(this));
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder is null) return;
+            // "Remote Scripts" chosen instead of the User Library itself: take its parent.
+            var path = string.Equals(System.IO.Path.GetFileName(folder.Path), "Remote Scripts", StringComparison.OrdinalIgnoreCase)
+                ? System.IO.Path.GetDirectoryName(folder.Path) ?? folder.Path : folder.Path;
+            model.SetUserLibrary(path);
+            ShowPage();
+        };
+        libButtons.Children.Add(choose);
+        if (model.Settings.LiveUserLibrary is not null)
+        {
+            var reset = new Button { Content = S["UseDefaultUserLibrary"] };
+            reset.Click += (_, _) => { model.SetUserLibrary(null); ShowPage(); };
+            libButtons.Children.Add(reset);
+        }
+        lib.Children.Add(libButtons);
+        PagePanel.Children.Add(Hint(S["LiveUntested"]));
     }
 
     private void PairingPage()

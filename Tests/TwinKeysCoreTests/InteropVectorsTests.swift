@@ -341,9 +341,32 @@ final class InteropVectorsTests: XCTestCase {
         ]
     }
 
+    /// Phase 2 of the Windows version: the set check (names cut to 60 UTF-8 bytes, FNV-1a hash).
+    static let setCheckCases: [(name: String, tracks: [String], scenes: [String])] = [
+        ("empty", [], []),
+        ("simple", ["Music", "SE"], ["1 Intro", "2 Main"]),
+        ("japanese", ["音楽", "効果音", "FX"], ["1 オープニング", "2 本編", "3 カーテンコール"]),
+        ("empty_names", ["", ""], [""]),
+        ("long_names_cut", [String(repeating: "あ", count: 40), String(repeating: "a", count: 59) + "é", String(repeating: "b", count: 60)],
+         [String(repeating: "c", count: 61)]),
+        ("tracks_only", ["Click", "Guide", "Band"], []),
+    ]
+
+    static func setCheckFile() -> [String: Any] {
+        [
+            "about": "Set check (2.1): track and scene names cut to 60 UTF-8 bytes, and the FNV-1a hash sent in setSummary. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+            "cases": setCheckCases.map { c -> [String: Any] in
+                let s = SetSummary(tracks: c.tracks, scenes: c.scenes)
+                return ["name": c.name, "tracks": c.tracks, "scenes": c.scenes,
+                        "cut_tracks": s.tracks, "cut_scenes": s.scenes, "hash": Int(s.hash)]
+            },
+        ]
+    }
+
     static var files: [(String, () -> [String: Any])] {
         [("pairing.json", pairingFile), ("packets.json", packetsFile), ("secure.json", secureFile),
-         ("hkdf.json", hkdfFile), ("sequence.json", sequenceFile), ("livecommand.json", liveCommandFile)]
+         ("hkdf.json", hkdfFile), ("sequence.json", sequenceFile), ("livecommand.json", liveCommandFile),
+         ("setcheck.json", setCheckFile)]
     }
 
     // MARK: Compare or write

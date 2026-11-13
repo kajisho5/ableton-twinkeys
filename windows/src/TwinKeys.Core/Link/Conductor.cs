@@ -60,11 +60,12 @@ public sealed record ConductorSnapshot(
 
 /// <summary>
 /// Connects key input, the local MIDI port and the network link. Port of
-/// Sources/TwinKeysCore/Conductor.swift (phase 1: cues, notes, the delivery check, the link,
-/// the main/backup role). Thread-safe: key events, network packets and timer ticks may arrive
-/// on different threads; work is done on the calling thread under one lock.
-/// Live commands, set check, iPhone and console packets (phases 2-3, and the Mac-only console)
-/// are accepted as signs of life and otherwise ignored.
+/// Sources/TwinKeysCore/Conductor.swift: cues, notes, the delivery check, the link, the main/backup
+/// role (phase 1); Live commands forwarded between the computers and the set check (phase 2).
+/// Thread-safe: key events, network packets and timer ticks may arrive on different threads; work
+/// is done on the calling thread under one lock.
+/// iPhone and console packets (phase 3, and the Mac-only console) are accepted as signs of life
+/// and otherwise ignored.
 /// </summary>
 public sealed class Conductor
 {
@@ -465,15 +466,53 @@ public sealed class Conductor
                     LocalAllNotesOff();
                     Log($"All Notes Off received from {NameOf(peer)}");
                     break;
-                case PacketBody.LiveCommandPacket:
-                case PacketBody.LiveAck:
-                case PacketBody.LiveStatus:
-                case PacketBody.SetSummary:
-                case PacketBody.SetItem:
-                case PacketBody.LiveResult:
+                case PacketBody.LiveCommandPacket lc:
+                    {
+                        if (link.Peer != peer || !link.IsConnected) return peer;
+                        link.ReceivedOther(peer, now);
+                        var key = new PlayedCue(packet.Session, lc.Id);
+                        if (!ranLiveCommands.Contains(key))
+                        {
+                            ranLiveCommands.Add(key);
+                            if (ranLiveCommands.Count > 256) ranLiveCommands.RemoveAt(0);
+                            if (OnLiveCommandRun is { } run)
+                            {
+                                // Tell the main computer what this computer's Live did, once it has answered.
+                                uint id = lc.Id;
+                                run(lc.Command, r => Defer(() => ReportLiveRun(id, r, peer)));   // never under the lock
+                            }
+                            else
+                            {
+                                OnLiveCommand?.Invoke(lc.Command);
+                            }
+                        }
+                        SendBody(new PacketBody.LiveAck(lc.Id), peer);
+                        break;
+                    }
+                case PacketBody.LiveAck la:
+                    if (link.Peer != peer) return peer;
+                    // A repeated ack (the command was sent again) must not hide what the backup's Live did.
+                    if (pendingLive.TryGetValue(la.Id, out var pl) && pl.Delivery is "waiting" or "missing" or "unconfirmed") pl.Delivery = "delivered";
+                    break;
+                case PacketBody.LiveStatus ls:
+                    if (link.Peer != peer) return peer;
+                    peerLive = ls.Connected;
+                    break;
+                case PacketBody.LiveResult lr:
+                    if (link.Peer != peer) return peer;
+                    if (pendingLive.TryGetValue(lr.Id, out var pr)) pr.Delivery = lr.Code switch { 0 => "ran", 1 => "failedLive", _ => "noLive" };
+                    break;
+                case PacketBody.SetSummary ss:
+                    if (link.Peer != peer) return peer;
+                    (peerSet ??= new PeerSet()).Summary(ss.Tracks, ss.Scenes, ss.Hash);
+                    break;
+                case PacketBody.SetItem si:
+                    if (link.Peer != peer || peerSet is null || si.Kind > 1) return peer;
+                    peerSet.Item((SetItemKind)si.Kind, si.Index, si.Name);
+                    break;
                 case PacketBody.RemoteSummary:
                 case PacketBody.Desk:
-                    // Phase 2-3 (Live, iPhone) and the Mac-only console: not handled yet. Still a sign of life.
+                    // Phase 3 (iPhone) and the Mac-only console: not handled yet. Still a sign of life.
                     if (link.Peer == peer && link.IsConnected) link.ReceivedOther(peer, now);
                     break;
             }
@@ -497,6 +536,7 @@ public sealed class Conductor
             Perform(link.Tick(now));
             LinkChanged();
             CheckCue(now);
+            CheckLive(now);
             // A key "held" longer than MaxProtectedHold probably lost its key-up: end it on both computers.
             foreach (var note in engine.HeldNotes)
             {
@@ -715,6 +755,199 @@ public sealed class Conductor
         mainClaim = 0;
         Log("The other computer is the main now: this computer only receives");
         OnRoleChange?.Invoke(false);
+    }
+
+    // MARK: Live commands from the iPhone (phase 2; port of the Mac's 2.0-2.2)
+
+    /// <summary>What this computer's Live did with a forwarded command (sent back as liveResult).</summary>
+    public enum LiveRun : byte { Ran = 0, Refused = 1, NoAnswer = 2 }
+
+    /// <summary>The backup runs Live commands forwarded by the main here (called with the lock held: hand the work to another thread).</summary>
+    public Action<LiveCommand>? OnLiveCommand { get; set; }
+    /// <summary>Like <see cref="OnLiveCommand"/>, but the hook calls back with what Live did; the main then knows the command really ran. Used when set.</summary>
+    public Action<LiveCommand, Action<LiveRun>>? OnLiveCommandRun { get; set; }
+    /// <summary>How work is moved off the calling thread (tests run it in place).</summary>
+    public Action<Action> Defer { get; set; } = a => ThreadPool.QueueUserWorkItem(_ => a());
+
+    private sealed class PendingLive
+    {
+        public required LiveCommand Cmd;
+        public double SentAt;
+        public int Resends;
+        public string Delivery = "waiting";
+    }
+    private readonly List<PlayedCue> ranLiveCommands = [];
+    private Dictionary<uint, PendingLive> pendingLive = [];
+    private uint liveCommandId;
+    /// <summary>Whether this computer's Live answers (TwinKeysBridge); told to the other computer with each heartbeat.</summary>
+    private bool? localLive;
+    /// <summary>Whether the other computer's Live answers, as it last told us (null: unknown or not linked).</summary>
+    private bool? peerLive;
+    /// <summary>Fader, pan, tempo, mute and solo values set while the backup was not linked: the newest per control is sent when the link is back.</summary>
+    private readonly Dictionary<string, LiveCommand> unsentLatest = [];
+    private bool wasLinkedForLive;
+
+    private void ReportLiveRun(uint id, LiveRun r, string peer)
+    {
+        lock (gate)
+        {
+            if (link.Peer != peer || !link.IsConnected) return;
+            SendBody(new PacketBody.LiveResult(id, (byte)r), peer, Redundancy);
+        }
+    }
+
+    public void SetLiveConnected(bool on)
+    {
+        lock (gate) localLive = on;
+    }
+
+    /// <summary>Whether the other computer's Live answers (null: not linked, or it did not say).</summary>
+    public bool? PeerLiveConnected { get { lock (gate) return link.IsConnected ? peerLive : null; } }
+
+    /// <summary>The control a "latest value counts" command sets, or null for one-shot commands.</summary>
+    internal static string? LatestKey(LiveCommand cmd) => cmd switch
+    {
+        LiveCommand.SetVolume v => $"v{v.Track}",
+        LiveCommand.SetPan p => $"p{p.Track}",
+        LiveCommand.SetSend s => $"send{s.Send}/{s.Track}",
+        LiveCommand.SetTempo => "tempo",
+        LiveCommand.SetMute m => $"m{m.Track}",
+        LiveCommand.SetSolo m => $"s{m.Track}",
+        _ => null,
+    };
+
+    /// <summary>Main: forwards a Live command to the backup (same resend rules as cues). Returns its id, or null when not linked.</summary>
+    public uint? ForwardLive(LiveCommand cmd)
+    {
+        lock (gate)
+        {
+            if (!cmd.IsValid) return null;
+            if (!link.IsConnected || link.Peer is not string p)
+            {
+                if (LatestKey(cmd) is string k && (unsentLatest.Count < 512 || unsentLatest.ContainsKey(k))) unsentLatest[k] = cmd;
+                return null;
+            }
+            // A newer value replaces one still waiting to catch up.
+            if (LatestKey(cmd) is string k2) unsentLatest.Remove(k2);
+            return SendLive(cmd, p);
+        }
+    }
+
+    private uint SendLive(LiveCommand cmd, string p)
+    {
+        liveCommandId = unchecked(liveCommandId + 1);
+        uint id = liveCommandId;
+        // Only the newest value of a fader counts: drop older ones still waiting.
+        if (cmd.IsContinuous) pendingLive = pendingLive.Where(kv => !SameControl(kv.Value.Cmd, cmd) || kv.Value.Delivery != "waiting").ToDictionary();
+        pendingLive[id] = new PendingLive { Cmd = cmd, SentAt = clock() };
+        if (pendingLive.Count > 64) pendingLive.Remove(pendingLive.Keys.Min());
+        SendBody(new PacketBody.LiveCommandPacket(id, cmd), p, Redundancy);
+        return id;
+    }
+
+    /// <summary>
+    /// "waiting", "delivered" (arrived), "ran" / "failedLive" / "noLive" (what the backup's Live did),
+    /// "missing" (no answer in time), "unconfirmed" (old backup), "unknown".
+    /// </summary>
+    public string LiveDelivery(uint id)
+    {
+        lock (gate) return pendingLive.TryGetValue(id, out var p) ? p.Delivery : "unknown";
+    }
+
+    /// <summary>The backup has said all it will about a Live command (or never will). "delivered" waits for its liveResult.</summary>
+    public static bool IsSettledLiveDelivery(string d) => d is not ("waiting" or "delivered");
+
+    private static bool SameControl(LiveCommand a, LiveCommand b) => (a, b) switch
+    {
+        (LiveCommand.SetVolume x, LiveCommand.SetVolume y) => x.Track == y.Track,
+        (LiveCommand.SetPan x, LiveCommand.SetPan y) => x.Track == y.Track,
+        (LiveCommand.SetSend x, LiveCommand.SetSend y) => x.Track == y.Track && x.Send == y.Send,
+        (LiveCommand.SetTempo, LiveCommand.SetTempo) => true,
+        _ => false,
+    };
+
+    private void CheckLive(double now)
+    {
+        if (link.Peer is not string p || !link.IsConnected)
+        {
+            foreach (var c in pendingLive.Values) if (c.Delivery == "waiting") c.Delivery = "missing";
+            wasLinkedForLive = false;
+            peerLive = null;
+            peerSet = null;
+            return;
+        }
+        if (!wasLinkedForLive)
+        {
+            wasLinkedForLive = true;
+            // Back in touch: bring the backup's faders, tempo, mute and solo up to date.
+            var catchUp = unsentLatest.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value).ToList();
+            unsentLatest.Clear();
+            if (catchUp.Count > 0) Log($"Remote: sending {catchUp.Count} mixer/tempo change(s) made while the backup was not linked");
+            foreach (var c in catchUp) SendLive(c, p);
+        }
+        foreach (var (id, c) in pendingLive.ToList())
+        {
+            if (c.Delivery != "waiting") continue;
+            double age = now - c.SentAt;
+            if (age >= CueAnswerTimeout)
+            {
+                c.Delivery = peerAnswersCues ? "missing" : "unconfirmed";
+            }
+            else if (peerAnswersCues && age >= CueResendInterval * (c.Resends + 1) && c.Resends < 2 && !c.Cmd.IsContinuous)
+            {
+                c.Resends += 1;
+                SendBody(new PacketBody.LiveCommandPacket(id, c.Cmd), p);
+            }
+        }
+        // Forget settled commands after a while.
+        pendingLive = pendingLive.Where(kv => kv.Value.Delivery == "waiting" || now - kv.Value.SentAt < 10).ToDictionary();
+    }
+
+    // MARK: Set check (port of the Mac's 2.1)
+
+    private SetSummary? localSet;
+    private PeerSet? peerSet;
+    /// <summary>Next name to send (tracks first, then scenes), a few per heartbeat.</summary>
+    private int setCursor;
+    internal const int SetItemsPerHeartbeat = 8;
+
+    /// <summary>This computer's Live set; null while this computer's Live does not answer (then nothing is compared).</summary>
+    public void SetLocalSet(SetSummary? s)
+    {
+        lock (gate)
+        {
+            if (!Equals(s, localSet)) { localSet = s; setCursor = 0; }
+        }
+    }
+
+    /// <summary>How this computer's set differs from the other computer's, or null (same, or not known yet).</summary>
+    public SetDiff? SetDifference
+    {
+        get
+        {
+            lock (gate) return link.IsConnected && localSet is not null ? SetDiff.Compare(localSet, peerSet) : null;
+        }
+    }
+
+    /// <summary>With each heartbeat: the summary and the next few names (round and round, so a lost packet is repaired on the next pass).</summary>
+    private void SendSet(string p)
+    {
+        if (localSet is not SetSummary s) return;
+        SendBody(new PacketBody.SetSummary((ushort)Math.Min(s.Tracks.Count, ushort.MaxValue), (ushort)Math.Min(s.Scenes.Count, ushort.MaxValue), s.Hash), p);
+        int total = s.Tracks.Count + s.Scenes.Count;
+        if (total == 0) return;
+        for (int n = 0; n < Math.Min(SetItemsPerHeartbeat, total); n++)
+        {
+            if (setCursor >= total) setCursor = 0;
+            int i = setCursor++;
+            if (i < s.Tracks.Count)
+                SendBody(new PacketBody.SetItem((byte)SetItemKind.Track, (ushort)Math.Min(i, ushort.MaxValue), s.Tracks[i]), p);
+            else
+            {
+                int j = i - s.Tracks.Count;
+                SendBody(new PacketBody.SetItem((byte)SetItemKind.Scene, (ushort)Math.Min(j, ushort.MaxValue), s.Scenes[j]), p);
+            }
+        }
     }
 
     // MARK: Internals (call with the lock held)
@@ -952,7 +1185,9 @@ public sealed class Conductor
                         bool on = sendKeys && keyCapture;
                         SendBody(new PacketBody.Held(engine.Channel, on ? [.. engine.HeldNotes] : []), p);
                         SendBody(FeaturesBody(), p);
+                        if (localLive is bool live) SendBody(new PacketBody.LiveStatus(live), p);
                         if (mainClaim > 0) SendBody(new PacketBody.RoleClaim(mainClaim), p);
+                        SendSet(p);
                         heartbeatsSinceNames += 1;
                         if (heartbeatsSinceNames >= 10 && link.IsConnected) SendCueNames(p);
                         break;

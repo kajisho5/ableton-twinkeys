@@ -79,7 +79,6 @@
   <data name="MidiOff" xml:space="preserve"><value>MIDI: 使わない</value></data>
   <data name="MidiMissingBanner" xml:space="preserve"><value>ループバック MIDI ポート「{0}」が見つからないため、このPCの Live にキューが届きません。作ると自動で見つかります。</value></data>
   <data name="OpenMidiSetup" xml:space="preserve"><value>準備の方法…</value></data>
-  <data name="LiveNotYet" xml:space="preserve"><value>Live: TwinKeysBridge との連携は次の版で対応</value></data>
   <data name="TestVersionNote" xml:space="preserve"><value>試験版：まだ本物の Windows PC で試していません。</value></data>
   <data name="ProblemSettingsBroken" xml:space="preserve"><value>settings.json を読めませんでした。{0} として残し、初期設定で起動しました。</value></data>
   <data name="ProblemNoChaCha" xml:space="preserve"><value>この Windows では TwinKeys の通信を暗号化できません（ChaCha20-Poly1305 には Windows 11 が必要です）。接続できません。</value></data>
@@ -148,7 +147,6 @@ Windows では特別な許可は不要です（管理者として動くアプリ
   <data name="FirstRunSubtitle" xml:space="preserve"><value>Live が読める MIDI 入力「TwinKeys」に、キューのノートを送ります。</value></data>
   <data name="Later" xml:space="preserve"><value>あとで</value></data>
   <data name="Next" xml:space="preserve"><value>次へ</value></data>
-  <data name="LivePhase2" xml:space="preserve"><value>TwinKeysBridge を使った Live との連携（状態の表示、セットの見比べ、相手からの Live の操作）は次の版（フェーズ2）で対応します。今は MIDI で Live にキューを送ります。</value></data>
   <data name="PairingExplain" xml:space="preserve"><value>2台で同じ合言葉を使うと、その2台だけがつながります。通信の中身も暗号化されます。Mac と PC の組み合わせでも同じ合言葉を使います。</value></data>
   <data name="ThisPcCode" xml:space="preserve"><value>このPCの合言葉</value></data>
   <data name="NoCodeYet" xml:space="preserve"><value>未設定</value></data>
@@ -178,4 +176,37 @@ Windows では特別な許可は不要です（管理者として動くアプリ
 オールノートオフ：{1}（どのアプリが前でも）
 接続／接続解除：Ctrl+K・IP アドレスで接続：Ctrl+Shift+K・設定：Ctrl+,・使い方：F1</value></data>
   <data name="ShowLogs" xml:space="preserve"><value>ログフォルダを開く</value></data>
+  <data name="LiveConnected" xml:space="preserve"><value>Live: 接続済み</value></data>
+  <data name="LiveNotConnected" xml:space="preserve"><value>Live: 未接続</value></data>
+  <data name="LiveNotInstalled" xml:space="preserve"><value>Live: TwinKeysBridge が入っていません</value></data>
+  <data name="LiveNeedsRestart" xml:space="preserve"><value>Live: 新しい TwinKeysBridge を使うには Live を再起動</value></data>
+  <data name="PeerLiveOK" xml:space="preserve"><value>相手の Live ✓</value></data>
+  <data name="PeerLiveNo" xml:space="preserve"><value>相手の Live ✗</value></data>
+  <data name="MainLostTitle" xml:space="preserve"><value>⚠ メインのコンピューターが止まったときは</value></data>
+  <data name="MainLostMessage" xml:space="preserve"><value>この PC をメインにすると、この PC のキーボードでキューを出せます。</value></data>
+  <data name="BecomeMainButton" xml:space="preserve"><value>この PC をメインにする</value></data>
+  <data name="BecomeMainTitle" xml:space="preserve"><value>この PC をメインにしますか？</value></data>
+  <data name="BecomeMainMessage" xml:space="preserve"><value>この PC のキューのキーがオンになり、相手のノートは鳴らさなくなります。相手が戻ってきたら、そちらは受信だけになります。</value></data>
+  <data name="BecomeMainConfirm" xml:space="preserve"><value>メインにする</value></data>
+  <data name="ThisPcIsMain" xml:space="preserve"><value>この PC がメインです。キューのキーがオンです。元のメインが戻ったら、そちらは受信だけになります。</value></data>
+  <data name="ReturnToMain" xml:space="preserve"><value>メインに戻す</value></data>
+  <data name="SetDiffTitle" xml:space="preserve"><value>相手の Live のセットが違います</value></data>
+  <data name="SetDiffSummary" xml:space="preserve"><value>トラック {0} / {1}・シーン {2} / {3}・名前の違い {4} か所</value></data>
+  <data name="SetDiffChecking" xml:space="preserve"><value>（確認中）</value></data>
+  <data name="SetDiffNote" xml:space="preserve"><value>比べるのはトラックとシーンの数と名前だけです。2台で同じセットのファイルを開くと消えます。自動で直すことはしません。</value></data>
+  <data name="LiveExplain" xml:space="preserve"><value>TwinKeysBridge は Live の中で動く小さなスクリプトです。これがあると、メインのコンピューターが TwinKeys Remote（iPhone）から送った Live の操作をこの PC でも行い、2台の Live のセットを見比べます。キューはこれまでどおり MIDI で Live に届きます。</value></data>
+  <data name="LiveHowTo" xml:space="preserve"><value>「Live に組み込む」を押し、Live を再起動して、「設定」&gt;「Link, Tempo &amp; MIDI」の「コントロールサーフェス」で「TwinKeysBridge」を選びます（入力と出力は「なし」のまま）。TwinKeys Remote を使うときは両方のコンピューターで必要です。</value></data>
+  <data name="InstallBridge" xml:space="preserve"><value>Live に組み込む</value></data>
+  <data name="UpdateBridge" xml:space="preserve"><value>Live の部品を更新</value></data>
+  <data name="ShowBridgeFolder" xml:space="preserve"><value>エクスプローラーで表示</value></data>
+  <data name="ChooseUserLibrary" xml:space="preserve"><value>ユーザーライブラリを選ぶ…</value></data>
+  <data name="UseDefaultUserLibrary" xml:space="preserve"><value>既定の場所に戻す</value></data>
+  <data name="UserLibraryLabel" xml:space="preserve"><value>ユーザーライブラリ: {0}</value></data>
+  <data name="UserLibraryMissing" xml:space="preserve"><value>このフォルダーはありません。Live がユーザーライブラリを別の場所に置いているとき（Live の「設定」&gt;「ライブラリ」）は、そのフォルダーを選んでください。</value></data>
+  <data name="BridgeInstalled" xml:space="preserve"><value>{0} に入れました。Live を再起動し、コントロールサーフェスで TwinKeysBridge を選んでください。</value></data>
+  <data name="BridgeInstallFailed" xml:space="preserve"><value>組み込めませんでした: {0}</value></data>
+  <data name="BridgeNotBundled" xml:space="preserve"><value>このビルドには TwinKeysBridge が入っていません。</value></data>
+  <data name="BridgeNeedsRestartLong" xml:space="preserve"><value>Live は古い TwinKeysBridge で動いています。新しい部品は入れてあるので、Live を再起動してください。</value></data>
+  <data name="BridgeVersionLine" xml:space="preserve"><value>入っている版 {0}・このアプリの版 {1}</value></data>
+  <data name="LiveUntested" xml:space="preserve"><value>本物の Windows PC の Live ではまだ試していません。</value></data>
 </root>

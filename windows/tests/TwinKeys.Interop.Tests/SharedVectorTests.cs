@@ -303,8 +303,28 @@ public class SharedVectorTests
             foreach (var (k, value) in c.BridgeJson(7))
                 bridge[k] = value switch { int i => i, double d => d, bool b => b, string s => s, _ => throw new InvalidDataException() };
             Assert.True(Same(v["bridge"], bridge), $"bridge {bridge.ToJsonString()} != {v["bridge"]!.ToJsonString()}");
+            // The datagram the app really sends (Utf8JsonWriter) means the same JSON.
+            Assert.True(Same(v["bridge"], JsonNode.Parse(c.BridgeJsonBytes(7))), "BridgeJsonBytes");
         }
         foreach (var v in f["bad"]!.AsArray())
             Assert.True((bool)v!["decodes"]! == (LiveCommand.Decode(Hex(v["bytes"])) is not null), (string)v["name"]!);
+    }
+
+    // MARK: setcheck.json (phase 2)
+
+    [Fact]
+    public void SetCheckMatches()
+    {
+        var f = Load("setcheck.json");
+        Assert.NotEmpty(f["cases"]!.AsArray());
+        foreach (var v in f["cases"]!.AsArray())
+        {
+            static List<string> L(JsonNode? n) => n!.AsArray().Select(x => (string)x!).ToList();
+            var s = new SetSummary(L(v!["tracks"]), L(v["scenes"]));
+            string name = (string)v["name"]!;
+            Assert.True(L(v["cut_tracks"]).SequenceEqual(s.Tracks), name + " tracks");
+            Assert.True(L(v["cut_scenes"]).SequenceEqual(s.Scenes), name + " scenes");
+            Assert.True(U32(v["hash"]) == s.Hash, $"{name}: hash {s.Hash}, expected {v["hash"]}");
+        }
     }
 }

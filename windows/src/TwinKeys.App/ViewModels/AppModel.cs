@@ -12,7 +12,8 @@ namespace TwinKeys.App.ViewModels;
 /// <summary>
 /// Everything the windows and the tray menu show and do, around one Conductor (the Windows
 /// counterpart of the Mac's AppModel). Platform parts: the keyboard hook, WinMM MIDI out, UDP,
-/// mDNS, DPAPI. The windows read <see cref="Snapshot"/> a few times a second.
+/// mDNS, DPAPI; Live through TwinKeysBridge (phase 2). The windows read <see cref="Snapshot"/> a few
+/// times a second.
 /// </summary>
 internal sealed class AppModel : ObservableObject, IDisposable
 {
@@ -30,6 +31,8 @@ internal sealed class AppModel : ObservableObject, IDisposable
     private readonly KeyboardHook hook = new();
     private readonly DnsSdDiscovery discovery;
     private readonly Timer ticker;
+    private readonly Timer liveTicker;
+    private readonly MainLossWatch mainLoss = new();
     private Action<KeyInput>? learner;
     private bool userDisconnected;
     private bool disposed;
@@ -38,6 +41,12 @@ internal sealed class AppModel : ObservableObject, IDisposable
     public Conductor Conductor { get; }
     public UdpTransport Net { get; } = new();
     public WinMmMidiOut Midi { get; }
+    /// <summary>This PC's Live (TwinKeysBridge on 127.0.0.1).</summary>
+    public BridgeClient Bridge { get; } = new();
+    /// <summary>Live answered within the last 6 s (refreshed twice a second).</summary>
+    public bool LiveConnected { get; private set; }
+    /// <summary>Live still runs an older TwinKeysBridge than the one in this app.</summary>
+    public bool BridgeNeedsRestart { get; private set; }
     public string DisplayName { get; } = Environment.MachineName;
     public string? PairingCode { get; private set; }
     /// <summary>A problem to show at the top of the window (null: none).</summary>
@@ -72,6 +81,9 @@ internal sealed class AppModel : ObservableObject, IDisposable
             () => clock.Elapsed.TotalSeconds, () => (ulong)clock.Elapsed.Ticks * 100);
         Conductor.Log = log.Write;
         Conductor.OnRoleChange = isMain => ui.TryEnqueue(() => RoleChanged(isMain));
+        // Backup: Live commands forwarded by the main run on this PC's Live, and the main is told what Live did.
+        Conductor.OnLiveCommandRun = (cmd, answer) =>
+            Bridge.Run(cmd, done: (ok, err) => answer(ok ? Conductor.LiveRun.Ran : err == "no_answer" ? Conductor.LiveRun.NoAnswer : Conductor.LiveRun.Refused));
         Net.OnDatagram = (bytes, known) => Conductor.Receive(bytes, known);
         Net.OnNewRoute = Conductor.NewRoute;
         Net.Log = log.Write;
@@ -118,12 +130,72 @@ internal sealed class AppModel : ObservableObject, IDisposable
 
         ticker = new Timer(_ => { try { Conductor.Tick(); } catch (Exception e) { log.Write("Tick failed: " + e); } }, null, 0, 50);
 
+        // Live (phase 2): an older TwinKeysBridge from a previous TwinKeys is replaced with the one in this app.
+        Bridge.Log = log.Write;
+        var installer = Installer;
+        if (installer.UpdateIfOutdated()) log.Write($"Live Bridge: installed copy updated to version {installer.BundledVersion}");
+        Bridge.Start();
+        liveTicker = new Timer(_ => { try { RefreshLive(); } catch (Exception e) { log.Write("Live refresh failed: " + e); } }, null, 500, 500);
+
         // Connect again to the computer used last time (by IP address now; by name when mDNS sees it).
         if (Settings.LastPeerId?.StartsWith(PeerInfo.ManualPrefix, StringComparison.Ordinal) == true && Settings.ManualAddress is string addr)
             _ = ConnectByAddressAsync(addr);
     }
 
     public ConductorSnapshot Snapshot() => Conductor.Snapshot();
+
+    // MARK: Live (phase 2)
+
+    /// <summary>The Bridge files inside this app (copied next to TwinKeys.exe by the build).</summary>
+    public static string BundledBridge => Path.Combine(AppContext.BaseDirectory, BridgeInstaller.FolderName);
+    public static string DefaultUserLibrary => BridgeInstaller.DefaultUserLibrary(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+    public BridgeInstaller Installer => new(BundledBridge, Settings.LiveUserLibrary ?? DefaultUserLibrary);
+
+    private void RefreshLive()
+    {
+        bool on = Bridge.IsConnected;
+        LiveConnected = on;
+        Conductor.SetLiveConnected(on);
+        // One copy per refresh (it copies the whole Live state).
+        var live = on ? Bridge.Snapshot() : null;
+        Conductor.SetLocalSet(live is null ? null : SetSummary.Of(live));
+        BridgeNeedsRestart = live is not null && (live.Song.BridgeVersion ?? 0) < Installer.BundledVersion;
+    }
+
+    /// <summary>Installs or updates TwinKeysBridge in Live's User Library. Returns an error, or null.</summary>
+    public string? InstallBridge()
+    {
+        var i = Installer;
+        var err = i.Install();
+        log.Write(err is null ? $"Live Bridge installed into {i.Installed}" : $"Live Bridge install failed: {err}");
+        Changed?.Invoke();
+        return err;
+    }
+
+    /// <summary>The User Library Live uses, when it is not the default (null: back to the default).</summary>
+    public void SetUserLibrary(string? folder)
+    {
+        Settings.LiveUserLibrary = string.IsNullOrWhiteSpace(folder) ? null : folder;
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>"When the main computer has stopped": the other computer was linked and has stopped answering, and this PC only receives.</summary>
+    public bool MainLost(ConductorSnapshot s)
+    {
+        double now = clock.Elapsed.TotalSeconds;
+        lock (mainLoss)
+        {
+            mainLoss.Update(s.Link, now);
+            return !s.SendKeys && !s.ClaimsMain && mainLoss.IsLost(now);
+        }
+    }
+
+    /// <summary>"Make this PC the main" (the Mac's 2.3 switch to the backup).</summary>
+    public void BecomeMain() => Conductor.ClaimMain();
+
+    /// <summary>"Return to Main": only while linked.</summary>
+    public bool ReturnToMain() => Conductor.HandOverMain();
     public IReadOnlyList<PeerInfo> Peers => discovery.Peers;
     public bool HookInstalled => hook.IsInstalled;
 
@@ -415,6 +487,8 @@ internal sealed class AppModel : ObservableObject, IDisposable
         Conductor.PrepareForQuit();
         Net.Flush(TimeSpan.FromSeconds(1));
         ticker.Dispose();
+        liveTicker.Dispose();
+        Bridge.Dispose();
         hook.Dispose();
         discovery.Dispose();
         Midi.Dispose();
