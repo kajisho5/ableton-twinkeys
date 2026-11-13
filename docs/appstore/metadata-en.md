@@ -122,18 +122,16 @@ https://kajisho5.github.io/ableton-twinkeys/privacy/
 2026 Shogo Kajiyama / SEVENTHWELL
 ```
 
-## 10. このバージョンの新機能（What's New。1.2.0 の変更を書いた文面）
+## 10. このバージョンの新機能（What's New。1.3.0 の変更を書いた文面）
 
-上限 4000文字 ・ 今の文字数 **436**
+上限 4000文字 ・ 今の文字数 **332**
 
 ```text
-• Apple Watch app: GO, choose scene and All Notes Off.
-• If the main Mac stops, switch to the backup Mac from the iPhone.
-• The backup Mac confirms each action also ran in its Live, and you are told when it did not.
-• Choose what the show lock stops. GO and All Notes Off are never stopped.
-• "Try with sample data" lets you try the screens without a Mac.
-• Privacy policy and support links in Settings.
-Needs TwinKeys 2.2 on both Macs.
+• New look: a black screen with green lamps, easy to read on a dark stage (iPhone, iPad and Apple Watch).
+• Tempo and position in display windows like stage gear; time left as a segment meter.
+• Mixer levels as green, yellow and red LED-style meters.
+• The app now always uses the dark appearance.
+Nothing changes in how you use it.
 ```
 
 **大事：** App Store で最初に出すバージョンには、この欄が出ません。今回がはじめてなら、次のバージョンのときに使ってください。自動で入れるとき（appstore-prepare）は、前のバージョンがないとこの欄を送りません。

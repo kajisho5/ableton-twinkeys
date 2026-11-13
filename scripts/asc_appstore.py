@@ -416,6 +416,8 @@ class DryApi(Api):
                 "buildAudienceType": "APP_STORE_ELIGIBLE", "usesNonExemptEncryption": False}}])
         if p.endswith("/build"):
             return 200, {"data": None}, ""
+        if p == "/v1/reviewSubmissions" or (p.startswith("/v1/reviewSubmissions/") and p.endswith("/items")):
+            return one([])
         return 404, {}, f"(dry run) no fake answer for GET {p}"
 
     def upload_part(self, op, part):
@@ -1315,6 +1317,68 @@ def step_build(c):
         c.report.failed(step, f"HTTP {status} {err}")
 
 
+
+SUBMISSION_OPEN = ("READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW", "UNRESOLVED_ISSUES")
+
+
+def step_submit(c):
+    """Submit the version for App Review (only with --submit, and only after every other step was OK).
+    Apple: POST /v1/reviewSubmissions, POST /v1/reviewSubmissionItems, PATCH /v1/reviewSubmissions/{id}
+    with submitted=true. If Apple refuses (for example App Privacy not published, or an agreement missing),
+    its answer is printed and the draft submission stays in App Store Connect ("Add for Review" done);
+    running this again reuses it. Release stays MANUAL: an approved version waits for "Release"."""
+    step = "Submit for App Review"
+    subs, _ = c.api.get_all("/v1/reviewSubmissions", {
+        "filter[app]": c.app_id, "filter[platform]": "IOS", "filter[state]": ",".join(SUBMISSION_OPEN),
+        "include": "items", "limit": "50"}, "review submissions")
+    sub = None
+    for s_ in subs:
+        state = (s_.get("attributes") or {}).get("state")
+        if state in ("WAITING_FOR_REVIEW", "IN_REVIEW"):
+            c.report.ok(step, f"already submitted ({state}); nothing changed")
+            return
+        if state == "UNRESOLVED_ISSUES":
+            c.report.failed(step, "App Review sent back an earlier submission (Unresolved Issues). Read the "
+                                  f"message in App Store Connect first: {ASC}/apps/{c.app_id}/distribution/reviewsubmissions")
+            return
+        if state == "READY_FOR_REVIEW" and sub is None:
+            sub = s_
+    if sub is None:
+        ok, status, body, err = c.api.write("POST", "/v1/reviewSubmissions", {
+            "data": {"type": "reviewSubmissions", "attributes": {"platform": "IOS"},
+                     "relationships": {"app": {"data": {"type": "apps", "id": c.app_id}}}}})
+        if not ok:
+            c.report.failed(step, f"creating the submission: HTTP {status} {err}")
+            return
+        sub = body["data"]
+        print(f"  draft submission created ({sub['id']})")
+    else:
+        print(f"  using the draft submission {sub['id']}")
+    items, _ = c.api.get_all(f"/v1/reviewSubmissions/{sub['id']}/items",
+                             {"include": "appStoreVersion", "limit": "50"}, "submission items")
+    has_version = any((((i.get("relationships") or {}).get("appStoreVersion") or {}).get("data") or {}).get("id")
+                      == c.version["id"] for i in items)
+    if not has_version:
+        ok, status, body, err = c.api.write("POST", "/v1/reviewSubmissionItems", {
+            "data": {"type": "reviewSubmissionItems", "relationships": {
+                "reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub["id"]}},
+                "appStoreVersion": {"data": {"type": "appStoreVersions", "id": c.version["id"]}}}}})
+        if not ok:
+            c.report.failed(step, f"adding version {c.version_string} to the submission (Apple's answer, "
+                                  f"usually what is still missing): HTTP {status} {err}")
+            return
+        print(f"  version {c.version_string} added to the submission")
+    ok, status, body, err = c.api.write("PATCH", f"/v1/reviewSubmissions/{sub['id']}", {
+        "data": {"type": "reviewSubmissions", "id": sub["id"], "attributes": {"submitted": True}}})
+    if not ok:
+        c.report.failed(step, f"Apple did not accept the submission (usually what is still missing): "
+                              f"HTTP {status} {err}. The draft stays in App Store Connect; run this again "
+                              "once it is fixed.")
+        return
+    state = ((body or {}).get("data") or {}).get("attributes", {}).get("state", "?")
+    c.report.ok(step, f"submitted: {state}. Release is MANUAL: once approved, it waits for \"Release\".")
+
+
 def checklist(c):
     app = f"{ASC}/apps/{c.app_id}"
     items = [
@@ -1335,9 +1399,13 @@ def checklist(c):
         "China mainland may need an ICP filing number.",
     ]
     items += c.report.manual
-    items.append(f"Finally, on the version page ({app}/distribution/ios/version/inflight): check everything, then "
-                 "\"Add for Review\" and, in the draft submission, \"Submit for Review\". This script never does "
-                 "either.")
+    if c.args.submit:
+        items.append(f"Submitting: done by this run (--submit) when every step was OK; see \"Submit for App Review\" "
+                     f"above. Status: {app}/distribution/reviewsubmissions. Once approved, press \"Release\".")
+    else:
+        items.append(f"Finally, on the version page ({app}/distribution/ios/version/inflight): check everything, then "
+                     "\"Add for Review\" and, in the draft submission, \"Submit for Review\". Without --submit this "
+                     "script does neither.")
     return items
 
 
@@ -1354,6 +1422,8 @@ def main(argv=None):
     ap.add_argument("--build-wait-minutes", type=float, default=30.0)
     ap.add_argument("--check", action="store_true", help="only check listing.json and the screenshots (offline)")
     ap.add_argument("--dry-run", action="store_true", help="print the planned requests against a made-up new app")
+    ap.add_argument("--submit", action="store_true",
+                    help="after every step is OK, submit the version for App Review (release stays manual)")
     args = ap.parse_args(argv)
 
     with open(args.listing, encoding="utf-8") as f:
@@ -1388,7 +1458,8 @@ def main(argv=None):
     report = Report()
     c = Ctx(api, report, listing, args)
     print(f"\n== TwinKeys Remote {args.version} (build {args.build}), {int(args.price_jpy):,} JPY; "
-          "preparing for App Review without submitting")
+          + ("preparing it and submitting it for App Review" if args.submit
+             else "preparing for App Review without submitting"))
 
     steps = [("App", step_app, True), ("App Store version", step_version, True),
              ("App information", step_app_info, False), ("Version information", step_version_locs, False),
@@ -1407,6 +1478,18 @@ def main(argv=None):
         except Exception as e:  # a bug or an unexpected answer: report it, go on with the next step
             report.failed(name, f"{type(e).__name__}: {redact(str(e))}")
 
+    if args.submit:
+        print("\n-- Submit for App Review")
+        if report.any_failed:
+            report.skipped("Submit for App Review", "not tried: a step above failed")
+        else:
+            try:
+                step_submit(c)
+            except Fatal as e:
+                report.failed("Submit for App Review", str(e))
+            except Exception as e:
+                report.failed("Submit for App Review", f"{type(e).__name__}: {redact(str(e))}")
+
     print("\n== Summary")
     for status, step, detail in report.rows:
         print(f"  {status:8} {step}")
@@ -1419,7 +1502,7 @@ def main(argv=None):
     if report.any_failed:
         print("\nSome steps failed (see above). Fix them and run this again: finished steps are skipped.")
         return 1
-    print("\nDone. Nothing was submitted.")
+    print("\nDone. " + ("Submitted for App Review (see above)." if args.submit else "Nothing was submitted."))
     return 0
 
 
