@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="600" viewBox="0 0 720 600">
+<rect x="0" y="0" width="720" height="600" fill="#101216"/>
+<rect x="40" y="30" width="640" height="540" rx="8" fill="#202020" stroke="#3B3B3B" stroke-width="1"/>
+<rect x="41" y="31" width="638" height="32" rx="0" fill="#202020"/>
+<rect x="53" y="39" width="16" height="16" rx="3" fill="#4CC2FF"/>
+<rect x="55.8" y="42" width="4.4" height="10" rx="1" fill="#000000"/>
+<rect x="61.8" y="42" width="4.4" height="10" rx="1" fill="#000000"/>
+<text x="79" y="52" fill="#FFFFFF" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">TwinKeys の準備</text>
+<line x1="559" y1="47" x2="569" y2="47" stroke="#FFFFFF" stroke-width="1"/>
+<rect x="605" y="42" width="10" height="10" rx="1.5" fill="none" stroke="#FFFFFF" stroke-width="1"/>
+<line x1="651" y1="42" x2="661" y2="52" stroke="#FFFFFF" stroke-width="1"/>
+<line x1="661" y1="42" x2="651" y2="52" stroke="#FFFFFF" stroke-width="1"/>
+<text x="69" y="107" fill="#FFFFFF" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="20" font-weight="600" text-anchor="start">Live に音を届ける方法を選びます</text>
+<text x="69" y="131" fill="#C8C8C8" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">Live が読める MIDI 入力「TwinKeys」に、キューのノートを送ります。</text>
+<rect x="65" y="151" width="590" height="80" rx="8" fill="#2D3A47" stroke="#4CC2FF" stroke-width="2"/>
+<circle cx="89" cy="177" r="9" fill="#4CC2FF"/>
+<circle cx="89" cy="177" r="4" fill="#000000"/>
+<text x="109" y="182" fill="#FFFFFF" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="14" font-weight="600" text-anchor="start">ループバック MIDI ポート「TwinKeys」（おすすめ）</text>
+<text x="109" y="202" fill="#C8C8C8" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">MIDI Settings か loopMIDI で作ったポートに送ります。</text>
+<text x="109" y="220" fill="#6CCB5F" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="600" text-anchor="start">● 見つかりました：TwinKeys（このPCで送信を確認済み）</text>
+<rect x="65" y="243" width="590" height="80" rx="8" fill="#2B2B2B" stroke="#3B3B3B" stroke-width="1"/>
+<circle cx="89" cy="269" r="8.5" fill="none" stroke="#5A5A5A"/>
+<text x="109" y="274" fill="#FFFFFF" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="14" font-weight="600" text-anchor="start">TwinKeys が自分で MIDI 入力を作る（あとで対応）</text>
+<text x="109" y="294" fill="#C8C8C8" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">Windows MIDI Services の仮想デバイス。SDK 正式版の確認後に有効にします。</text>
+<text x="109" y="312" fill="#9A9A9A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">○ このPCでは使えません：Windows 11 25H2 と MIDI Services ランタイムが必要</text>
+<rect x="65" y="335" width="590" height="80" rx="8" fill="#2B2B2B" stroke="#3B3B3B" stroke-width="1"/>
+<circle cx="89" cy="361" r="8.5" fill="none" stroke="#5A5A5A"/>
+<text x="109" y="366" fill="#FFFFFF" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="14" font-weight="600" text-anchor="start">MIDI を使わない（TwinKeysBridge だけで動かす）</text>
+<text x="109" y="386" fill="#C8C8C8" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="12" font-weight="400" text-anchor="start">キューのキーを Live の操作（シーンの再生など）に直接結びます。</text>
+<text x="109" y="404" fill="#9A9A9A" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="11" font-weight="400" text-anchor="start">○ Live との連携を先に設定してください</text>
+<rect x="65" y="435" width="590" height="40" rx="8" fill="#2B2B2B" stroke="#3B3B3B" stroke-width="1"/>
+<text x="81" y="460" fill="#FFFFFF" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="start">テスト：キュー C1 を「TwinKeys」に 1 回送る</text>
+<rect x="543.5" y="439.5" width="96" height="32" rx="4" fill="#373737" stroke="#454545" stroke-width="1"/>
+<text x="591.0" y="460.0" fill="#FFFFFF" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="middle">送ってみる</text>
+<rect x="535" y="499" width="120" height="32" rx="4" fill="#4CC2FF"/>
+<text x="595.0" y="520.0" fill="#000000" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="600" text-anchor="middle">次へ</text>
+<rect x="415.5" y="499.5" width="108" height="32" rx="4" fill="#373737" stroke="#454545" stroke-width="1"/>
+<text x="469.0" y="520.0" fill="#FFFFFF" font-family="'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Noto Sans CJK JP', sans-serif" font-size="13" font-weight="400" text-anchor="middle">あとで</text>
+</svg>
