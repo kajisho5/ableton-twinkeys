@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  MSIX manifest for the Microsoft Store (phase 2, docs/design-windows.md 7.2). Not used by the phase 1
-  ZIP build. It declares the UDP 47801 firewall exception (private and domain networks) so the Store
+  MSIX manifest for the Microsoft Store (phase 2, docs/design-windows.md 7.2). The phase 1 ZIP build is
+  unpackaged and does not use it (the Publisher is a placeholder until the Store assigns one). It declares the UDP 47801 firewall exception (private and domain networks) so the Store
   version does not need the firewall prompt:
   https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-desktop2-firewallrules
 -->
@@ -11,7 +11,7 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
   IgnorableNamespaces="uap rescap desktop2">
-  <Identity Name="TwinKeys" Publisher="CN=TwinKeys (placeholder until the Store assigns it)" Version="0.1.0.0" />
+  <Identity Name="TwinKeys" Publisher="CN=TwinKeys" Version="0.1.0.0" />
   <Properties>
     <DisplayName>TwinKeys</DisplayName>
     <PublisherDisplayName>SEVENTHWELL</PublisherDisplayName>
