@@ -81,7 +81,7 @@ function hMap(st: LinkState, t: DemoText): string {
   out.push(text(xp, cy + 62, st === 'ok' ? t.phoneToMain : st === 'dead' ? t.phoneLost : t.phoneToBackup, st === 'dead' ? 'sb dead' : 'sb ok', 'middle'));
   out.push(node('mac', xm, top, st === 'ok' ? 'ok' : 'dead'), text(xm, top + 46, t.mainMac, 'nm', 'middle'));
   out.push(text(xm, top + 62, st === 'ok' ? t.liveOk : t.noAnswer, st === 'ok' ? 'sb ok' : 'sb dead', 'middle'));
-  out.push(node('mac', xm, bot, 'ok'), text(xm, bot + 46, t.backupMac, 'nm', 'middle'), text(xm, bot + 62, t.liveOk, 'sb ok', 'middle'));
+  out.push(node('mac', xm, bot, 'ok'), text(xm, bot + 46, t.backupMac, 'nm', 'middle'), text(xm, bot + 62, st === 'ok' ? t.liveOk : t.backupPlaying, 'sb ok', 'middle'));
   if (st === 'ok') out.push(centeredBadge(xm, top - 33, t.mainBadge));
   if (st === 'switched') out.push(centeredBadge(xm, bot - 33, t.mainBadge));
   out.push(node('desk', xd, cy, 'ok'), text(xd, cy + 46, t.deskTitle, 'nm', 'middle'), text(xd, cy + 62, deskSub(st, t), 'sb ok', 'middle'));
@@ -109,7 +109,7 @@ function vMap(st: LinkState, t: DemoText): string {
   out.push(node('phone', cx, yp, st === 'dead' ? 'dead' : 'ok'), text(cx + 36, yp - 2, 'iPhone', 'nm'));
   out.push(text(cx + 36, yp + 15, st === 'ok' ? t.phoneToMain : st === 'dead' ? t.phoneLost : t.phoneToBackup, st === 'dead' ? 'sb dead' : 'sb ok'));
   const mainSub = st === 'ok' ? `${t.mainBadge} · ${t.liveOk}` : t.noAnswer;
-  const backSub = st === 'switched' ? `${t.mainBadge} · ${t.liveOk}` : t.liveOk;
+  const backSub = st === 'switched' ? `${t.mainBadge} · ${t.backupPlaying}` : st === 'dead' ? t.backupPlaying : t.liveOk;
   out.push(node('mac', xl, ym, st === 'ok' ? 'ok' : 'dead'), text(xl, ym + 46, t.mainMac, 'nm', 'middle'), text(xl, ym + 62, mainSub, st === 'ok' ? 'sb ok' : 'sb dead', 'middle'));
   out.push(node('mac', xr, ym, 'ok'), text(xr, ym + 46, t.backupMac, 'nm', 'middle'), text(xr, ym + 62, backSub, 'sb ok', 'middle'));
   out.push(node('desk', cx, yd, 'ok'), text(cx, yd + 46, t.deskTitle, 'nm', 'middle'), text(cx, yd + 62, deskSub(st, t), 'sb ok', 'middle'));
@@ -119,5 +119,5 @@ function vMap(st: LinkState, t: DemoText): string {
 /** One sentence for screen readers, matching the picture. */
 export function mapSummary(st: LinkState, t: DemoText): string {
   const phone = st === 'ok' ? t.phoneToMain : st === 'dead' ? t.phoneLost : t.phoneToBackup;
-  return `${t.mapTitle}: ${t.watchTitle} ${t.watchLinked}. iPhone ${phone}. ${t.mainMac} ${st === 'ok' ? t.liveOk : t.noAnswer}. ${t.backupMac} ${t.liveOk}. ${t.deskTitle}: ${deskSub(st, t)}.`;
+  return `${t.mapTitle}: ${t.watchTitle} ${t.watchLinked}. iPhone ${phone}. ${t.mainMac} ${st === 'ok' ? t.liveOk : t.noAnswer}. ${t.backupMac} ${st === 'ok' ? t.liveOk : t.backupPlaying}. ${t.deskTitle}: ${deskSub(st, t)}.`;
 }

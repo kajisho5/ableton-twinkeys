@@ -30,10 +30,10 @@ T = {
     "ja": {
         "headline": "本番を、止めない。",
         "cap_fire": "GO を1回。メインとバックアップの Mac が同時に再生",
-        "cap_lost": "メインの Mac が止まっても",
-        "cap_switch": "iPhone からバックアップに切り替えて、そのまま続行",
+        "cap_lost": "メインの Mac が止まっても、バックアップは鳴り続ける",
+        "cap_switch": "iPhone の操作の届け先をバックアップに切り替えて、そのまま続行",
         "search_head": "iPhone から、2台の Mac の Live を同時に",
-        "search_sub": "メインの Mac が止まっても、バックアップで続けられます",
+        "search_sub": "2台が同時に鳴るので、メインの Mac が止まっても音は止まりません",
         "status_ok": "Main ✓ Backup ✓ Live ✓", "status_ms": "2 ms",
         "status_lost": "Main × Backup ✓", "status_lost2": "メイン切断中",
         "status_sw": "Backup（メイン）", "status_sw2": "Main：切断中",
@@ -45,15 +45,15 @@ T = {
         "strip": "バックアップに切り替え中：Backup Stage Mac がメインです",
         "rail": ["セッション", "ミキサー", "キュー", "GO", "設定"],
         "main": "メイン", "backup": "バックアップ", "playing": "再生中", "noanswer": "応答なし",
-        "nowmain": "メインに切り替え", "scene3": "M1 イントロ", "scene4": "M1 本編", "scene5": "M2 オープニング",
+        "nowmain": "鳴り続け・iPhone から操作", "scene3": "M1 イントロ", "scene4": "M1 本編", "scene5": "M2 オープニング",
     },
     "en": {
         "headline": "Keep the show running.",
         "cap_fire": "One GO plays on the main and the backup Mac at once",
-        "cap_lost": "If the main Mac stops…",
-        "cap_switch": "…switch to the backup from your iPhone and carry on",
+        "cap_lost": "If the main Mac stops, the backup keeps playing…",
+        "cap_switch": "…send your iPhone's controls to the backup and carry on",
         "search_head": "Control Live on two Macs from your iPhone",
-        "search_sub": "If the main Mac stops, carry on with the backup",
+        "search_sub": "Both Macs play at once: if the main stops, the sound does not",
         "status_ok": "Main ✓ Backup ✓ Live ✓", "status_ms": "2 ms",
         "status_lost": "Main × Backup ✓", "status_lost2": "Main disconnected",
         "status_sw": "Backup (main)", "status_sw2": "Main: disconnected",
@@ -65,7 +65,7 @@ T = {
         "strip": "Switched to backup: Backup Stage Mac is now the main Mac",
         "rail": ["Session", "Mixer", "Cues", "GO", "Settings"],
         "main": "Main", "backup": "Backup", "playing": "Playing", "noanswer": "Not answering",
-        "nowmain": "Now the main Mac", "scene3": "M1 Intro", "scene4": "M1 Main", "scene5": "M2 Opening",
+        "nowmain": "Still playing · iPhone controls it", "scene3": "M1 Intro", "scene4": "M1 Main", "scene5": "M2 Opening",
     },
 }
 
@@ -424,9 +424,9 @@ def storyboard(lang):
     frames = [(1.0, "0–2.4 秒" if lang == "ja" else "0–2.4 s"), (3.5, "2.4–5.6 秒" if lang == "ja" else "2.4–5.6 s"),
               (9.6, "5.6–10.6 秒" if lang == "ja" else "5.6–10.6 s"), (12.0, "10.6–15 秒" if lang == "ja" else "10.6–15 s")]
     notes = {"ja": ["待機：GO の画面。2台の Mac は同じシーン", "GO を押す → 光が2台へ同時に届き、次のシーンが再生",
-                    "メインが止まる → 上に赤い帯 → 長押しで切り替え", "バックアップがメインに。最後に暗くなって最初に戻る（ループ）"],
+                    "メインが止まる（バックアップは鳴り続ける）→ 赤い帯 → 長押しで操作の届け先を切り替え", "iPhone からバックアップを操作して続行。最後に暗くなって最初に戻る（ループ）"],
              "en": ["Waiting: the GO screen; both Macs on the same scene", "Tap GO: light reaches both Macs at once, the next scene plays",
-                    "The main Mac stops: red banner, hold to switch", "The backup leads; fades back to the start (loop)"]}[lang]
+                    "The main Mac stops (the backup keeps playing): red banner, hold to switch the controls", "The iPhone controls the backup; fades back to the start (loop)"]}[lang]
     sw, sh = 1880, 1880 * 1646 / 3840
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="{2 * sh + 360:.0f}" viewBox="0 0 3840 {2 * sh + 360:.0f}">',
          rect(0, 0, 3840, 2 * sh + 360, 0, "#0B0D12")]
