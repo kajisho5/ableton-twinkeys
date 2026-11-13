@@ -38,6 +38,7 @@
     <EmbeddedResource Include="Strings\en-US\Resources.resw" LogicalName="Strings.en.resw" />
     <!-- For the CI XAML check (Platform/XamlCheck.cs). -->
     <EmbeddedResource Include="Views\*.xaml" LogicalName="Xaml.%(Filename).xaml" />
+    <EmbeddedResource Include="App.xaml" LogicalName="Xaml.App.xaml" />
     <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\*.png" CopyToOutputDirectory="PreserveNewest" />
     <AppxManifest Remove="Package.appxmanifest" />

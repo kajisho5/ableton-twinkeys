@@ -27,6 +27,8 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        try { EarlyLog.Write("Resources: " + ThemeResources.Ensure(this)); }
+        catch (Exception e) { EarlyLog.Write("Resources could not be added: " + e); }
         // Keep running with no window open (notification area only, or started at sign-in).
         DispatcherShutdownMode = DispatcherShutdownMode.OnExplicitShutdown;
         UnhandledException += (_, e) => EarlyLog.Write("Unhandled: " + e.Message + " | " + e.Exception);
