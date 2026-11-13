@@ -17,7 +17,7 @@ import XCTest
 /// MIDI with its name and the shared count (2); Swift disconnects (the peer sees the goodbye).
 final class InteropPeerTests: XCTestCase {
     #if canImport(Darwin)
-    final class Recorder: MIDIOutput {
+    final class Recorder: MIDIOutput, @unchecked Sendable {
         private let lock = NSLock()
         private var sent: [[UInt8]] = []
         func send(_ bytes: [UInt8]) {
@@ -30,7 +30,7 @@ final class InteropPeerTests: XCTestCase {
     }
 
     /// A plain IPv4 UDP socket that sends every packet to one address (the C# peer).
-    final class UDPSink: PacketSink {
+    final class UDPSink: PacketSink, @unchecked Sendable {
         let fd: Int32
         private var dest = sockaddr_in()
 
@@ -80,7 +80,7 @@ final class InteropPeerTests: XCTestCase {
     }
 
     /// Shared between the test and its two helper threads.
-    final class Flags {
+    final class Flags: @unchecked Sendable {
         private let lock = NSLock()
         private var _stop = false
         private var _bound: String?
