@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- OS-independent part of TwinKeys for Windows: the UDP protocol, pairing, the link and the
+       Conductor, ported file by file from Sources/TwinKeysCore (Swift). No package references:
+       everything uses the .NET 10 base library. Builds and tests on Linux, macOS and Windows. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>TwinKeys.Core</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="TwinKeys.Core.Tests" />
+    <InternalsVisibleTo Include="TwinKeys.Interop.Tests" />
+  </ItemGroup>
+</Project>

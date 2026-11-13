@@ -13,3 +13,9 @@ build/
 
 # Python caches (tests under scripts/ and LiveBridge/)
 __pycache__/
+
+# Windows version (.NET build output)
+windows/**/bin/
+windows/**/obj/
+windows/artifacts/
+windows/**/TestResults/
