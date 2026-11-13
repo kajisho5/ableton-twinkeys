@@ -1,0 +1,209 @@
+{
+  "about": "Signing (hello, helloAck: HMAC-SHA256 under K, first 16 bytes) and sealing (ChaCha20-Poly1305 under HMAC(K, \"dir\" + sender nonce + receiver nonce); nonce = header bytes 4..11 + 00000000; AAD = 12-byte header). Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "code": "K7MQ2-WX9TP",
+  "direction_key_a_to_b": "e1096c6be469282c9a04e4e48c8ddd411895fc41c8dc1b3b66a49c2c369b9023",
+  "direction_key_b_to_a": "3c0a758c8f76029d364333330f91ceaca2f46dda0f157d12e8acebf980ee53e5",
+  "fingerprint": "3f8694b0",
+  "key": "0492acda7ee0505a32db267d3fc206f5d1394de2d02b87da48f0e271e1c6ae34",
+  "nonce_a": "101112131415161718191a1b1c1d1e1f",
+  "nonce_b": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+  "sealed": [
+    {
+      "body": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "Stage PC",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "name": "hello_from_a",
+      "plain": "544b020101020304000000018f0c2b7e4d3a4b8e9c112a6f5e0d9b34101112131415161718191a1b1c1d1e1f085374616765205043",
+      "sealed": "544b020101020304000000018f0c2b7e4d3a4b8e9c112a6f5e0d9b34101112131415161718191a1b1c1d1e1f085374616765205043a999b1aa26c068c745638785efce1798",
+      "sender": "a",
+      "seq": 1,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "instance_id": "11111111-2222-3333-4444-555555555555",
+        "name": "Backup Stage Mac",
+        "nonce": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+        "type": "helloAck"
+      },
+      "name": "helloAck_from_b",
+      "plain": "544b02020a0b0c0d0000000111111111222233334444555555555555a0a1a2a3a4a5a6a7a8a9aaabacadaeaf104261636b7570205374616765204d6163",
+      "sealed": "544b02020a0b0c0d0000000111111111222233334444555555555555a0a1a2a3a4a5a6a7a8a9aaabacadaeaf104261636b7570205374616765204d61638be2b15def7cd6904ee0ba1d708707de",
+      "sender": "b",
+      "seq": 1,
+      "session": 168496141
+    },
+    {
+      "body": {
+        "channel": 0,
+        "note": 36,
+        "type": "noteOn",
+        "velocity": 127
+      },
+      "name": "noteOn_a_to_b",
+      "plain": "544b0210010203040000000200247f",
+      "sealed": "544b021001020304000000025e9e81382c5a8b0d7d07f47762e067f185eef0",
+      "sender": "a",
+      "seq": 2,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "count": 1,
+        "seq": 2,
+        "type": "cueCount"
+      },
+      "name": "cueCount_a_to_b",
+      "plain": "544b021701020304000000030000000200000001",
+      "sealed": "544b02170102030400000003ec855a00b667b2326fbe46021c889150d71b94654dbd85ac",
+      "sender": "a",
+      "seq": 3,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "channel": 0,
+        "note": 36,
+        "type": "noteOff"
+      },
+      "name": "noteOff_a_to_b",
+      "plain": "544b021101020304000000040024",
+      "sealed": "544b021101020304000000041a3334841a288506cadc3044304d240a0488",
+      "sender": "a",
+      "seq": 4,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "timestamp_nanos": "1000000000",
+        "type": "heartbeat"
+      },
+      "name": "heartbeat_a_to_b",
+      "plain": "544b02300102030400000005000000003b9aca00",
+      "sealed": "544b023001020304000000054d5858f4699f05e7d64c720f02c89dcf993fbb42bed261f2",
+      "sender": "a",
+      "seq": 5,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "channel": 0,
+        "notes": [
+          37
+        ],
+        "type": "held"
+      },
+      "name": "held_a_to_b",
+      "plain": "544b02120102030400000006000125",
+      "sealed": "544b02120102030400000006bed7565fa3f560489d139f54b79f4fd237984d",
+      "sender": "a",
+      "seq": 6,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "epoch": 1,
+        "flags": 3,
+        "type": "features"
+      },
+      "name": "features_a_to_b",
+      "plain": "544b021301020304000000070301",
+      "sealed": "544b0213010203040000000743e2536237d698e78e44919068e41ec6092d",
+      "sender": "a",
+      "seq": 7,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "channel": 0,
+        "label": "↓",
+        "memo": "次のシーン",
+        "note": 37,
+        "type": "cueName"
+      },
+      "name": "cueName_a_to_b",
+      "plain": "544b02150102030400000008002503e286930fe6aca1e381aee382b7e383bce383b3",
+      "sealed": "544b021501020304000000085f9bfc2e50313dc0b2e7ec73301697043f0f2e3c745916cf1d47971d336c01a1d821e25e227c",
+      "sender": "a",
+      "seq": 8,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "type": "allNotesOff"
+      },
+      "name": "allNotesOff_a_to_b",
+      "plain": "544b02200102030400000009",
+      "sealed": "544b022001020304000000093b125a670e4affddd8f925ad3f7dcfee",
+      "sender": "a",
+      "seq": 9,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "millis": "1763100000000",
+        "type": "roleClaim"
+      },
+      "name": "roleClaim_a_to_b",
+      "plain": "544b021e010203040000000a0000019a80f2ff00",
+      "sealed": "544b021e010203040000000ab708d474b78c1f07ffe92438474c28c14092cf3e4d8d3b61",
+      "sender": "a",
+      "seq": 10,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "type": "bye"
+      },
+      "name": "bye_a_to_b",
+      "plain": "544b0203010203040000000b",
+      "sealed": "544b0203010203040000000b287d3d62924dd679e903a21b1bffe9f0",
+      "sender": "a",
+      "seq": 11,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "seq": 2,
+        "type": "noteAck"
+      },
+      "name": "noteAck_b_to_a",
+      "plain": "544b02140a0b0c0d0000000200000002",
+      "sealed": "544b02140a0b0c0d00000002bb6409a1bf81ee160c8f0000ef3202795140c8ff",
+      "sender": "b",
+      "seq": 2,
+      "session": 168496141
+    },
+    {
+      "body": {
+        "timestamp_nanos": "1000000000",
+        "type": "heartbeatAck"
+      },
+      "name": "heartbeatAck_b_to_a",
+      "plain": "544b02310a0b0c0d00000003000000003b9aca00",
+      "sealed": "544b02310a0b0c0d000000032081fb43d3dc7d6e979520cacd32ede6ada508f6a9bafd1a",
+      "sender": "b",
+      "seq": 3,
+      "session": 168496141
+    },
+    {
+      "body": {
+        "channel": 0,
+        "note": 36,
+        "original_seq": 2,
+        "released": true,
+        "type": "cueResend",
+        "velocity": 127
+      },
+      "name": "cueResend_a_to_b_seq_max",
+      "plain": "544b021601020304ffffffff0000000200247f01",
+      "sealed": "544b021601020304ffffffff15d059a5d3eb11d5165f6575e5c1c1039a591bc10458c7c2",
+      "sender": "a",
+      "seq": 4294967295,
+      "session": 16909060
+    }
+  ]
+}

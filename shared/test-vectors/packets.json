@@ -1,0 +1,673 @@
+{
+  "about": "Plain packet bytes (before sealing) for fixed inputs, and bytes that must be dropped. 64-bit numbers are decimal strings. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "bad_packets": [
+    {
+      "bytes": "544b02",
+      "error": "tooShort",
+      "name": "too_short"
+    },
+    {
+      "bytes": "544b022000000001000000",
+      "error": "tooShort",
+      "name": "header_only_11_bytes"
+    },
+    {
+      "bytes": "004b02200000000000000000",
+      "error": "badMagic",
+      "name": "bad_magic"
+    },
+    {
+      "bytes": "544b01200000000000000000",
+      "error": "unsupportedVersion",
+      "name": "version_1"
+    },
+    {
+      "bytes": "544b02770000000100000002",
+      "error": "unknownType",
+      "name": "unknown_type"
+    },
+    {
+      "bytes": "544b0210000000010000000200c864",
+      "error": "badPayload",
+      "name": "noteOn_note_200"
+    },
+    {
+      "bytes": "544b02100000000100000002103c64",
+      "error": "badPayload",
+      "name": "noteOn_channel_16"
+    },
+    {
+      "bytes": "544b02100000000100000002003c80",
+      "error": "badPayload",
+      "name": "noteOn_velocity_128"
+    },
+    {
+      "bytes": "544b02100000000100000002003c",
+      "error": "badPayload",
+      "name": "noteOn_cut_short"
+    },
+    {
+      "bytes": "544b021100000001000000020080",
+      "error": "badPayload",
+      "name": "noteOff_note_128"
+    },
+    {
+      "bytes": "544b023000000001000000020102",
+      "error": "badPayload",
+      "name": "heartbeat_cut_short"
+    },
+    {
+      "bytes": "544b020100000001000000020101010101010101010101010101010101010101010101010101010101010101",
+      "error": "badPayload",
+      "name": "hello_cut_short"
+    },
+    {
+      "bytes": "544b02010000000100000002010101010101010101010101010101010101010101010101010101010101010121414141414141414141414141414141414141414141414141414141414141414141",
+      "error": "badPayload",
+      "name": "hello_name_longer_than_32"
+    },
+    {
+      "bytes": "544b0202000000010000000201010101010101010101010101010101010101010101010101010101010101010a4142",
+      "error": "badPayload",
+      "name": "hello_name_missing_bytes"
+    },
+    {
+      "bytes": "544b0212000000010000000200213c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+      "error": "badPayload",
+      "name": "held_33_notes"
+    },
+    {
+      "bytes": "544b0212000000010000000200023c82",
+      "error": "badPayload",
+      "name": "held_note_out_of_range"
+    },
+    {
+      "bytes": "544b0212000000010000000200033c",
+      "error": "badPayload",
+      "name": "held_count_more_than_sent"
+    },
+    {
+      "bytes": "544b02130000000100000002",
+      "error": "badPayload",
+      "name": "features_empty"
+    },
+    {
+      "bytes": "544b02140000000100000002000001",
+      "error": "badPayload",
+      "name": "noteAck_cut_short"
+    },
+    {
+      "bytes": "544b0215000000010000000200250d4141414141414141414141414100",
+      "error": "badPayload",
+      "name": "cueName_label_13_bytes"
+    },
+    {
+      "bytes": "544b02150000000100000002002501413d41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+      "error": "badPayload",
+      "name": "cueName_memo_61_bytes"
+    },
+    {
+      "bytes": "544b021600000001000000020000000100257f",
+      "error": "badPayload",
+      "name": "cueResend_cut_short"
+    },
+    {
+      "bytes": "544b0217000000010000000200000001000000",
+      "error": "badPayload",
+      "name": "cueCount_cut_short"
+    },
+    {
+      "bytes": "544b0218000000010000000200000001012710",
+      "error": "badPayload",
+      "name": "liveCommand_scene_out_of_range"
+    },
+    {
+      "bytes": "544b021800000001000000020000000163",
+      "error": "badPayload",
+      "name": "liveCommand_unknown_op"
+    },
+    {
+      "bytes": "544b021c00000001000000020200010141",
+      "error": "badPayload",
+      "name": "setItem_kind_2"
+    },
+    {
+      "bytes": "544b021e000000010000000200000000000001",
+      "error": "badPayload",
+      "name": "roleClaim_cut_short"
+    },
+    {
+      "bytes": "544b0221000000010000000201",
+      "error": "badPayload",
+      "name": "remoteSummary_cut_short"
+    }
+  ],
+  "max_packet_size": 128,
+  "packets": [
+    {
+      "body": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "Stage PC",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "bytes": "544b020101020304000000018f0c2b7e4d3a4b8e9c112a6f5e0d9b34101112131415161718191a1b1c1d1e1f085374616765205043",
+      "decoded": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "Stage PC",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "name": "hello",
+      "seq": 1,
+      "session": 16909060
+    },
+    {
+      "body": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "Backup Stage Mac",
+        "nonce": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+        "type": "helloAck"
+      },
+      "bytes": "544b0202a1b2c3d4000000028f0c2b7e4d3a4b8e9c112a6f5e0d9b34a0a1a2a3a4a5a6a7a8a9aaabacadaeaf104261636b7570205374616765204d6163",
+      "decoded": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "Backup Stage Mac",
+        "nonce": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+        "type": "helloAck"
+      },
+      "name": "helloAck",
+      "seq": 2,
+      "session": 2712847316
+    },
+    {
+      "body": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "bytes": "544b020100000003000000048f0c2b7e4d3a4b8e9c112a6f5e0d9b34101112131415161718191a1b1c1d1e1f00",
+      "decoded": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "name": "hello_empty_name",
+      "seq": 4,
+      "session": 3
+    },
+    {
+      "body": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "bytes": "544b020100000005000000068f0c2b7e4d3a4b8e9c112a6f5e0d9b34101112131415161718191a1b1c1d1e1f1ee98db5e98db5e98db5e98db5e98db5e98db5e98db5e98db5e98db5e98db5",
+      "decoded": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "鍵鍵鍵鍵鍵鍵鍵鍵鍵鍵",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "name": "hello_long_cjk_name_cut_on_character",
+      "seq": 6,
+      "session": 5
+    },
+    {
+      "body": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "Stage PC 👍🏽👍🏽👍🏽",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "bytes": "544b020100000005000000078f0c2b7e4d3a4b8e9c112a6f5e0d9b34101112131415161718191a1b1c1d1e1f19537461676520504320f09f918df09f8fbdf09f918df09f8fbd",
+      "decoded": {
+        "instance_id": "8F0C2B7E-4D3A-4B8E-9C11-2A6F5E0D9B34",
+        "name": "Stage PC 👍🏽👍🏽",
+        "nonce": "101112131415161718191a1b1c1d1e1f",
+        "type": "hello"
+      },
+      "name": "hello_emoji_cut_on_grapheme_cluster",
+      "seq": 7,
+      "session": 5
+    },
+    {
+      "body": {
+        "type": "bye"
+      },
+      "bytes": "544b02030000000700000008",
+      "decoded": {
+        "type": "bye"
+      },
+      "name": "bye",
+      "seq": 8,
+      "session": 7
+    },
+    {
+      "body": {
+        "channel": 0,
+        "note": 60,
+        "type": "noteOn",
+        "velocity": 100
+      },
+      "bytes": "544b02100000000100000002003c64",
+      "decoded": {
+        "channel": 0,
+        "note": 60,
+        "type": "noteOn",
+        "velocity": 100
+      },
+      "name": "noteOn",
+      "seq": 2,
+      "session": 1
+    },
+    {
+      "body": {
+        "channel": 15,
+        "note": 127,
+        "type": "noteOn",
+        "velocity": 127
+      },
+      "bytes": "544b0210ffffffffffffffff0f7f7f",
+      "decoded": {
+        "channel": 15,
+        "note": 127,
+        "type": "noteOn",
+        "velocity": 127
+      },
+      "name": "noteOn_max_values",
+      "seq": 4294967295,
+      "session": 4294967295
+    },
+    {
+      "body": {
+        "channel": 0,
+        "note": 37,
+        "type": "noteOff"
+      },
+      "bytes": "544b021100000001000000030025",
+      "decoded": {
+        "channel": 0,
+        "note": 37,
+        "type": "noteOff"
+      },
+      "name": "noteOff",
+      "seq": 3,
+      "session": 1
+    },
+    {
+      "body": {
+        "type": "allNotesOff"
+      },
+      "bytes": "544b02200000000100000004",
+      "decoded": {
+        "type": "allNotesOff"
+      },
+      "name": "allNotesOff",
+      "seq": 4,
+      "session": 1
+    },
+    {
+      "body": {
+        "timestamp_nanos": "81985529216486895",
+        "type": "heartbeat"
+      },
+      "bytes": "544b023000000001000000050123456789abcdef",
+      "decoded": {
+        "timestamp_nanos": "81985529216486895",
+        "type": "heartbeat"
+      },
+      "name": "heartbeat",
+      "seq": 5,
+      "session": 1
+    },
+    {
+      "body": {
+        "timestamp_nanos": "18446744073709551615",
+        "type": "heartbeatAck"
+      },
+      "bytes": "544b02310000000200000009ffffffffffffffff",
+      "decoded": {
+        "timestamp_nanos": "18446744073709551615",
+        "type": "heartbeatAck"
+      },
+      "name": "heartbeatAck",
+      "seq": 9,
+      "session": 2
+    },
+    {
+      "body": {
+        "channel": 0,
+        "notes": [
+          36,
+          37,
+          40
+        ],
+        "type": "held"
+      },
+      "bytes": "544b021200000001000000060003242528",
+      "decoded": {
+        "channel": 0,
+        "notes": [
+          36,
+          37,
+          40
+        ],
+        "type": "held"
+      },
+      "name": "held",
+      "seq": 6,
+      "session": 1
+    },
+    {
+      "body": {
+        "channel": 3,
+        "notes": [],
+        "type": "held"
+      },
+      "bytes": "544b021200000001000000070300",
+      "decoded": {
+        "channel": 3,
+        "notes": [],
+        "type": "held"
+      },
+      "name": "held_empty",
+      "seq": 7,
+      "session": 1
+    },
+    {
+      "body": {
+        "flags": 3,
+        "type": "features"
+      },
+      "bytes": "544b0213000000010000000803",
+      "decoded": {
+        "flags": 3,
+        "type": "features"
+      },
+      "name": "features_1_0_0_without_epoch",
+      "seq": 8,
+      "session": 1
+    },
+    {
+      "body": {
+        "epoch": 200,
+        "flags": 1,
+        "type": "features"
+      },
+      "bytes": "544b0213000000010000000901c8",
+      "decoded": {
+        "epoch": 200,
+        "flags": 1,
+        "type": "features"
+      },
+      "name": "features",
+      "seq": 9,
+      "session": 1
+    },
+    {
+      "body": {
+        "seq": 3735928559,
+        "type": "noteAck"
+      },
+      "bytes": "544b0214000000020000000adeadbeef",
+      "decoded": {
+        "seq": 3735928559,
+        "type": "noteAck"
+      },
+      "name": "noteAck",
+      "seq": 10,
+      "session": 2
+    },
+    {
+      "body": {
+        "channel": 0,
+        "label": "↓",
+        "memo": "次のシーン",
+        "note": 37,
+        "type": "cueName"
+      },
+      "bytes": "544b0215000000010000000a002503e286930fe6aca1e381aee382b7e383bce383b3",
+      "decoded": {
+        "channel": 0,
+        "label": "↓",
+        "memo": "次のシーン",
+        "note": 37,
+        "type": "cueName"
+      },
+      "name": "cueName",
+      "seq": 10,
+      "session": 1
+    },
+    {
+      "body": {
+        "channel": 0,
+        "label": "ああああああああああああああああああああ",
+        "memo": "いいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいいい",
+        "note": 38,
+        "type": "cueName"
+      },
+      "bytes": "544b0215000000010000000b00260ce38182e38182e38182e381823ce38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184e38184",
+      "decoded": {
+        "channel": 0,
+        "label": "ああああ",
+        "memo": "いいいいいいいいいいいいいいいいいいいい",
+        "note": 38,
+        "type": "cueName"
+      },
+      "name": "cueName_long_texts_cut",
+      "seq": 11,
+      "session": 1
+    },
+    {
+      "body": {
+        "channel": 0,
+        "note": 37,
+        "original_seq": 41,
+        "released": true,
+        "type": "cueResend",
+        "velocity": 127
+      },
+      "bytes": "544b0216000000010000000c0000002900257f01",
+      "decoded": {
+        "channel": 0,
+        "note": 37,
+        "original_seq": 41,
+        "released": true,
+        "type": "cueResend",
+        "velocity": 127
+      },
+      "name": "cueResend_released",
+      "seq": 12,
+      "session": 1
+    },
+    {
+      "body": {
+        "channel": 0,
+        "note": 36,
+        "original_seq": 42,
+        "released": false,
+        "type": "cueResend",
+        "velocity": 127
+      },
+      "bytes": "544b0216000000010000000d0000002a00247f00",
+      "decoded": {
+        "channel": 0,
+        "note": 36,
+        "original_seq": 42,
+        "released": false,
+        "type": "cueResend",
+        "velocity": 127
+      },
+      "name": "cueResend_still_held",
+      "seq": 13,
+      "session": 1
+    },
+    {
+      "body": {
+        "count": 12,
+        "seq": 41,
+        "type": "cueCount"
+      },
+      "bytes": "544b0217000000010000000e000000290000000c",
+      "decoded": {
+        "count": 12,
+        "seq": 41,
+        "type": "cueCount"
+      },
+      "name": "cueCount",
+      "seq": 14,
+      "session": 1
+    },
+    {
+      "body": {
+        "command": {
+          "op": "fireClip",
+          "scene": 5,
+          "track": 2
+        },
+        "id": 9,
+        "type": "liveCommand"
+      },
+      "bytes": "544b0218000000010000000f000000090200020005",
+      "decoded": {
+        "command": {
+          "op": "fireClip",
+          "scene": 5,
+          "track": 2
+        },
+        "id": 9,
+        "type": "liveCommand"
+      },
+      "name": "liveCommand",
+      "seq": 15,
+      "session": 1
+    },
+    {
+      "body": {
+        "id": 9,
+        "type": "liveAck"
+      },
+      "bytes": "544b0219000000020000000b00000009",
+      "decoded": {
+        "id": 9,
+        "type": "liveAck"
+      },
+      "name": "liveAck",
+      "seq": 11,
+      "session": 2
+    },
+    {
+      "body": {
+        "connected": true,
+        "type": "liveStatus"
+      },
+      "bytes": "544b021a000000020000000c01",
+      "decoded": {
+        "connected": true,
+        "type": "liveStatus"
+      },
+      "name": "liveStatus",
+      "seq": 12,
+      "session": 2
+    },
+    {
+      "body": {
+        "hash": 3405691582,
+        "scenes": 300,
+        "tracks": 12,
+        "type": "setSummary"
+      },
+      "bytes": "544b021b000000020000000d000c012ccafebabe",
+      "decoded": {
+        "hash": 3405691582,
+        "scenes": 300,
+        "tracks": 12,
+        "type": "setSummary"
+      },
+      "name": "setSummary",
+      "seq": 13,
+      "session": 2
+    },
+    {
+      "body": {
+        "index": 299,
+        "kind": 1,
+        "name": "Finale",
+        "type": "setItem"
+      },
+      "bytes": "544b021c000000020000000e01012b0646696e616c65",
+      "decoded": {
+        "index": 299,
+        "kind": 1,
+        "name": "Finale",
+        "type": "setItem"
+      },
+      "name": "setItem",
+      "seq": 14,
+      "session": 2
+    },
+    {
+      "body": {
+        "code": 2,
+        "id": 9,
+        "type": "liveResult"
+      },
+      "bytes": "544b021d000000020000000f0000000902",
+      "decoded": {
+        "code": 2,
+        "id": 9,
+        "type": "liveResult"
+      },
+      "name": "liveResult",
+      "seq": 15,
+      "session": 2
+    },
+    {
+      "body": {
+        "millis": "1763100000000",
+        "type": "roleClaim"
+      },
+      "bytes": "544b021e00000001000000100000019a80f2ff00",
+      "decoded": {
+        "millis": "1763100000000",
+        "type": "roleClaim"
+      },
+      "name": "roleClaim",
+      "seq": 16,
+      "session": 1
+    },
+    {
+      "body": {
+        "type": "roleHandover"
+      },
+      "bytes": "544b021f0000000100000011",
+      "decoded": {
+        "type": "roleHandover"
+      },
+      "name": "roleHandover",
+      "seq": 17,
+      "session": 1
+    },
+    {
+      "body": {
+        "phones": 1,
+        "type": "remoteSummary",
+        "watch": 2
+      },
+      "bytes": "544b022100000001000000120102",
+      "decoded": {
+        "phones": 1,
+        "type": "remoteSummary",
+        "watch": 2
+      },
+      "name": "remoteSummary",
+      "seq": 18,
+      "session": 1
+    }
+  ],
+  "protocol_version": 2
+}
