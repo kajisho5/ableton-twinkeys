@@ -30,10 +30,10 @@ T = {
     "ja": {
         "headline": "本番を、止めない。",
         "cap_fire": "GO を1回。メインとバックアップの Mac が同時に再生",
-        "cap_lost": "メインの Mac が止まっても",
-        "cap_switch": "iPhone からバックアップに切り替えて、そのまま続行",
+        "cap_lost": "メインの Mac が止まっても、バックアップは鳴り続ける",
+        "cap_switch": "iPhone の操作の届け先をバックアップに切り替えて、そのまま続行",
         "search_head": "iPhone から、2台の Mac の Live を同時に",
-        "search_sub": "メインの Mac が止まっても、バックアップで続けられます",
+        "search_sub": "2台が同時に鳴るので、メインの Mac が止まっても音は止まりません",
         "status_ok": "Main ✓ Backup ✓ Live ✓", "status_ms": "2 ms",
         "status_lost": "Main × Backup ✓", "status_lost2": "メイン切断中",
         "status_sw": "Backup（メイン）", "status_sw2": "Main：切断中",
@@ -45,15 +45,15 @@ T = {
         "strip": "バックアップに切り替え中：Backup Stage Mac がメインです",
         "rail": ["セッション", "ミキサー", "キュー", "GO", "設定"],
         "main": "メイン", "backup": "バックアップ", "playing": "再生中", "noanswer": "応答なし",
-        "nowmain": "メインに切り替え", "scene3": "M1 イントロ", "scene4": "M1 本編", "scene5": "M2 オープニング",
+        "nowmain": "鳴り続け・iPhone から操作", "scene3": "M1 イントロ", "scene4": "M1 本編", "scene5": "M2 オープニング",
     },
     "en": {
         "headline": "Keep the show running.",
         "cap_fire": "One GO plays on the main and the backup Mac at once",
-        "cap_lost": "If the main Mac stops…",
-        "cap_switch": "…switch to the backup from your iPhone and carry on",
+        "cap_lost": "If the main Mac stops, the backup keeps playing…",
+        "cap_switch": "…send your iPhone's controls to the backup and carry on",
         "search_head": "Control Live on two Macs from your iPhone",
-        "search_sub": "If the main Mac stops, carry on with the backup",
+        "search_sub": "Both Macs play at once: if the main stops, the sound does not",
         "status_ok": "Main ✓ Backup ✓ Live ✓", "status_ms": "2 ms",
         "status_lost": "Main × Backup ✓", "status_lost2": "Main disconnected",
         "status_sw": "Backup (main)", "status_sw2": "Main: disconnected",
@@ -65,7 +65,7 @@ T = {
         "strip": "Switched to backup: Backup Stage Mac is now the main Mac",
         "rail": ["Session", "Mixer", "Cues", "GO", "Settings"],
         "main": "Main", "backup": "Backup", "playing": "Playing", "noanswer": "Not answering",
-        "nowmain": "Now the main Mac", "scene3": "M1 Intro", "scene4": "M1 Main", "scene5": "M2 Opening",
+        "nowmain": "Still playing · iPhone controls it", "scene3": "M1 Intro", "scene4": "M1 Main", "scene5": "M2 Opening",
     },
 }
 
@@ -100,81 +100,81 @@ def ease(v):
 
 
 def go_screen(st, t):
-    """st: dict with phase ('idle'|'press'|'fired'|'lost'|'hold'|'switched'), progress, hold, lang."""
+    """TwinKeys Remote 1.3 GO screen in the A1 "green LED" look (design/restyle/make_a1.py), on its 1688 x 780
+    canvas. st: phase ('idle'|'press'|'fired'|'lost'|'hold'|'switched'), progress, press, hold, lang."""
     L = T[st["lang"]]
     ph = st["phase"]
-    o = [rect(0, 0, 1688, 780, 0, "#000000"), rect(0, 0, 1688, 104, 0, "#121214"),
-         f'<line x1="0" y1="104" x2="1688" y2="104" stroke="{LINE}" stroke-width="2"/>']
-    # top bar
-    if ph in ("lost", "hold"):
-        dot, s1, s2, c1 = RED, L["status_lost"], L["status_lost2"], RED
-    elif ph == "switched":
-        dot, s1, s2, c1 = YELLOW, L["status_sw"], L["status_sw2"], YELLOW
-    else:
-        dot, s1, s2, c1 = GREEN, L["status_ok"], L["status_ms"], WHITE
-    o += [f'<circle cx="40" cy="38" r="10" fill="{dot}"/>', txt(62, 46, s1, 24, c1, 700),
-          txt(62, 82, s2, 21, GRAY)]
-    o += [rect(400, 16, 104, 72, 14, GREEN), '<path d="M440 32 L476 52 L440 72 Z" fill="#FFFFFF"/>',
-          rect(516, 16, 104, 72, 14, CARD2), rect(554, 38, 28, 28, 4, WHITE),
-          txt(657, 68, "124.00", 38, WHITE, 700), txt(790, 68, "BPM", 22, GRAY),
-          txt(857, 68, "17. 3. 1", 34, WHITE, 700),
-          rect(1288, 16, 200, 72, 14, RED), txt(1388, 63, L["notes_off"], 26, WHITE, 700, "middle"),
-          rect(1504, 16, 72, 72, 14, CARD2), rect(1524, 50, 32, 26, 5, "#AEAEB2"),
-          '<path d="M1530 50 v-8 a10 10 0 0 1 20 0 v8" fill="none" stroke="#AEAEB2" stroke-width="5"/>']
-    # side rail
-    o.append(rect(1560, 104, 128, 676, 0, "#0E0E10"))
-    for i, name in enumerate(L["rail"]):
+    G, R, Y, TOP, PANEL, ST, LAB, MONO = "#3DFF7A", "#FF3B30", "#FFB020", "#070707", "#060606", "#2A2A2A", "#6B6B6B", "JetBrains Mono"
+
+    def led(x, y, col, rr=6):
+        return (f'<circle cx="{x}" cy="{y}" r="{rr + 3}" fill="{col}" filter="url(#ledglow)"/>'
+                f'<circle cx="{x}" cy="{y}" r="{rr}" fill="{col}"/>')
+
+    o = ['<defs><filter id="ledglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>'
+         '<linearGradient id="gokey" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E2416"/>'
+         '<stop offset="1" stop-color="#050B07"/></linearGradient></defs>',
+         rect(0, 0, 1688, 780, 0, "#000000"), rect(0, 0, 1688, 96, 0, TOP),
+         f'<line x1="0" y1="96" x2="1688" y2="96" stroke="{ST}" stroke-width="2"/>']
+    cols = {"lost": (R, G, G), "hold": (R, G, G), "switched": ("#444444", Y, G)}.get(ph, (G, G, G))
+    for i, (lab, col) in enumerate(zip(("MAIN", "BACKUP", "LIVE"), cols)):
+        x = 40 + i * 150
+        o += [led(x, 40, col), txt(x + 18, 47, lab, 20, "#EDEDED" if col != "#444444" else "#666666", 700, family=MONO)]
+    sub = {"lost": (L["status_lost2"], R), "hold": (L["status_lost2"], R), "switched": (L["status_sw"], Y)}.get(ph, ("LAT 2 ms", LAB))
+    o.append(txt(40, 80, sub[0], 17, sub[1], 700, family=MONO if sub[0].startswith("LAT") else FONT))
+    o += [rect(520, 18, 92, 60, 10, "#0E2416", G, 2), f'<path d="M554 34 L582 48 L554 62 Z" fill="{G}"/>',
+          rect(624, 18, 92, 60, 10, PANEL, ST, 2), rect(658, 36, 24, 24, 3, "#DDDDDD"),
+          rect(748, 16, 190, 66, 8, "#000000", ST, 2), txt(762, 40, "TEMPO", 13, LAB, 700, family=MONO),
+          txt(762, 74, "124.00", 32, "#EDEDED", 700, family=MONO), txt(888, 74, "BPM", 15, "#9A9A9A", 400),
+          rect(950, 16, 170, 66, 8, "#000000", ST, 2), txt(964, 40, "POSITION", 13, LAB, 700, family=MONO),
+          txt(964, 74, "17.3.1", 32, "#EDEDED", 700, family=MONO),
+          rect(1300, 18, 230, 60, 10, "#1A0605", R, 2), txt(1415, 57, L["notes_off"], 24, R, 700, "middle"),
+          rect(1546, 18, 60, 60, 10, PANEL, ST, 2)]
+    # rail with LEDs
+    o.append(rect(1620, 96, 68, 684, 0, TOP))
+    for i in range(5):
         cy = 170 + i * 128
-        active = name in ("GO",)
-        if active:
-            o.append(rect(1572, cy - 58, 104, 116, 18, "#1E1E22"))
-        col = BLUE if active else "#AEAEB2"
-        o.append(rect(1600, cy - 36, 48, 36, 9, "none", col, 3))
-        o.append(txt(1624, cy + 34, name, 19 if st["lang"] == "en" else 20, col, 700 if active else 400, "middle"))
-    # cards (before / after the GO)
+        o.append(led(1654, cy, G, 5) if i == 3 else f'<circle cx="1654" cy="{cy}" r="5" fill="#3A3A3A"/>')
     fired = ph not in ("idle", "press")
-    n_num, n_name, x_num, x_name = ("4", L["scene4"], "5", L["scene5"]) if fired else ("3", L["scene3"], "4", L["scene4"])
-    prog = st.get("progress", 0.55)
-    o += [rect(32, 128, 920, 264, 24, CARD, GREEN, 3), txt(64, 176, L["now"], 22, GREEN, 700),
-          txt(64, 262, n_num, 64, GRAY, 700), txt(140, 262, n_name, 54, WHITE, 700),
-          txt(64, 316, L["left"], 22, GRAY), txt(126 if st["lang"] == "ja" else 116, 318,
-                                                 f"-{int(42 * (1 - prog) + 6) // 60}:{int(42 * (1 - prog) + 6) % 60:02d}",
-                                                 30, GREEN, 700, family="Noto Sans Mono CJK JP"),
-          rect(240, 298, 680, 12, 6, "#333336"), rect(240, 298, 680 * clamp(prog), 12, 6, GREEN),
-          txt(64, 362, "Intro ・ Pad", 22, GRAY),
-          rect(32, 416, 920, 192, 24, CARD, LINE, 2), txt(64, 462, L["next"], 22, BLUE, 700),
-          txt(64, 548, x_num, 52, GRAY, 700), txt(134, 548, x_name, 46, WHITE, 700),
-          txt(64, 590, L["live_sel"], 22, GRAY),
-          rect(32, 632, 296, 120, 20, CARD2), txt(180, 704, L["prev"], 30, WHITE, 700, "middle"),
-          rect(344, 632, 296, 120, 20, CARD2), txt(492, 704, L["fwd"], 30, WHITE, 700, "middle")]
-    # GO button
+    n_num, n_name, x_num, x_name = ("04", L["scene4"], "05", L["scene5"]) if fired else ("03", L["scene3"], "04", L["scene4"])
+    prog = clamp(st.get("progress", 0.55))
+    left = int(42 * (1 - prog) + 6)
+    o += [rect(32, 124, 930, 270, 14, PANEL, ST, 2), f'<rect x="32" y="124" width="6" height="270" fill="{G}"/>',
+          txt(64, 166, "NOW PLAYING", 18, G, 700, family=MONO),
+          txt(64, 250, n_num, 64, LAB, 700, family=MONO), txt(170, 250, n_name, 56, "#F2F2F2", 700),
+          txt(64, 318, "REMAIN", 15, LAB, 700, family=MONO),
+          txt(64, 360, f"-{left // 60}:{left % 60:02d}", 40, G, 700, family=MONO)]
+    for i in range(40):
+        o.append(rect(240 + i * 17.5, 330, 12, 26, 2, G if i < int(40 * prog) else "#151515"))
+    o += [rect(32, 418, 930, 186, 14, PANEL, ST, 2), txt(64, 460, "NEXT", 18, "#9AF5B7", 700, family=MONO),
+          txt(64, 546, x_num, 56, LAB, 700, family=MONO), txt(160, 546, x_name, 48, "#F2F2F2", 700),
+          txt(64, 586, L["live_sel"], 20, "#9A9A9A"),
+          rect(32, 628, 300, 124, 14, PANEL, ST, 2), txt(182, 702, L["prev"], 30, "#DDDDDD", 700, "middle"),
+          rect(348, 628, 300, 124, 14, PANEL, ST, 2), txt(498, 702, L["fwd"], 30, "#DDDDDD", 700, "middle")]
     press = st.get("press", 0.0)
-    go_fill = "#7EE493" if press > 0 else GREEN
-    o += [rect(984, 128, 552, 624, 36, go_fill), txt(1260, 402, "GO", 160, GREEN_D, 800, "middle"),
-          txt(1260, 480, L["go_sub"], 30, GREEN_D, 700, "middle"),
-          txt(1260, 535, f"{x_num} {x_name}", 30, GREEN_D, 700, "middle"),
-          txt(1260, 706, L["go_lock"], 22, GREEN_D, 700, "middle")]
-    if press > 0:  # finger tap ripple
-        r = 40 + 180 * press
-        o.append(f'<circle cx="1260" cy="560" r="{r:.1f}" fill="#FFFFFF" opacity="{0.45 * (1 - press):.3f}"/>')
-        o.append(f'<circle cx="1260" cy="560" r="46" fill="#FFFFFF" opacity="{0.55 * (1 - press * 0.6):.3f}"/>')
-    # overlays
+    o += [f'<rect x="990" y="124" width="560" height="628" rx="30" fill="{G}" opacity="{0.35 + 0.4 * press:.3f}" filter="url(#ledglow)"/>',
+          rect(990, 124, 560, 628, 30, "url(#gokey)", G, 4), rect(1010, 144, 520, 4, 2, G),
+          txt(1270, 470, "GO", 190, G, 800, "middle", family=MONO),
+          txt(1270, 540, f"NEXT ▸ {x_num}  {x_name}", 26, "#9AF5B7", 700, "middle"),
+          txt(1270, 712, L["go_lock"], 18, "#4C8F63", 700, "middle")]
+    if press > 0:
+        r_ = 40 + 180 * press
+        o.append(f'<circle cx="1270" cy="560" r="{r_:.1f}" fill="{G}" opacity="{0.35 * (1 - press):.3f}"/>')
+        o.append(f'<circle cx="1270" cy="560" r="46" fill="#FFFFFF" opacity="{0.45 * (1 - press * 0.6):.3f}"/>')
     if ph == "lost":
-        o += [rect(0, 106, 1560, 84, 0, RED_D), txt(32, 160, L["banner"], 30, "#FF8A80", 700),
-              rect(1180, 116, 360, 64, 14, RED), txt(1360, 159, L["banner_btn"], 26, WHITE, 700, "middle")]
+        o += [rect(0, 98, 1620, 84, 0, "#1A0605"), f'<line x1="0" y1="182" x2="1620" y2="182" stroke="{R}" stroke-width="2"/>',
+              led(40, 140, R), txt(62, 150, L["banner"].replace("⚠ ", ""), 28, "#FF9A92", 700),
+              rect(1180, 108, 420, 64, 10, "#D70015"), txt(1390, 151, L["banner_btn"], 26, WHITE, 700, "middle")]
     if ph == "hold":
-        o.append(rect(0, 104, 1560, 676, 0, "#000000", opacity=0.55))
-        o += [rect(330, 230, 900, 380, 30, "#1C1C1E", LINE, 2),
-              txt(780, 310, L["dlg_title"], 40, WHITE, 700, "middle"),
-              rect(380, 440, 380, 110, 20, CARD2), txt(570, 508, L["dlg_cancel"], 30, WHITE, 700, "middle"),
-              rect(800, 440, 380, 110, 20, "#7A1A14"),
-              rect(800, 440, 380 * clamp(st.get("hold", 0)), 110, 20, RED),
+        o.append(rect(0, 98, 1620, 682, 0, "#000000", opacity=0.6))
+        o += [rect(330, 230, 900, 380, 20, "#060606", ST, 2), txt(780, 310, L["dlg_title"], 40, "#EDEDED", 700, "middle"),
+              rect(380, 440, 380, 110, 14, PANEL, ST, 2), txt(570, 508, L["dlg_cancel"], 30, "#DDDDDD", 700, "middle"),
+              rect(800, 440, 380, 110, 14, "#3A0A06", R, 2),
+              rect(800, 440, 380 * clamp(st.get("hold", 0)), 110, 14, "#D70015"),
               txt(990, 495, L["dlg_hold"], 32, WHITE, 700, "middle"),
               txt(990, 534, "1 秒" if st["lang"] == "ja" else "1 s", 22, WHITE, 700, "middle")]
-        if st.get("hold", 0) > 0:
-            o.append(f'<circle cx="990" cy="495" r="52" fill="#FFFFFF" opacity="0.28"/>')
     if ph == "switched":
-        o += [rect(0, 106, 1560, 70, 0, "#1A2638"), txt(32, 152, L["strip"], 26, "#9CC8FF", 700)]
+        o += [rect(0, 98, 1620, 70, 0, "#0B1626"), f'<line x1="0" y1="168" x2="1620" y2="168" stroke="#8AB4FF" stroke-width="2"/>',
+              txt(32, 144, L["strip"], 24, "#9CC8FF", 700)]
     return "".join(o)
 
 
@@ -197,6 +197,8 @@ def phone(x, y, w, st, t):
 
 
 def watch(cx, cy, size, lang, lost=False):
+    """Apple Watch in the A1 look: M/B lamps, dark GO key in a glowing green ring."""
+    G = "#3DFF7A"
     w, h = size, size * 1.2
     x, y = cx - w / 2, cy - h / 2
     o = [rect(x + w * 0.18, y - h * 0.32, w * 0.64, h * 0.4, w * 0.12, "#2A2C31"),
@@ -204,9 +206,17 @@ def watch(cx, cy, size, lang, lost=False):
          rect(x, y, w, h, w * 0.3, "#3A3D44", "#5A5E66", 3),
          rect(x + w * 0.07, y + w * 0.07, w * 0.86, h - w * 0.14, w * 0.24, "#000000"),
          rect(x + w + 2, y + h * 0.28, w * 0.06, h * 0.16, w * 0.03, "#5A5E66")]
-    o.append(f'<circle cx="{cx:.1f}" cy="{cy - h * 0.06:.1f}" r="{w * 0.3:.1f}" fill="{GREEN}"/>')
-    o.append(txt(cx, cy + w * 0.03, "GO", w * 0.2, GREEN_D, 800, "middle"))
-    o.append(txt(cx, cy + h * 0.36, T[lang]["scene4"] if lang else "", w * 0.085, WHITE, 700, "middle"))
+    for i, lab in enumerate(("M", "B")):
+        lx = cx - w * 0.18 + i * w * 0.3
+        col = "#FF3B30" if (lost and i == 0) else G
+        o.append(f'<circle cx="{lx:.1f}" cy="{y + h * 0.17:.1f}" r="{w * 0.025:.1f}" fill="{col}"/>')
+        o.append(txt(lx + w * 0.05, y + h * 0.19, lab, w * 0.06, "#AAAAAA", 700, family="JetBrains Mono"))
+    r_ = w * 0.27
+    gy = cy + h * 0.03
+    o += [f'<circle cx="{cx:.1f}" cy="{gy:.1f}" r="{r_ + w * 0.05:.1f}" fill="none" stroke="{G}" stroke-width="{w * 0.035:.1f}" opacity="0.9"/>',
+          f'<circle cx="{cx:.1f}" cy="{gy:.1f}" r="{r_:.1f}" fill="#06140A" stroke="{G}" stroke-width="{w * 0.012:.1f}"/>',
+          txt(cx, gy + w * 0.07, "GO", w * 0.2, G, 800, "middle", family="JetBrains Mono"),
+          txt(cx, y + h * 0.9, T[lang]["scene4"], w * 0.075, WHITE, 700, "middle")]
     return "".join(o)
 
 
@@ -339,7 +349,7 @@ def stage(t, lang, layout):
             o.append(f'<circle cx="{qx:.1f}" cy="{qy:.1f}" r="26" fill="{GREEN}" filter="url(#glow)"/>'
                      f'<circle cx="{qx:.1f}" cy="{qy:.1f}" r="14" fill="#E9FFE9"/>')
     # devices
-    o.append(watch(wx, pcy, wsize, lang))
+    o.append(watch(wx, pcy, wsize, lang, lost=main_state == "lost"))
     o.append(ph_svg)
     m_svg, _ = mac(mx, my_top, mw, "main", main_state, row, lang)
     b_svg, _ = mac(mx, my_bot, mw, "backup", "ok", row, lang)
@@ -424,9 +434,9 @@ def storyboard(lang):
     frames = [(1.0, "0–2.4 秒" if lang == "ja" else "0–2.4 s"), (3.5, "2.4–5.6 秒" if lang == "ja" else "2.4–5.6 s"),
               (9.6, "5.6–10.6 秒" if lang == "ja" else "5.6–10.6 s"), (12.0, "10.6–15 秒" if lang == "ja" else "10.6–15 s")]
     notes = {"ja": ["待機：GO の画面。2台の Mac は同じシーン", "GO を押す → 光が2台へ同時に届き、次のシーンが再生",
-                    "メインが止まる → 上に赤い帯 → 長押しで切り替え", "バックアップがメインに。最後に暗くなって最初に戻る（ループ）"],
+                    "メインが止まる（バックアップは鳴り続ける）→ 赤い帯 → 長押しで操作の届け先を切り替え", "iPhone からバックアップを操作して続行。最後に暗くなって最初に戻る（ループ）"],
              "en": ["Waiting: the GO screen; both Macs on the same scene", "Tap GO: light reaches both Macs at once, the next scene plays",
-                    "The main Mac stops: red banner, hold to switch", "The backup leads; fades back to the start (loop)"]}[lang]
+                    "The main Mac stops (the backup keeps playing): red banner, hold to switch the controls", "The iPhone controls the backup; fades back to the start (loop)"]}[lang]
     sw, sh = 1880, 1880 * 1646 / 3840
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="{2 * sh + 360:.0f}" viewBox="0 0 3840 {2 * sh + 360:.0f}">',
          rect(0, 0, 3840, 2 * sh + 360, 0, "#0B0D12")]

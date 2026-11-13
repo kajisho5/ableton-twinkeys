@@ -78,6 +78,7 @@ export interface DemoText {
   viaMain: string;
   liveReceived: string;
   backupUnreached: string;
+  backupPlaying: string;
   plan: string;
   deskTitle: string;
   deskMain: string;
@@ -139,7 +140,7 @@ export const demoText: Record<Lang, DemoText> = {
       unreachable: '届きません：メインの Mac が応答しません',
       stopHold: '停止は長押しです',
       unlockHold: '解除は鍵を 1 秒長押しします',
-      switched: 'バックアップに切り替えました',
+      switched: '操作の届け先をバックアップに切り替えました',
       end: 'シーンの最後です',
     },
     watchTitle: 'Apple Watch',
@@ -177,7 +178,8 @@ export const demoText: Record<Lang, DemoText> = {
     viaMain: 'メイン経由（LAN）',
     liveReceived: 'Live ✓ · 受け取り 2 ms',
     backupUnreached: 'Live ✓（いまは iPhone から届かない）',
-    plan: '切り替えると、iPhone はバックアップに直接つなぎ直します',
+    backupPlaying: '鳴り続けています',
+    plan: '切り替えると、iPhone の操作がバックアップに直接届きます',
     deskTitle: '卓（Yamaha QL5）',
     deskMain: 'メインの音（Ch 1–4）',
     deskPlan: '切り替えると Ch 9–12 を上げます',
@@ -186,15 +188,15 @@ export const demoText: Record<Lang, DemoText> = {
     linkBackupDesk: '音 Ch 9–12 ・ LAN',
     stopMain: 'メインの Mac を止めてみる',
     reset: 'はじめに戻す',
-    controlsNote1: '止めると、iPhone に切り替えの案内が出ます。',
+    controlsNote1: '止めても、バックアップの Mac はずっと鳴り続けます。iPhone には、操作の届け先を切り替える案内が出ます。',
     controlsNote2: '「バックアップに切り替える」→ 1 秒長押しで、アプリと同じ流れで切り替わります。',
     foot1: '見本で動くのは GO とセッション（クリップのます目）です。ミキサー・キュー・設定はアプリで使えます。',
     foot2: '音は鳴りません。代わりに、2台の Mac が同時に受け取ったことを表示します。',
     live: {
       go: 'シーン {x} を2台で再生しました',
       select: '次を {x} にしました',
-      switched: 'バックアップに切り替えました',
-      mainStopped: 'メインの Mac を止めました',
+      switched: '操作の届け先をバックアップに切り替えました',
+      mainStopped: 'メインの Mac を止めました（バックアップは鳴り続けています）',
       notesOff: '全ノートオフを送りました',
       reset: 'はじめの状態に戻しました',
     },
@@ -243,7 +245,7 @@ export const demoText: Record<Lang, DemoText> = {
       unreachable: 'Not sent: the main Mac is not answering',
       stopHold: 'Stop needs a long press',
       unlockHold: 'Hold the lock for 1 second to unlock',
-      switched: 'Switched to the backup',
+      switched: 'The iPhone now controls the backup',
       end: 'End of the scene list',
     },
     watchTitle: 'Apple Watch',
@@ -281,7 +283,8 @@ export const demoText: Record<Lang, DemoText> = {
     viaMain: 'Via the main (LAN)',
     liveReceived: 'Live ✓ · received in 2 ms',
     backupUnreached: 'Live ✓ (the iPhone cannot reach it now)',
-    plan: 'Switching connects the iPhone straight to the backup',
+    backupPlaying: 'Still playing',
+    plan: 'Switching sends the iPhone\'s controls straight to the backup',
     deskTitle: 'Console (Yamaha QL5)',
     deskMain: "Main's sound (Ch 1–4)",
     deskPlan: 'Switching raises Ch 9–12',
@@ -290,15 +293,15 @@ export const demoText: Record<Lang, DemoText> = {
     linkBackupDesk: 'Sound Ch 9–12 · LAN',
     stopMain: 'Stop the main Mac',
     reset: 'Start over',
-    controlsNote1: 'Stop it and the iPhone offers to switch.',
+    controlsNote1: 'Stop it: the backup Mac keeps playing all along. The iPhone offers to send its controls to the backup.',
     controlsNote2: '"Switch to the backup", then hold for 1 second: the same steps as in the app.',
     foot1: 'GO and Session (the clip grid) work in this sample. Mixer, Cues and Settings work in the app.',
     foot2: 'No sound plays. Instead you see both Macs receive each action at the same time.',
     live: {
       go: 'Scene {x} played on both Macs',
       select: 'Next is now {x}',
-      switched: 'Switched to the backup',
-      mainStopped: 'The main Mac was stopped',
+      switched: 'The iPhone now controls the backup',
+      mainStopped: 'The main Mac was stopped (the backup keeps playing)',
       notesOff: 'All Notes Off sent',
       reset: 'Back to the start',
     },
