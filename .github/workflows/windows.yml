@@ -112,7 +112,12 @@ jobs:
         shell: pwsh
         run: |
           $p = Start-Process -FilePath out/TwinKeys/TwinKeys.exe -ArgumentList '--smoke-windows' -PassThru
-          Start-Sleep -Seconds 8
+          # Wait until every window has opened (the ARM64 runner is slower), at most 40 s, then 3 s more.
+          for ($i = 0; $i -lt 40; $i++) {
+            Start-Sleep -Seconds 1
+            if ((Get-Content "$env:LOCALAPPDATA/TwinKeys/Logs/*.log" -ErrorAction SilentlyContinue) -match 'Smoke: all windows opened') { break }
+          }
+          Start-Sleep -Seconds 3
           $failed = $false
           if ($p.HasExited) { "TwinKeys exited early (code $($p.ExitCode))"; $failed = $true }
           else { "Working set: {0:N1} MB" -f ($p.WorkingSet64 / 1MB) | Tee-Object memory.txt; Stop-Process -Id $p.Id }
