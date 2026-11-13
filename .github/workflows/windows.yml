@@ -111,7 +111,7 @@ jobs:
           Unzip anywhere and run TwinKeys.exe. Windows SmartScreen warns because the app is not signed:
           choose "More info" > "Run anyway". How to set up: docs/help/en.md (Windows) in the repository.
           "@ | Set-Content -Encoding UTF8 out/TwinKeys/README.txt
-          $zip = "TwinKeys-Windows-${{ matrix.arch }}-0.1.0-ci.$env:GITHUB_RUN_NUMBER.zip"
+          $zip = "TwinKeys-Windows-${{ matrix.arch }}-0.2.0-ci.$env:GITHUB_RUN_NUMBER.zip"
           Compress-Archive -Path out/TwinKeys/* -DestinationPath $zip
           "{0}: {1:N1} MB" -f $zip, ((Get-Item $zip).Length / 1MB) | Tee-Object size.txt
           Get-ChildItem out/TwinKeys -Filter *.pri | Select-Object Name, Length

@@ -1,6 +1,6 @@
 # TwinKeys for Windows 詳細設計書（案）
 
-- 状態：**承認済み。フェーズ1を実装しました（`windows/`）。ただし本物の Windows PC ではまだ一度も動かしていません**（CI のビルドとテストだけ）。実装で設計と変えた点は 14 章。
+- 状態：**承認済み。フェーズ1・2・3 を実装しました（`windows/`、0.2.0）。ただし本物の Windows PC・Windows の Live・本物の iPhone ではまだ一度も動かしていません**（CI のビルドとテストだけ）。実装で設計と変えた点はフェーズ1が 14 章、フェーズ2・3 が 15 章。
 - 調べた日：2026-11-13（バージョンと値段はこの日の公式ページの内容です）
 - 対象：TwinKeys（Mac 版 2.3.0、`VERSION`）と同じ通信で動く Windows 版
 
@@ -757,3 +757,52 @@ TwinKeysBridge（`LiveBridge/`）は Mac と Windows で同じものを使いま
 - WinMM が MIDI Services のループバックと loopMIDI の「TwinKeys」を見つけて送れるか（R1）。MIDI Services のループバックでは、どちらの端の名前が WinMM の出力として見えるか。
 - DnsServiceRegister／DnsServiceBrowse で Mac と互いに見つかるか（R4）、ファイアウォールの確認の出方。
 - 合言葉の DPAPI 保存、settings.json の場所、日本語の PC 名が mDNS で正しく出るか。
+
+---
+
+## 15. フェーズ2・3の実装メモ（2026-11-13）
+
+> **本物の Windows PC・Windows の Live・本物の iPhone では未確認です。** 確かめたのは、Linux での Core のテスト（.NET 10.0.404 SDK）と CI（windows-2025、windows-11-arm、macos-26、ubuntu）です。R6 と下の 15.4 はすべて残っています。
+
+### 15.1 できたもの
+
+| 場所 | 中身 |
+|---|---|
+| `windows/src/TwinKeys.Core/Live/` | `BridgeClient`（`LiveBridgeClient.swift` の移植、127.0.0.1 の UDP 47811／47812、hello の繰り返し、1 秒で no_answer、10 秒まで遅れた答え、structure の確認）、`LiveState`（Bridge の状態）、セットの見比べ（`SetSummary`／`PeerSet`／`SetDiff`）、`BridgeInstaller` |
+| `windows/src/TwinKeys.Core/Link/Conductor.cs` | liveCommand を実行して liveAck と liveResult を返す（Mac のバックアップと同じ）、liveStatus・setSummary・setItem・remoteSummary を心拍ごとに送る、`ForwardLive`（Windows がメインのとき） |
+| `windows/src/TwinKeys.Core/Remote/` | `RemoteSession`（6.5 のとおり）、Swift の Codable と同じ形の JSON、`RemoteApprovalGate`、`ApprovedDevice`、TCP の `RemoteServer`（`RemoteServer.swift` の移植） |
+| `windows/src/TwinKeys.App` | ウインドウ下の Live の状態、「設定」>「Live」（組み込み・更新・ユーザーライブラリの選択）、「メインのコンピューターが止まったときは」の帯と「この PC をメインにする」「メインに戻す」、セットの違いの帯、「設定」>「iPhone リモート」、許可を求める帯と確認の画面、`_twinkeys-remote._tcp` の DNS-SD |
+| `Sources/TwinKeys`（Mac） | Bonjour の TXT に `os=mac` を足した。`os=win` の相手は一覧に「Windows」と出す。キーが無い TXT は今までどおり読む（`ProtocolTests.testPeerOSFromTXTIsOptional`） |
+| `shared/test-vectors/` | `setcheck.json`（セットの名前の切り方と FNV-1a）、`remote.json`（固定の X25519 鍵、hello、タグ、HKDF の鍵、4桁、封をしたフレーム、全メッセージの JSON） |
+| `scripts/fake-live-bridge.py` | 本物の TwinKeysBridge を LiveBridge のテスト用の偽の Live で動かす。C# のテストが本物のスクリプトと話す（`TWINKEYS_PYTHON` があるとき。CI の Linux と Windows で動かす） |
+
+### 15.2 設計と変えたところ（理由つき）
+
+1. **M3（キュー → Live の操作の表）と TwinKeysBridge の `select_scene_relative`／`fire_selected_scene`（BRIDGE_VERSION 4）は入れていません。** Bridge の版を上げると、Mac 版が入っている古い Bridge を自動で置き換えるので（`updateIfOutdated`）、Mac の動きが変わります。今回の作業では Mac の動きを変えない約束なので、Mac 版と一緒に入れます。「Live への渡し方」の「TwinKeysBridge だけ」は今も選べません。
+2. **Bridge の通信は App ではなく Core に置きました**（UDP の部分と同じ理由：`System.Net.Sockets` は OS に関係なく、Linux のテストで偽の Bridge と本物のスクリプトに対して動かせる）。iPhone のサーバー（TCP）も Core です。DNS-SD の公開だけ App（`Platform/RemoteAdvertiser.cs`）。
+3. **Remote Scripts の場所**：既定は `ドキュメント\Ableton\User Library\Remote Scripts`（`Environment.SpecialFolder.MyDocuments`、OneDrive に移したドキュメントも追う）。**公式の本文では今も確かめられていません**（4.5 の【推測】のまま。Ableton の記事は 403）。そのため、利用者がユーザーライブラリのフォルダーを選べるようにし（`windows.live.user_library`）、「Remote Scripts」を選んだときはその親をユーザーライブラリとして扱います。Live の `Library.cfg` を読んで場所を探す方法は、書式を確かめられないので入れていません。
+4. **iPhone の承認は、勝手に画面を出しません。** Mac はアプリが前面のときだけ確認の画面を出し、そうでなければ Dock を弾ませます。Windows では、ウインドウの上の帯に出し、「確認する…」で確認の画面を開きます（Live の前に勝手に出ない）。60 秒の時間切れと 60 秒の冷却は Mac と同じ。
+5. **iPhone 用の TCP ポートは 47803 を使い、使えなければ OS に任せます。** Mac は最初から OS に任せています。iPhone は DNS-SD で番号を知るのでどちらでも動きます。固定にしたのは、MSIX のファイアウォールの例外（`Package.appxmanifest`）に番号を書けるようにするためです。
+6. **X25519 は BouncyCastle.Cryptography 2.7.0**（2.5 の決め方どおり。.NET 12 LTS はまだ出ていない）。安定版で版を固定。出典：https://www.nuget.org/packages/BouncyCastle.Cryptography/2.7.0 、ソース https://github.com/bcgit/bc-csharp （MIT）。ChaCha20-Poly1305・HKDF・HMAC は .NET 10 の標準のものです。
+7. **共通テストデータ（`setcheck.json`、`remote.json`）の最初の JSON は、フェーズ1 と同じく Python の別の実装で作りました**（作業環境に Swift がない）。Swift の結果との一致は macOS の CI（`InteropVectorsTests`）が確かめ、`remote.json` の hello とメッセージは Mac の `RemoteSession` と `JSONDecoder` でも読めることを確かめます（`testRemoteVectorsWorkWithTheMacSession`）。
+8. **Swift の JSON の形は「中身の意味」で比べます**（キーの順番は比べない）。iPhone は JSONDecoder で読むので、順番は関係ありません。hello のタグと鍵は送ったバイトそのものにかけるので、相手の JSON を作り直すことはありません。
+9. **C# の側で読むメッセージ**は、iPhone → コンピューターの種類（command、commandAt、go、lockScope、becomeMain、cue、allNotesOff、ping、lock）と、テスト用の偽の iPhone が要る数種類だけです。知らない種類は読み飛ばし、接続は保ちます（Mac 2.4 と同じ）。
+10. **設定ファイル**に `approved_devices`（Mac と同じ形：publicKey は Base64、approvedAt は 2001 年からの秒）、`remote_enabled`、`windows.live.user_library` を足しました。
+11. **アプリの版を 0.2.0 にしました**（`windows/Directory.Build.props`。Mac の `VERSION` とは別）。
+12. **フェーズ2 の「Store に出す（審査）」はしていません。** MSIX を作って本物の PC で確かめてからにします。配布は今も署名なしの ZIP（試験版）です。
+13. **M2（仮想 MIDI デバイス）**はフェーズ3 の頃に足す予定でしたが、Windows MIDI Services の SDK の正式版を本物の PC で確かめられないので、入れていません。
+
+### 15.3 14 章で残っていたことのうち、片づいたもの
+
+- 14.2 の 4（Mac の TXT に `os`）：Mac が `os=mac` を出すようにしました。Windows 版はもともと `os=mac` を「macOS」と表示します。古い Mac（キーなし）は今までどおり OS を出しません。
+- 14.2 の 6（Windows のバックアップが liveAck を返さない）：返すようになりました。Bridge が動いていれば liveResult（Live で動いた／Live が断った／Live が答えない）も返します。
+- 14.2 の 14（「メインの Mac が止まったときは」の帯）：画面に出すようにしました。
+
+### 15.4 本物の機械で確かめること（9.3 と 14.3 に加えて）
+
+- TwinKeysBridge が Windows の Live 11／12 で読まれるか（R6）。`ドキュメント\Ableton\User Library\Remote Scripts` が本当に Live の見る場所か。OneDrive に移したドキュメントのとき。
+- Windows で UDP 47812 を待てるか、Live を後から起動しても数秒でつながるか、Live のステータスバーの「TwinKeys Bridge: listening」。
+- Mac メイン＋Windows バックアップで、iPhone からのシーンの再生が両方の Live で動き、Mac の iPhone に「両方で動いた」と出るか。逆（Windows メイン＋Mac バックアップ）も。
+- 本物の iPhone（TwinKeys Remote 1.3）が `_twinkeys-remote._tcp` で Windows の PC を見つけるか、承認の4桁が一致するか、操作・GO・ショーロック・キューのボタン・Apple Watch の表示。ファイアウォールの確認の出方（TCP 47803）。
+- 「メインのコンピューターが止まったときは」の帯：メインの LAN ケーブルを抜いて 3 秒で出るか、「この PC をメインにする」で Live に届くか。
+
