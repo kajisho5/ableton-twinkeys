@@ -88,7 +88,7 @@ TwinKeys Remote は、無料の Mac アプリ「TwinKeys」（macOS 13 以降）
 ・両方の Mac に Ableton Live 11 か 12 と、Live 用の部品 TwinKeysBridge（TwinKeys から入れられます）
 ・iOS 17 以降の iPhone・iPad（Mac と同じネットワークにつなぎます）。Apple Watch は watchOS 10 以降
 
-Mac がなくても、最初の画面の「サンプルで試す」で、架空のデータで画面を試せます。
+Mac がなくても、最初の画面の「Live のサンプル」「QLab のサンプル」で、架空のデータで画面を試せます。
 
 ■ プライバシー
 データを一切集めません。アカウント、利用状況の分析、広告、アプリ内課金はありません。

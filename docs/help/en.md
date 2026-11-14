@@ -178,7 +178,14 @@ TwinKeys Remote 1.2 or later. TwinKeys appears on the Apple Watch (watchOS 10 or
 
 ### Trying it without a Mac
 
-Tap "Try with sample data" on the pairing screen to try the screens with made-up data. Nothing is sent to a Mac. To end it, tap "End the sample and connect to a Mac" in Settings.
+At the bottom of the pairing screen, under "NO MAC NEEDED TO TRY", there are two buttons (TwinKeys Remote 1.4 or later):
+
+- **Live sample**: scenes and clips (Session, Mixer, Cues and GO for Ableton Live).
+- **QLab sample**: the cue list and GO of QLab mode. It opens on the GO screen.
+
+Both use made-up data and work only on the screen. Nothing is sent to a Mac. "· Sample" is added to the Mac's name in the top bar, and the Apple Watch shows the same sample.
+
+In Settings, the "Sample" section shows which sample you are looking at. Tap "Switch to the QLab sample" (or "Switch to the Live sample") to try the other one. To end it, tap "End the sample and connect to a Mac".
 
 ## Switching a Yamaha console's faders too (experimental)
 

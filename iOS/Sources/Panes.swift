@@ -606,8 +606,15 @@ struct SettingsPane: View {
     private var form: some View {
         Form {
             if model.trialMode {
+                // docs/design-qlab-demo.md 3: which sample, switch to the other one, end.
                 Section {
+                    LabeledContent(L.s("Sample shown", "見ているサンプル"), value: model.trialTarget == .qlab ? "QLab" : "Live")
+                        .accessibilityElement(children: .combine)
+                    Button(model.trialTarget == .qlab ? L.s("Switch to the Live sample", "Live のサンプルに切り替える")
+                                                      : L.s("Switch to the QLab sample", "QLab のサンプルに切り替える")) { model.switchTrial() }
                     Button(L.s("End the sample and connect to a Mac", "サンプルを終わって Mac につなぐ")) { model.endTrial() }
+                } header: {
+                    Text(L.s("Sample", "サンプル"))
                 } footer: {
                     Text(L.s("You are looking at made-up data. Nothing is sent to a Mac.", "架空のデータを表示しています。Mac には何も送っていません。"))
                 }

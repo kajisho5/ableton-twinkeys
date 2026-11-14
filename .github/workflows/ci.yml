@@ -255,6 +255,24 @@ jobs:
                 xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-$turn-qlab-$pane.png"
               done
             done
+            # Trying it without a Mac (docs/design-qlab-demo.md 3): the pairing screen with the two sample
+            # buttons, the QLab sample as it opens (GO), and the Sample section in Settings; English and Japanese.
+            for lang in en ja; do
+              xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
+              xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -AppleLanguages "($lang)"
+              sleep 5
+              xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-portrait-pair-$lang.png"
+              xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
+              xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -AppleLanguages "($lang)" -trial -target qlab
+              sleep 5
+              xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-portrait-trial-qlab-$lang.png"
+              for target in qlab live; do
+                xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
+                xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -AppleLanguages "($lang)" -trial -target $target -pane settings
+                sleep 5
+                xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-portrait-trial-$target-settings-$lang.png"
+              done
+            done
             xcrun simctl shutdown "$UDID" || true
           done
           ls -la ios-screenshots
