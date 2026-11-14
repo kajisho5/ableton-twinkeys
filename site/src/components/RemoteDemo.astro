@@ -1,9 +1,12 @@
 ---
 // "Try it": a working sample of TwinKeys Remote (GO and Session) and the Apple Watch app, with the two
 // Macs and the connection map. Fictional data; nothing is sent anywhere. Design: docs/design-site-demo.md
+// A switch shows the same sample for QLab instead (GO and the cue list; docs/design-qlab-demo.md, part B).
 import { url, type Lang } from '../lib/i18n';
 import { demoText } from '../lib/remote-demo-text';
-import { demoData, initial, formatLeft, secondsLeft, progress, position, label } from '../lib/remote-demo';
+import {
+  demoData, initial, formatLeft, secondsLeft, progress, position, label, QCUES, QTYPE_SHORT, qDuration, qLabel,
+} from '../lib/remote-demo';
 import { mapSvg, mapSummary } from '../lib/remote-demo-map';
 
 interface Props {
@@ -18,24 +21,42 @@ const st = initial(data, now);
 const left = secondsLeft(st, now);
 const fill = (s: string, x: string) => s.replace('{x}', x).replace('{n}', x).replace('{name}', x);
 const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
+const qPaneKeys = ['list', 'cues', 'go', 'settings'] as const;
+const q = d.q;
+const qn = q.cues;
+// The QLab sample as first drawn (the script redraws it at once when QLab is chosen).
+const qHead = 7; // 12 Distant rain
+const qPlay = 8; // 13 Thunder 1
 ---
 <section class="section section-alt demo" aria-labelledby="demo">
+  <span id="demo-qlab" class="demo-anchor" aria-hidden="true"></span>
   <div class="wrap">
-    <h2 class="section-title demo-title" id="demo">{d.title}</h2>
-    <p class="demo-lead">{d.lead}</p>
+    <div class="demo-head">
+      <div class="demo-head-t">
+        <h2 class="section-title demo-title" id="demo">{d.title}</h2>
+        <p class="demo-lead">{d.lead}</p>
+      </div>
+      <div class="mode-box" data-mode-box hidden>
+        <div class="mode" role="group" aria-label={d.modeLabel}>
+          <button data-mode="live" aria-pressed="true">{d.modeLive}</button>
+          <button data-mode="qlab" aria-pressed="false">QLab</button>
+        </div>
+        <small>{d.modeHint}</small>
+      </div>
+    </div>
 
-    <div class="demo-root" data-demo>
+    <div class="demo-root" data-demo data-mode="live">
       <script type="application/json" data-demo-text set:html={JSON.stringify(d)} />
       <div class="demo-grid">
         <div class="phone">
           <div class="screen">
             <div class="app" data-el="app" data-pane="go">
-              <header class="tb">
+              <header class="tb" data-show="live">
                 <div class="tb-status">
-                  <span class="dot ok" data-el="dot"></span>
+                  <span class="dot ok" data-st="dot"></span>
                   <span class="tb-text">
-                    <b data-el="macName">{d.mainMac}</b>
-                    <small data-el="statusLine">{d.statusOk}</small>
+                    <b data-st="macName">{d.mainMac}</b>
+                    <small data-st="statusLine">{d.statusOk}</small>
                   </span>
                 </div>
                 <div class="tb-transport">
@@ -51,7 +72,31 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
                 </div>
                 <div class="tb-right">
                   <button class="anf" data-act="notesOff">{d.allNotesOff}</button>
-                  <button class="lockbtn" data-el="lock" aria-label={d.lock} aria-pressed="false">
+                  <button class="lockbtn" data-lock aria-label={d.lock} aria-pressed="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path class="shackle" d="M8 11V8a4 4 0 0 1 8 0" fill="none" stroke-width="2.2" />
+                      <rect x="5.5" y="11" width="13" height="9" rx="2" />
+                    </svg>
+                    <span class="holdfill" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </header>
+              <header class="tb tb-q" data-show="qlab">
+                <div class="tb-status">
+                  <span class="dot ok" data-st="dot"></span>
+                  <span class="tb-text">
+                    <b data-st="macName">{d.mainMac}</b>
+                    <small data-st="statusLine">{q.statusOk}</small>
+                  </span>
+                </div>
+                <div class="tb-chips">
+                  <span class="chip"><small>{q.workspace}</small><b>sample-show</b></span>
+                  <span class="chip"><small>{q.runningCap}</small><b data-el="qRunN">{q.runningN.replace('{n}', '2')}</b></span>
+                  <span class="chip"><small>{q.listCap}</small><b>Main</b></span>
+                </div>
+                <div class="tb-right">
+                  <button class="anf" data-act="qpanic" aria-label={q.panicAria}>{q.panic}</button>
+                  <button class="lockbtn" data-lock aria-label={d.lock} aria-pressed="false">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path class="shackle" d="M8 11V8a4 4 0 0 1 8 0" fill="none" stroke-width="2.2" />
                       <rect x="5.5" y="11" width="13" height="9" rx="2" />
@@ -139,9 +184,76 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
                       ))}
                     </div>
                   </div>
+
+                  <div class="pane pane-qgo">
+                    <div class="go-left">
+                      <div class="card now" data-el="qNow">
+                        <span class="cap ok">{q.nowPlaying}</span>
+                        <div class="row big">
+                          <span class="idx" data-el="qNowIdx">{QCUES[qHead].number}</span>
+                          <span class="nm" data-el="qNowName">{qn[qHead]}</span>
+                        </div>
+                        <div class="row left" data-el="qNowLeftRow">
+                          <span class="cap2">{q.left}</span>
+                          <span class="leftv" data-el="qNowLeft">-1:03</span>
+                          <span class="bar"><span data-el="qNowBar" style="width:69%"></span></span>
+                        </div>
+                      </div>
+                      <div class="card next q-next" data-el="qNextCard">
+                        <span class="cap acc">{q.next}</span>
+                        <div class="row big2">
+                          <span class="idx" data-el="qNextIdx">{QCUES[qPlay].number}</span>
+                          <span class="nm" data-el="qNextName">{qn[qPlay]}</span>
+                        </div>
+                        <span class="bk" data-el="qBackup">{q.backupToo.replace('{n}', QCUES[qPlay].number)}</span>
+                      </div>
+                      <div class="spacer"></div>
+                      <div class="qbtns">
+                        <button data-act="qback"><b>{q.back}</b><small>{q.playhead}</small></button>
+                        <button data-act="qfwd"><b>{q.fwd}</b><small>{q.playhead}</small></button>
+                        <button class="qstop" data-hold="qstop" aria-label={q.stopAria}>
+                          <span class="holdfill" aria-hidden="true"></span>
+                          <b>{q.stop}</b><small>{q.stopSub}</small>
+                        </button>
+                      </div>
+                    </div>
+                    <button class="gobtn qgo" data-act="qgo" aria-label={q.goAria.replace('{x}', qLabel(qn, qPlay))}>
+                      <span class="go-cap" aria-hidden="true">{q.goCap}</span>
+                      <span class="go-big" aria-hidden="true">GO</span>
+                      <span class="go-sub" aria-hidden="true">{q.goSub}</span>
+                      <span class="go-next" data-el="qGoNext" aria-hidden="true">{qLabel(qn, qPlay)}</span>
+                      <span class="go-lock" data-el="qLast">{q.lastGo.replace('{x}', QCUES[qHead].number)}</span>
+                    </button>
+                  </div>
+
+                  <div class="pane pane-qlist">
+                    <div class="ql-head">
+                      <span class="ql-count">{q.listCount.replace('{n}', String(QCUES.length))}</span>
+                      <input class="ql-search" data-el="qSearch" type="search" placeholder={q.search} aria-label={q.search} autocomplete="off" />
+                      <button class="ql-follow on" data-act="qfollow" aria-pressed="true" aria-label={q.followAria}>{q.follow}</button>
+                    </div>
+                    <div class="ql-rows" data-el="qRows">
+                      {QCUES.map((c, i) => (
+                        <button
+                          class:list={['qrow', `qd${c.depth}`, { grp: c.type === 'group', playing: i === qHead || i === 6, next: i === qPlay }]}
+                          data-act="qrow"
+                          data-i={i}
+                          data-find={`${c.number} ${qn[i]}`.toLowerCase()}
+                        >
+                          <span class="qn"><span class="qm" aria-hidden="true"></span>{c.number}</span>
+                          <span class:list={['qt', `qt-${c.type}`]} title={q.types[c.type]}>{QTYPE_SHORT[c.type]}</span>
+                          <span class="qname">{qn[i]}</span>
+                          <span class="qleft" data-left></span>
+                          <span class="qdur">{qDuration(c)}</span>
+                        </button>
+                      ))}
+                      <p class="ql-none" data-el="qNone" hidden>{q.noMatch}</p>
+                    </div>
+                    <p class="ql-hint">{q.listHint}</p>
+                  </div>
                 </div>
 
-                <nav class="rail" aria-label="TwinKeys Remote">
+                <nav class="rail" aria-label="TwinKeys Remote" data-show="live">
                   {paneKeys.map((k) => {
                     const live = k === 'session' || k === 'go';
                     return (
@@ -155,6 +267,24 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
                       >
                         <span class="rico" aria-hidden="true"></span>
                         <span class="rl">{d.panes[k]}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+                <nav class="rail" aria-label="TwinKeys Remote · QLab" data-show="qlab">
+                  {qPaneKeys.map((k) => {
+                    const live = k === 'list' || k === 'go';
+                    return (
+                      <button
+                        class:list={['ri', `ri-${k}`, { on: k === 'go' }]}
+                        data-act={live ? 'pane' : 'paneOff'}
+                        data-pane={k}
+                        aria-disabled={live ? undefined : 'true'}
+                        title={live ? undefined : d.paneOff}
+                        aria-current={k === 'go' ? 'page' : undefined}
+                      >
+                        <span class="rico" aria-hidden="true"></span>
+                        <span class="rl">{q.panes[k]}</span>
                       </button>
                     );
                   })}
@@ -187,12 +317,12 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
               <div class="watch" aria-label={d.watchTitle} role="group">
                 <span class="crown" aria-hidden="true"></span><span class="sidebtn" aria-hidden="true"></span>
                 <div class="wscreen" data-el="wscreen" data-page="0">
-                  <div class="wpage wp0">
+                  <div class="wpage wp0" data-show="live">
                     <span class="wnext" data-el="wnext">{fill(d.watchNext, label(data, st.next))}</span>
                     <button class="wgo" data-act="go" aria-label={`GO: ${label(data, st.next)}`}>GO</button>
                     <span class="whint" data-el="whint">{d.crownHint}</span>
                   </div>
-                  <div class="wpage wp1">
+                  <div class="wpage wp1" data-show="live">
                     <span class="wcap" data-el="wcap1">{d.chooseScene}</span>
                     <div class="wlist">
                       {data.scenes.map((sc, s) => (
@@ -202,10 +332,40 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
                       ))}
                     </div>
                   </div>
-                  <div class="wpage wp2">
+                  <div class="wpage wp2" data-show="live">
                     <span class="wlinks" data-el="wlinks">{d.watchLinks}</span>
                     <button class="wanf" data-act="notesOff">{d.allNotesOff}</button>
                     <span class="wlast" data-el="wlast">{d.lastCueNone}</span>
+                  </div>
+                  <div class="wpage wq0" data-show="qlab">
+                    <span class="wlamps" aria-hidden="true">
+                      <span class="lm" data-lamp="m">M</span><span class="lm" data-lamp="b">B</span><span class="lm" data-lamp="q">Q</span>
+                    </span>
+                    <span class="wnow" data-el="wqNow">{qLabel(qn, qHead)}</span>
+                    <button class="wgo wqgo" data-act="qgo" aria-label={q.goAria.replace('{x}', qLabel(qn, qPlay))}>
+                      <span aria-hidden="true">GO</span>
+                      <small data-el="wqLeft" aria-hidden="true">-1:03</small>
+                    </button>
+                    <span class="whint" data-el="wqNext">{d.watchNext.replace('{x}', qLabel(qn, qPlay))}</span>
+                  </div>
+                  <div class="wpage wq1" data-show="qlab">
+                    <span class="wcap">{q.chooseCue}</span>
+                    <div class="wlist" data-el="wqList">
+                      {QCUES.map((c, i) =>
+                        c.type === 'group' ? (
+                          <span class="wgrp">{c.number} {qn[i]}</span>
+                        ) : (
+                          <button class="wsc" data-act="qrow" data-i={i}>
+                            <span class="wn">{c.number}</span><span class="wt">{qn[i]}</span><span class="wm" aria-hidden="true"></span>
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                  <div class="wpage wq2" data-show="qlab">
+                    <span class="wlinks" data-el="wqLinks">{q.lamps}</span>
+                    <button class="wanf" data-act="qpanic" aria-label={q.panicAria}>PANIC</button>
+                    <span class="wlast" data-el="wqLast">{q.lastGo.replace('{x}', QCUES[qHead].number)}</span>
                   </div>
                 </div>
               </div>
@@ -217,7 +377,8 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
             </div>
             <div class="watch-copy">
               <b>{d.watchTitle}</b>
-              <p>{d.watchDesc}</p>
+              <p data-show="live">{d.watchDesc}</p>
+              <p data-show="qlab">{q.watchDesc}</p>
               <p>{d.watchHint}</p>
               <div class="crown-btns">
                 <button data-act="back">{d.crownBack}</button>
@@ -239,6 +400,7 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
                   <span class="mac-badge" data-part="badge" hidden={k !== 'main'}>{d.mainBadge}</span>
                 </div>
                 <div class="mac-line" data-part="line">▶ {st.playing !== null ? label(data, st.playing) : ''}</div>
+                <div class="mac-standby" data-part="standby" data-show="qlab"></div>
                 <div class="mac-recv" data-part="recv" aria-hidden="true"></div>
               </div>
             ))}
@@ -256,9 +418,11 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
       <div class="controls">
         <button class="ctl stopmain" data-act="stopMain">{d.stopMain}</button>
         <button class="ctl" data-act="reset">{d.reset}</button>
-        <p>{d.controlsNote1}<br />{d.controlsNote2}</p>
+        <p data-show="live">{d.controlsNote1}<br />{d.controlsNote2}</p>
+        <p data-show="qlab">{q.controlsNote1}<br />{d.controlsNote2}</p>
       </div>
-      <p class="foot">{d.foot1}<br />{d.foot2}</p>
+      <p class="foot" data-show="live">{d.foot1}<br />{d.foot2}</p>
+      <p class="foot" data-show="qlab">{q.foot1}<br />{q.foot2}</p>
       <p class="sr-only" aria-live="polite" data-el="live"></p>
     </div>
 
@@ -271,28 +435,46 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
 <script>
   import {
     demoData, initial, go, select, fireScene, tapSlot, play, stop, allNotesOff, hint, setLock, setPane,
-    setWatchPage, stopMain, askSwitch, cancelSwitch, switchToBackup, secondsLeft, progress, formatLeft,
+    setWatchPage, setMode, stopMain, askSwitch, cancelSwitch, switchToBackup, secondsLeft, progress, formatLeft,
     position, showsLostBanner, lostSeconds, linkState, visibleNotice, recentEvent, label, reachable,
-    type DemoState, type Pane, type WatchPage,
+    QCUES, qRunning, qLeft, qProgress, qGo, qSetPlayhead, qBack, qNext, qPanic, qStop, qLabel, qPlayable,
+    type DemoState, type Pane, type WatchPage, type Mode, type EventKind, type NoticeKind,
   } from '../lib/remote-demo';
-  import { mapSvg, mapSummary } from '../lib/remote-demo-map';
+  import { mapSvg, mapSummary, type QLabSubs } from '../lib/remote-demo-map';
   import type { DemoText } from '../lib/remote-demo-text';
 
   const HOLD_MS = 1000;
+  const QLAB_HASH = '#demo-qlab';
 
   function start(root: HTMLElement) {
     const t: DemoText = JSON.parse(root.querySelector('[data-demo-text]')!.textContent || '{}');
     const data = demoData(t.scenes);
-    let s: DemoState = initial(data, Date.now());
+    const names = t.q.cues;
+    const hashMode = (): Mode => (location.hash === QLAB_HASH ? 'qlab' : 'live');
+    let s: DemoState = initial(data, Date.now(), hashMode());
     let lastMap = '';
     let lastLive = '';
+    // View-only choices of the cue list (as in the app, they are not sent anywhere).
+    let follow = true;
+    let query = '';
+    let lastScroll = '';
     const el = <T extends HTMLElement = HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
     const all = (sel: string) => Array.from(root.querySelectorAll<HTMLElement>(sel));
     const fill = (str: string, x: string) => str.replace('{x}', x).replace('{n}', x).replace('{name}', x);
+    const modeBox = root.closest('section')?.querySelector<HTMLElement>('[data-mode-box]') ?? null;
     const announce = (msg: string) => {
       if (msg === lastLive) return;
       lastLive = msg;
       el('live').textContent = msg;
+    };
+    const eventName = (k: EventKind): string => {
+      if (s.mode === 'qlab' && (k === 'playhead' || k === 'panic' || k === 'stop')) return t.q.events[k];
+      return k === 'playhead' || k === 'panic' ? t.q.events[k] : t.events[k];
+    };
+    const noticeText = (k: NoticeKind): string => {
+      if (k === 'panic' || k === 'stopped') return t.q.notice[k];
+      if (k === 'end' && s.mode === 'qlab') return t.q.notice.end;
+      return t.notice[k];
     };
 
     function set(n: DemoState, msg?: string) {
@@ -303,31 +485,82 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
 
     function render() {
       const now = Date.now();
+      const qlab = s.mode === 'qlab';
+      root.dataset.mode = s.mode;
       const app = el('app');
       app.dataset.pane = s.pane;
+      app.dataset.mode = s.mode;
+      if (modeBox) {
+        modeBox.querySelectorAll<HTMLElement>('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === s.mode)));
+      }
       // top bar
       const ls = linkState(s);
-      el('macName').textContent = s.switched ? t.backupMac : t.mainMac;
-      el('statusLine').textContent = ls === 'ok' ? t.statusOk : ls === 'dead' ? t.statusLost : t.statusSwitched;
-      el('statusLine').className = ls === 'dead' ? 'bad' : ls === 'switched' ? 'warn' : '';
-      el('dot').className = `dot ${ls === 'dead' ? 'bad' : ls === 'switched' ? 'warn' : 'ok'}`;
-      el('pos').textContent = position(s, now);
-      root.querySelector('[data-act="play"]')!.classList.toggle('on', s.running);
-      const lock = el('lock');
-      lock.classList.toggle('on', s.locked);
-      lock.setAttribute('aria-pressed', String(s.locked));
-      lock.setAttribute('aria-label', s.locked ? t.unlock : t.lock);
+      all('[data-st="macName"]').forEach((e) => (e.textContent = s.switched ? t.backupMac : t.mainMac));
+      all('[data-st="statusLine"]').forEach((e) => {
+        e.textContent = ls === 'ok' ? (qlab ? t.q.statusOk : t.statusOk) : ls === 'dead' ? t.statusLost : t.statusSwitched;
+        e.className = ls === 'dead' ? 'bad' : ls === 'switched' ? 'warn' : '';
+      });
+      all('[data-st="dot"]').forEach((e) => (e.className = `dot ${ls === 'dead' ? 'bad' : ls === 'switched' ? 'warn' : 'ok'}`));
+      all('[data-lock]').forEach((lock) => {
+        lock.classList.toggle('on', s.locked);
+        lock.setAttribute('aria-pressed', String(s.locked));
+        lock.setAttribute('aria-label', s.locked ? t.unlock : t.lock);
+      });
       // banners and notices
-      const lost = el('lost');
-      lost.hidden = !showsLostBanner(s, now);
+      el('lost').hidden = !showsLostBanner(s, now);
       el('lostText').textContent = fill(t.lostBanner, String(lostSeconds(s, now)));
       el('switchedBanner').hidden = !(s.switched && now - (s.notice?.at ?? 0) < 6000 && s.notice?.kind === 'switched');
       const nk = visibleNotice(s, now);
       const notice = el('notice');
       notice.hidden = !nk || nk === 'switched';
-      notice.textContent = nk ? t.notice[nk] : '';
+      notice.textContent = nk ? noticeText(nk) : '';
       notice.className = `notice ${nk === 'unreachable' ? 'bad' : ''}`;
       el('sheet').hidden = !s.confirming;
+      all('[data-act="pane"]').forEach((b) => {
+        const on = b.dataset.pane === s.pane;
+        b.classList.toggle('on', on);
+        if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      });
+      // watch pages
+      el('wscreen').dataset.page = String(s.watchPage);
+      const pages = qlab ? t.q.watchPages : t.watchPages;
+      all('[data-act="wpage"]').forEach((b) => {
+        const on = Number(b.dataset.p) === s.watchPage;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+        b.setAttribute('aria-label', pages[Number(b.dataset.p)]);
+      });
+      if (qlab) renderQLab(now, nk);
+      else renderLive(now, nk);
+      // Macs: what both received
+      const recent = recentEvent(s, now);
+      for (const k of ['main', 'backup'] as const) {
+        const card = el(`mac-${k}`);
+        const dead = k === 'main' && s.main === 'dead';
+        card.className = `mac ${dead ? 'dead' : 'ok'}`;
+        card.querySelector('[data-part="live"]')!.textContent = dead ? `● ${t.noAnswer}` : `● ${qlab ? t.q.qlabOk : t.liveOk}`;
+        const isMain = (k === 'main' && !s.switched) || (k === 'backup' && s.switched);
+        (card.querySelector('[data-part="badge"]') as HTMLElement).hidden = !isMain || dead;
+        const recv = card.querySelector('[data-part="recv"]') as HTMLElement;
+        const got = !!recent && !dead && reachable(s);
+        recv.textContent = got ? fill(t.received, eventName(recent!.kind)) : '';
+        recv.classList.toggle('on', got);
+      }
+      (root.querySelector('[data-act="stopMain"]') as HTMLButtonElement).disabled = s.main === 'dead';
+    }
+
+    function renderMap(key: string, subs?: QLabSubs) {
+      if (key === lastMap) return;
+      lastMap = key;
+      const ls = linkState(s);
+      const pics = el('mapPics');
+      pics.innerHTML = mapSvg(ls, t, false, subs) + mapSvg(ls, t, true, subs);
+      pics.setAttribute('aria-label', mapSummary(ls, t, subs));
+    }
+
+    function renderLive(now: number, nk: NoticeKind | null) {
+      el('pos').textContent = position(s, now);
+      root.querySelector('[data-act="play"]')!.classList.toggle('on', s.running);
       // GO pane
       const left = secondsLeft(s, now);
       el('nowIdx').textContent = s.playing !== null ? String(s.playing + 1) : '';
@@ -356,22 +589,11 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
       });
       all('[data-act="scene"]').forEach((b) => b.classList.toggle('on', Number(b.dataset.s) === s.playing));
       all('.gr').forEach((r, i) => r.classList.toggle('sel', i === s.next));
-      all('[data-act="pane"]').forEach((b) => {
-        const on = b.dataset.pane === s.pane;
-        b.classList.toggle('on', on);
-        if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
-      });
       // watch
-      el('wscreen').dataset.page = String(s.watchPage);
-      all('[data-act="wpage"]').forEach((b) => {
-        const on = Number(b.dataset.p) === s.watchPage;
-        b.classList.toggle('on', on);
-        b.setAttribute('aria-pressed', String(on));
-      });
       el('wnext').textContent = hasNext ? fill(t.watchNext, label(data, s.next)) : t.endOfList;
       const wgo = root.querySelector('.wgo')!;
       wgo.setAttribute('aria-label', hasNext ? `GO: ${label(data, s.next)}` : `GO: ${t.endOfList}`);
-      el('whint').textContent = nk && nk !== 'switched' ? t.notice[nk] : t.crownHint;
+      el('whint').textContent = nk && nk !== 'switched' ? noticeText(nk) : t.crownHint;
       el('whint').className = `whint ${nk === 'unreachable' ? 'bad' : ''}`;
       all('[data-act="wselect"]').forEach((b) => {
         const sc = Number(b.dataset.s);
@@ -380,33 +602,138 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
       });
       el('wlinks').textContent = reachable(s) ? (s.switched ? `${t.backupMac} ✓` : t.watchLinks) : t.watchLinksLost;
       const ev = s.lastEvent;
-      el('wlast').textContent = ev ? fill(t.lastCue, t.events[ev.kind]) : t.lastCueNone;
+      el('wlast').textContent = ev ? fill(t.lastCue, eventName(ev.kind)) : t.lastCueNone;
       // Macs
-      const recent = recentEvent(s, now);
       for (const k of ['main', 'backup'] as const) {
         const card = el(`mac-${k}`);
         const dead = k === 'main' && s.main === 'dead';
-        card.className = `mac ${dead ? 'dead' : 'ok'}`;
-        card.querySelector('[data-part="live"]')!.textContent = dead ? `● ${t.noAnswer}` : `● ${t.liveOk}`;
-        const isMain = (k === 'main' && !s.switched) || (k === 'backup' && s.switched);
-        (card.querySelector('[data-part="badge"]') as HTMLElement).hidden = !isMain || dead;
         card.querySelector('[data-part="line"]')!.textContent = dead
           ? t.stoppedNote
           : s.playing !== null ? `▶ ${label(data, s.playing)}` : t.stoppedLine;
-        const recv = card.querySelector('[data-part="recv"]') as HTMLElement;
-        const got = !!recent && !dead && reachable(s);
-        recv.textContent = got ? fill(t.received, t.events[recent!.kind]) : '';
-        recv.classList.toggle('on', got);
       }
-      // connection map
-      if (ls !== lastMap) {
-        lastMap = ls;
-        const pics = el('mapPics');
-        pics.innerHTML = mapSvg(ls, t, false) + mapSvg(ls, t, true);
-        pics.setAttribute('aria-label', mapSummary(ls, t));
-      }
-      (root.querySelector('[data-act="stopMain"]') as HTMLButtonElement).disabled = s.main === 'dead';
+      renderMap(`live|${linkState(s)}`);
     }
+
+    function renderQLab(now: number, nk: NoticeKind | null) {
+      const q = s.ql;
+      const run = qRunning(q, now);
+      const cur = run[0] ?? null;
+      const p = q.playhead;
+      el('qRunN').textContent = fill(t.q.runningN, String(run.length));
+      // GO pane: now playing
+      el('qNow').classList.toggle('idle', !cur);
+      el('qNowIdx').textContent = cur ? QCUES[cur.i].number : '';
+      el('qNowName').textContent = cur ? names[cur.i] : t.q.noneRunning;
+      el('qNowLeftRow').hidden = !cur;
+      el('qNowLeft').textContent = cur ? formatLeft(qLeft(cur, now)) : '';
+      el('qNowBar').style.width = cur ? `${Math.round(qProgress(cur, now) * 100)}%` : '0%';
+      // next, and where the backup stands
+      el('qNextCard').classList.toggle('idle', p === null);
+      el('qNextIdx').textContent = p !== null ? QCUES[p].number : '';
+      el('qNextName').textContent = p !== null ? names[p] : t.q.noneNext;
+      const bk = el('qBackup');
+      bk.hidden = p === null;
+      bk.textContent = s.main === 'dead' ? t.q.mainLost : p !== null ? fill(t.q.backupToo, QCUES[p].number) : '';
+      bk.className = `bk ${s.main === 'dead' ? 'warn' : ''}`;
+      el('qGoNext').textContent = p !== null ? qLabel(names, p) : t.q.notice.end;
+      const goLabel = fill(t.q.goAria, p !== null ? qLabel(names, p) : t.q.notice.end);
+      all('[data-act="qgo"]').forEach((b) => {
+        b.classList.toggle('end', p === null);
+        b.setAttribute('aria-disabled', String(p === null));
+        b.setAttribute('aria-label', goLabel);
+      });
+      const lastText = q.last
+        ? fill(s.main === 'dead' && s.lostAt !== null && q.last.at >= s.lostAt ? t.q.lastGoLost : t.q.lastGo, QCUES[q.last.i].number)
+        : t.q.lastGoNone;
+      el('qLast').textContent = lastText;
+      const first = qPlayable(0);
+      all('[data-act="qback"]').forEach((b) => b.toggleAttribute('disabled', p !== null && p === first));
+      all('[data-act="qfwd"]').forEach((b) => b.toggleAttribute('disabled', p === null || qPlayable(p + 1) === null));
+      all('[data-act="back"]').forEach((b) => b.toggleAttribute('disabled', p !== null && p === first));
+      all('[data-act="fwd"]').forEach((b) => b.toggleAttribute('disabled', p === null || qPlayable(p + 1) === null));
+      // the cue list (phone and watch)
+      const needle = query.trim().toLowerCase();
+      let shown = 0;
+      all('[data-act="qrow"]').forEach((b) => {
+        const i = Number(b.dataset.i);
+        const r = run.find((x) => x.i === i);
+        const isNext = i === p;
+        b.classList.toggle('playing', !!r);
+        b.classList.toggle('next', isNext);
+        b.classList.toggle('done', !r && !isNext && p !== null && i < p);
+        const lt = b.querySelector('[data-left]');
+        if (lt) {
+          lt.textContent = r ? formatLeft(qLeft(r, now)) : isNext ? t.q.nextTag : '';
+          const hide = !!needle && !(b.dataset.find ?? '').includes(needle);
+          b.hidden = hide;
+          if (!hide) shown++;
+        }
+        const state = r ? `, ${t.q.nowPlaying}` : isNext ? `, ${t.q.next}` : '';
+        const al = `${qLabel(names, i)}, ${t.q.types[QCUES[i].type]}${state}`;
+        if (b.getAttribute('aria-label') !== al) b.setAttribute('aria-label', al);
+      });
+      el('qNone').hidden = shown > 0;
+      const fb = root.querySelector<HTMLElement>('[data-act="qfollow"]')!;
+      fb.classList.toggle('on', follow);
+      fb.setAttribute('aria-pressed', String(follow));
+      // Follow: keep the playhead in the middle of the list (inside the list only; the page does not move).
+      const key = `${s.pane}|${p}|${needle}`;
+      if (follow && !needle && s.pane === 'list' && key !== lastScroll && p !== null) {
+        const rows = el('qRows');
+        const row = rows.querySelector<HTMLElement>(`.qrow[data-i="${p}"]`);
+        if (row) rows.scrollTop = row.offsetTop - rows.clientHeight / 2 + row.offsetHeight / 2;
+      }
+      lastScroll = key;
+      // watch
+      const lamps: Record<string, boolean> = { m: s.main === 'ok', b: true, q: true };
+      all('[data-lamp]').forEach((l) => l.classList.toggle('bad', !lamps[l.dataset.lamp!]));
+      el('wqNow').textContent = cur ? qLabel(names, cur.i) : t.q.noneRunning;
+      el('wqLeft').textContent = cur ? formatLeft(qLeft(cur, now)) : '';
+      el('wqNext').textContent = nk && nk !== 'switched' ? noticeText(nk) : p !== null ? fill(t.watchNext, qLabel(names, p)) : t.q.notice.end;
+      el('wqNext').className = `whint ${nk === 'unreachable' ? 'bad' : ''}`;
+      el('wqLinks').textContent = reachable(s) ? (s.switched ? `${t.backupMac} ✓` : t.q.lamps) : t.q.lampsLost;
+      el('wqLast').textContent = lastText;
+      if (s.watchPage === 1 && follow && p !== null) {
+        const wl = el('wqList');
+        const wr = wl.querySelector<HTMLElement>(`[data-i="${p}"]`);
+        const wkey = `w|${p}`;
+        if (wr && wl.dataset.scrolled !== wkey) {
+          wl.scrollTop = wr.offsetTop - wl.offsetTop - wl.clientHeight / 2 + wr.offsetHeight / 2;
+          wl.dataset.scrolled = wkey;
+        }
+      }
+      // Macs: what plays and what stands by (the same on both)
+      const playing = cur ? `▶ ${qLabel(names, cur.i)}` : t.q.nothingRunning;
+      for (const k of ['main', 'backup'] as const) {
+        const card = el(`mac-${k}`);
+        const dead = k === 'main' && s.main === 'dead';
+        card.querySelector('[data-part="line"]')!.textContent = dead ? t.stoppedNote : playing;
+        card.querySelector('[data-part="standby"]')!.textContent = !dead && p !== null ? fill(t.q.standby, qLabel(names, p)) : '';
+      }
+      const sub = cur ? `▶ ${QCUES[cur.i].number} ${names[cur.i]}` : t.q.qlabStopped;
+      renderMap(`qlab|${linkState(s)}|${sub}`, { main: sub, backup: sub });
+    }
+
+    function chooseMode(mode: Mode) {
+      if (mode === s.mode) return;
+      lastMap = '';
+      lastScroll = '';
+      query = '';
+      el<HTMLInputElement>('qSearch').value = '';
+      set(setMode(data, s, mode, Date.now()), mode === 'qlab' ? t.q.live.mode : t.q.live.modeLive);
+      const hash = mode === 'qlab' ? QLAB_HASH : '';
+      if (location.hash !== hash) history.replaceState(history.state, '', `${location.pathname}${location.search}${hash}`);
+    }
+    if (modeBox) {
+      modeBox.hidden = false;
+      modeBox.addEventListener('click', (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLElement>('[data-mode]');
+        if (b) chooseMode(b.dataset.mode as Mode);
+      });
+    }
+    window.addEventListener('hashchange', () => {
+      if (location.hash === QLAB_HASH) chooseMode('qlab');
+    });
 
     // taps
     root.addEventListener('click', (e) => {
@@ -414,27 +741,52 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
       if (!b || !root.contains(b) || b.hasAttribute('disabled')) return;
       const now = Date.now();
       const act = b.dataset.act;
+      const qlab = s.mode === 'qlab';
       switch (act) {
         case 'go': {
           const n = go(data, s, now);
           set(n, n.lastEvent?.kind === 'go' && n !== s ? fill(t.live.go, label(data, n.playing ?? 0)) : undefined);
           break;
         }
-        case 'back': set(select(data, s, s.next - 1, now), fill(t.live.select, label(data, Math.max(0, s.next - 1)))); break;
-        case 'fwd': set(select(data, s, s.next + 1, now), fill(t.live.select, label(data, Math.min(data.scenes.length - 1, s.next + 1)))); break;
+        case 'back':
+          if (qlab) moved(qBack(names, s, now));
+          else set(select(data, s, s.next - 1, now), fill(t.live.select, label(data, Math.max(0, s.next - 1))));
+          break;
+        case 'fwd':
+          if (qlab) moved(qNext(names, s, now));
+          else set(select(data, s, s.next + 1, now), fill(t.live.select, label(data, Math.min(data.scenes.length - 1, s.next + 1))));
+          break;
         case 'wselect': set(select(data, s, Number(b.dataset.s), now), fill(t.live.select, label(data, Number(b.dataset.s)))); break;
         case 'scene': set(fireScene(data, s, Number(b.dataset.s), now)); break;
         case 'slot': set(tapSlot(data, s, Number(b.dataset.t), Number(b.dataset.s), now)); break;
         case 'play': set(play(s, now)); break;
         case 'notesOff': set(allNotesOff(s, now), t.live.notesOff); break;
+        case 'qgo': {
+          const n = qGo(names, s, now);
+          set(n, n !== s && n.lastEvent?.kind === 'go' && n.lastEvent.at === now ? fill(t.q.live.go, n.lastEvent.detail ?? '') : undefined);
+          break;
+        }
+        case 'qback': moved(qBack(names, s, now)); break;
+        case 'qfwd': moved(qNext(names, s, now)); break;
+        case 'qrow': moved(qSetPlayhead(names, s, Number(b.dataset.i), now)); break;
+        case 'qpanic': set(qPanic(s, now), reachable(s) ? t.q.live.panic : undefined); break;
+        case 'qfollow': follow = !follow; lastScroll = ''; render(); break;
         case 'pane': set(setPane(s, b.dataset.pane as Pane)); break;
         case 'paneOff': break;
         case 'wpage': set(setWatchPage(s, Number(b.dataset.p) as WatchPage)); break;
         case 'stopMain': set(stopMain(s, now), t.live.mainStopped); break;
         case 'askSwitch': set(askSwitch(s)); root.querySelector<HTMLElement>('[data-hold="switch"]')?.focus(); break;
         case 'cancel': set(cancelSwitch(s)); break;
-        case 'reset': set(initial(data, now), t.live.reset); lastMap = ''; render(); break;
+        case 'reset': lastMap = ''; lastScroll = ''; set(initial(data, now, s.mode), t.live.reset); break;
       }
+    });
+    function moved(n: DemoState) {
+      const ev = n.lastEvent;
+      set(n, n !== s && ev?.kind === 'playhead' ? fill(t.q.live.playhead, ev.detail ?? '') : undefined);
+    }
+    el<HTMLInputElement>('qSearch').addEventListener('input', (e) => {
+      query = (e.target as HTMLInputElement).value;
+      render();
     });
 
     // long presses: Stop, unlocking the show lock and "Hold to switch" (pointer or Space/Enter held 1 s)
@@ -469,18 +821,24 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
       b.addEventListener('contextmenu', (e) => e.preventDefault());
     }
     holdable(root.querySelector('[data-hold="stop"]')!, () => set(stop(data, s, Date.now())), () => set(hint(s, 'stopHold', Date.now())));
+    holdable(
+      root.querySelector('[data-hold="qstop"]')!,
+      () => set(qStop(s, Date.now()), reachable(s) ? t.q.live.stopped : undefined),
+      () => set(hint(s, 'stopHold', Date.now())),
+    );
     holdable(root.querySelector('[data-hold="switch"]')!, () => set(switchToBackup(s, Date.now()), t.live.switched));
     // Show lock: a tap turns it on; turning it off needs the 1 s hold (as in the app).
-    const lock = el('lock');
-    lock.addEventListener('click', () => {
-      if (Date.now() - Number(lock.dataset.pressedAt || 0) < 600) return;
-      if (!s.locked) set(setLock(s, true), t.lock);
+    all('[data-lock]').forEach((lock) => {
+      lock.addEventListener('click', () => {
+        if (Date.now() - Number(lock.dataset.pressedAt || 0) < 600) return;
+        if (!s.locked) set(setLock(s, true), t.lock);
+      });
+      holdable(
+        lock,
+        () => { if (s.locked) set(setLock(s, false)); },
+        () => { if (!s.locked) set(setLock(s, true), t.lock); else set(hint(s, 'unlockHold', Date.now())); },
+      );
     });
-    holdable(
-      lock,
-      () => { if (s.locked) set(setLock(s, false)); },
-      () => { if (!s.locked) set(setLock(s, true), t.lock); else set(hint(s, 'unlockHold', Date.now())); },
-    );
     root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && s.confirming) set(cancelSwitch(s)); });
 
     render();
@@ -801,11 +1159,14 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
     flex: 1;
     min-height: 0;
   }
-  .app[data-pane='go'] .pane-go,
-  .app[data-pane='session'] .pane-session {
+  .demo-root[data-mode='live'] .app[data-pane='go'] .pane-go,
+  .demo-root[data-mode='live'] .app[data-pane='session'] .pane-session,
+  .demo-root[data-mode='qlab'] .app[data-pane='go'] .pane-qgo,
+  .demo-root[data-mode='qlab'] .app[data-pane='list'] .pane-qlist {
     display: flex;
   }
-  .pane-go {
+  .pane-go,
+  .pane-qgo {
     gap: calc(var(--p) * 12);
     padding: calc(var(--p) * 10) calc(var(--p) * 12);
   }
@@ -1624,6 +1985,438 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
     }
   }
 
+  /* ---------- Ableton Live | QLab ---------- */
+  .demo-anchor {
+    display: block;
+    position: relative;
+    top: -80px;
+    height: 0;
+  }
+  .demo-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px 32px;
+    margin-bottom: 28px;
+  }
+  .demo-head .demo-lead {
+    margin-bottom: 0;
+  }
+  .mode-box {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .mode-box[hidden] {
+    display: none;
+  }
+  .mode-box small {
+    color: var(--sec);
+    font-size: 12px;
+  }
+  .mode {
+    display: flex;
+    padding: 4px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--line) 70%, transparent);
+  }
+  .mode button {
+    min-width: 168px;
+    min-height: 42px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 9px;
+    background: none;
+    color: var(--sec);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .mode button[aria-pressed='true'] {
+    background: var(--card);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
+  }
+  .mode button:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .demo-root[data-mode='qlab'] [data-show='live'],
+  .demo-root[data-mode='live'] [data-show='qlab'] {
+    display: none !important;
+  }
+
+  /* QLab top bar: workspace, running, list, PANIC */
+  .tb-chips {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: calc(var(--p) * 8);
+  }
+  .chip {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: calc(var(--p) * 38);
+    padding: 0 calc(var(--p) * 10);
+    border-radius: calc(var(--p) * 8);
+    background: var(--appcard);
+    border: 1px solid #38383a;
+  }
+  .chip small {
+    font-size: calc(var(--p) * 8.5);
+    color: var(--appsub);
+    white-space: nowrap;
+  }
+  .chip b {
+    font-size: calc(var(--p) * 13);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* QLab GO */
+  .q-next {
+    border: 1.5px solid var(--acc);
+  }
+  .card.idle {
+    border-color: #48484a;
+  }
+  .bk {
+    display: block;
+    margin-top: calc(var(--p) * 6);
+    color: var(--ok);
+    font-size: calc(var(--p) * 11.5);
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bk::before {
+    content: '● ';
+  }
+  .bk.warn {
+    color: var(--warn);
+  }
+  .bk[hidden] {
+    display: none;
+  }
+  .qbtns {
+    display: flex;
+    gap: calc(var(--p) * 8);
+  }
+  .qbtns button {
+    position: relative;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+    height: calc(var(--p) * 52);
+    border-radius: calc(var(--p) * 12);
+    background: var(--cell);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--p) * 2);
+  }
+  .qbtns b {
+    position: relative;
+    font-size: calc(var(--p) * 15);
+    white-space: nowrap;
+  }
+  .qbtns small {
+    position: relative;
+    font-size: calc(var(--p) * 9.5);
+    color: var(--appsub);
+    white-space: nowrap;
+  }
+  .qbtns .qstop b {
+    letter-spacing: 0.1em;
+  }
+  .qbtns button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .gobtn.qgo {
+    padding-top: calc(var(--p) * 16);
+  }
+  .go-cap {
+    font-size: calc(var(--p) * 11);
+    font-weight: 800;
+    letter-spacing: 0.3em;
+  }
+  .qgo .go-big {
+    font-size: calc(var(--p) * 78);
+  }
+  .qgo .go-next {
+    margin-top: calc(var(--p) * 4);
+  }
+
+  /* QLab cue list */
+  .pane-qlist {
+    flex-direction: column;
+    gap: calc(var(--p) * 6);
+    padding: calc(var(--p) * 8) calc(var(--p) * 12) calc(var(--p) * 6);
+  }
+  .ql-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--p) * 8);
+  }
+  .ql-count {
+    flex: 1;
+    color: var(--appsub);
+    font-size: calc(var(--p) * 11);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .ql-search {
+    width: calc(var(--p) * 200);
+    min-width: 0;
+    height: calc(var(--p) * 28);
+    padding: 0 calc(var(--p) * 10);
+    border-radius: calc(var(--p) * 6);
+    border: 1px solid #38383a;
+    background: var(--appcard);
+    color: #f2f2f7;
+    font: inherit;
+    font-size: calc(var(--p) * 12);
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .ql-search::placeholder {
+    color: #8e8e93;
+  }
+  .ql-search:focus-visible {
+    outline: 3px solid var(--acc);
+    outline-offset: 1px;
+  }
+  .ql-follow {
+    height: calc(var(--p) * 28);
+    padding: 0 calc(var(--p) * 14);
+    border-radius: calc(var(--p) * 6);
+    background: var(--appcard) !important;
+    border: 1.5px solid #48484a !important;
+    color: var(--appsub) !important;
+    font-size: calc(var(--p) * 11.5) !important;
+    font-weight: 700;
+  }
+  .ql-follow.on {
+    border-color: var(--ok) !important;
+    color: var(--ok) !important;
+  }
+  .ql-rows {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--p) * 4);
+    overscroll-behavior: contain;
+  }
+  .qrow {
+    flex: none;
+    display: grid;
+    grid-template-columns: calc(var(--p) * 58) calc(var(--p) * 50) minmax(0, 1fr) calc(var(--p) * 60) calc(var(--p) * 44);
+    align-items: center;
+    gap: calc(var(--p) * 6);
+    height: calc(var(--p) * 28);
+    padding: 0 calc(var(--p) * 10);
+    border-radius: calc(var(--p) * 6);
+    background: var(--appcard);
+    border: 1.5px solid transparent !important;
+    text-align: left;
+    font-size: calc(var(--p) * 12) !important;
+  }
+  .qrow[hidden] {
+    display: none;
+  }
+  .qrow.playing {
+    background: #10301a;
+    border-color: var(--ok) !important;
+  }
+  .qrow.next {
+    background: #0f2440;
+    border-color: var(--acc) !important;
+  }
+  .qrow.done .qname,
+  .qrow.done .qn {
+    color: #8e8e93;
+  }
+  .qn {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .qm {
+    display: inline-block;
+    width: calc(var(--p) * 13);
+    font-size: calc(var(--p) * 10);
+  }
+  .qrow.playing .qm::before {
+    content: '●';
+    color: var(--ok);
+  }
+  .qrow.next .qm::before {
+    content: '▶';
+    color: var(--acc);
+  }
+  .qt {
+    justify-self: start;
+    min-width: calc(var(--p) * 40);
+    padding: 0 calc(var(--p) * 4);
+    border: 1px solid currentColor;
+    border-radius: calc(var(--p) * 4);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: calc(var(--p) * 9);
+    font-weight: 700;
+    line-height: calc(var(--p) * 15);
+    text-align: center;
+    color: #8e8e93;
+  }
+  .qt-audio {
+    color: var(--acc);
+  }
+  .qt-fade {
+    color: #b48cff;
+  }
+  .qt-network {
+    color: var(--warn);
+  }
+  .qt-group {
+    color: #e5e5ea;
+  }
+  .qname {
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .qd1 .qname {
+    padding-left: calc(var(--p) * 12);
+  }
+  .qrow.grp .qname {
+    font-weight: 800;
+  }
+  .qleft {
+    color: var(--ok);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .qrow.next .qleft {
+    color: var(--acc);
+  }
+  .qdur {
+    color: var(--appsub);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .ql-none {
+    margin: calc(var(--p) * 12) 0 0;
+    color: var(--appsub);
+    text-align: center;
+  }
+  .ql-none[hidden] {
+    display: none;
+  }
+  .ql-hint {
+    flex: none;
+    margin: 0;
+    color: var(--appsub);
+    font-size: calc(var(--p) * 10.5);
+  }
+  .ri-list .rico {
+    --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='1' y='3' width='3.5' height='3' rx='1'/%3E%3Crect x='7' y='3' width='14' height='3' rx='1'/%3E%3Crect x='1' y='9.5' width='3.5' height='3' rx='1'/%3E%3Crect x='7' y='9.5' width='14' height='3' rx='1'/%3E%3Crect x='1' y='16' width='3.5' height='3' rx='1'/%3E%3Crect x='7' y='16' width='14' height='3' rx='1'/%3E%3C/svg%3E");
+  }
+
+  /* QLab on the watch */
+  .wscreen[data-page='0'] .wq0,
+  .wscreen[data-page='1'] .wq1,
+  .wscreen[data-page='2'] .wq2 {
+    display: flex;
+  }
+  .wq0 {
+    gap: 4px;
+  }
+  .wlamps {
+    display: flex;
+    gap: 8px;
+    font-size: 10px;
+    font-weight: 800;
+  }
+  .lm::before {
+    content: '●';
+    margin-right: 2px;
+    color: var(--ok);
+  }
+  .lm.bad::before {
+    color: #ff6b5e;
+  }
+  .wnow {
+    max-width: 100%;
+    font-size: 10.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wqgo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 34px !important;
+    line-height: 1;
+  }
+  .wqgo small {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .wqgo.end {
+    background: #636366;
+  }
+  .wq1 .wlist {
+    flex: 1;
+    min-height: 0;
+  }
+  .wq1 .wsc {
+    flex: none;
+  }
+  .wgrp {
+    padding: 2px 4px 0;
+    color: #8e8e93;
+    font-size: 9.5px;
+    font-weight: 800;
+  }
+  .mac-standby {
+    margin-top: 2px;
+    color: var(--sec);
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mac-standby:empty {
+    display: none;
+  }
+  .map-pics :global(.ic-q) {
+    fill: var(--text);
+    font-size: 20px;
+    font-weight: 900;
+  }
+  .map-pics :global(.nd.dead .ic-q) {
+    fill: var(--danger);
+  }
+
   /* ---------- narrower screens ---------- */
   @media (max-width: 1100px) {
     .demo-grid {
@@ -1668,7 +2461,8 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
     .body {
       flex-direction: column;
     }
-    .pane-go {
+    .pane-go,
+    .pane-qgo {
       flex-direction: column;
     }
     .go-left {
@@ -1718,6 +2512,46 @@ const paneKeys = ['session', 'mixer', 'cues', 'go', 'settings'] as const;
     }
     .controls .ctl {
       flex: 1 1 100%;
+    }
+    .demo-head {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .mode-box {
+      align-items: stretch;
+    }
+    .mode button {
+      flex: 1;
+      min-width: 0;
+    }
+    .mode-box small {
+      text-align: right;
+    }
+    .tb-q .tb-chips {
+      order: 3;
+      flex-basis: 100%;
+    }
+    .tb-q .chip {
+      flex: 1;
+    }
+    .qbtns {
+      order: 4;
+    }
+    .ql-search {
+      flex: 1;
+      width: auto;
+      height: calc(var(--p) * 32);
+      font-size: 16px;
+    }
+    .ql-count {
+      flex: none;
+    }
+    .qrow {
+      grid-template-columns: calc(var(--p) * 50) calc(var(--p) * 44) minmax(0, 1fr) calc(var(--p) * 46) calc(var(--p) * 34);
+      gap: calc(var(--p) * 5);
+      height: calc(var(--p) * 34);
+      padding: 0 calc(var(--p) * 8);
+      font-size: calc(var(--p) * 12.5) !important;
     }
   }
 </style>
