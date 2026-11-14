@@ -76,7 +76,7 @@ WHAT YOU NEED
 • Ableton Live 11 or 12 on both Macs, with the TwinKeysBridge control surface (TwinKeys installs it for you)
 • An iPhone or iPad with iOS 17 or later, on the same network as the Macs; watchOS 10 or later for the Apple Watch
 
-No Mac yet? Tap "Try with sample data" on the first screen to try the screens with made-up data.
+No Mac yet? Tap "Live sample" or "QLab sample" on the first screen to try the screens with made-up data.
 
 PRIVACY
 TwinKeys Remote collects no data. No accounts, no analytics, no ads, no in-app purchases.

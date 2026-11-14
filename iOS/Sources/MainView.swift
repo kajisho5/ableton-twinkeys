@@ -140,6 +140,14 @@ struct MainView: View {
             }
         }
         .background(Color.tkBG.ignoresSafeArea())
+        // The QLab sample opens on GO (docs/design-qlab-demo.md 3); switching samples in Settings shows
+        // the other sample's first screen. `-pane` (screenshots) keeps the pane it asks for.
+        .onAppear {
+            if model.trialMode && model.qlabOnly && !ProcessInfo.processInfo.arguments.contains("-pane") { pane = .go }
+        }
+        .onChange(of: model.trialTarget) { _, t in
+            if model.trialMode { pane = t == .qlab ? .go : .session }
+        }
     }
 
     @ViewBuilder private func content(_ p: Pane, _ lc: LayoutClass) -> some View {

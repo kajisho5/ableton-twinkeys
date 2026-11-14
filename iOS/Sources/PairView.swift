@@ -6,6 +6,7 @@ struct PairView: View {
     @EnvironmentObject var model: RemoteModel
     @State private var code = ""
     @State private var invalid = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ScrollView {
@@ -62,12 +63,19 @@ struct PairView: View {
                 }
 
                 // Without a Mac (App Review, or a first look): fictional data, nothing is sent.
-                VStack(spacing: 6) {
-                    Button { model.startTrial() } label: { Text(L.s("Try with sample data", "サンプルで試す")).font(.headline) }
-                        .buttonStyle(TKButtonStyle(radius: 10, minHeight: 50))
+                // Two samples: Live (scenes and clips) or QLab (cue list and GO). docs/design-qlab-demo.md 3.
+                VStack(alignment: .leading, spacing: 10) {
+                    Rectangle().fill(TK.stroke).frame(height: TK.line).padding(.bottom, 8)
+                        .accessibilityHidden(true)
+                    SmallCaps(L.s("NO MAC NEEDED TO TRY", "MAC がなくても試せます"),
+                              spoken: L.s("No Mac needed to try", "Mac がなくても試せます"))
+                        .accessibilityAddTraits(.isHeader)
+                    sampleButtons
                     Text(L.s("Shows the screens with made-up data. Nothing is sent to a Mac.",
                              "架空のデータで画面を試せます。Mac には何も送りません。"))
                         .font(.footnote).foregroundStyle(TK.dim).multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
                 }
                 .padding(.top, 12).padding(.bottom, 24)
             }
@@ -75,6 +83,38 @@ struct PairView: View {
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
         }
+    }
+
+    /// The two sample buttons side by side (one above the other with the largest text sizes).
+    @ViewBuilder private var sampleButtons: some View {
+        let live = sampleButton(target: .live, symbol: "square.grid.3x3.fill",
+                                title: L.s("Live sample", "Live のサンプル"),
+                                note: L.s("Scenes and clips", "シーンとクリップ"), kind: .plain)
+        let qlab = sampleButton(target: .qlab, symbol: "list.bullet",
+                                title: L.s("QLab sample", "QLab のサンプル"),
+                                note: L.s("Cue list and GO", "キューの一覧と GO"), kind: .green)
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: 12) { live; qlab }
+        } else {
+            HStack(spacing: 12) { live; qlab }.fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func sampleButton(target: QLabTarget, symbol: String, title: String, note: String, kind: TKButtonStyle.Kind) -> some View {
+        Button { model.startTrial(target: target) } label: {
+            VStack(spacing: 6) {
+                Image(systemName: symbol).font(.title2.weight(.semibold))
+                    .accessibilityHidden(true)
+                Text(title).font(.headline).multilineTextAlignment(.center)
+                    .foregroundStyle(TK.read)
+                Text(note).font(.caption).foregroundStyle(TK.dim).multilineTextAlignment(.center)
+            }
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .buttonStyle(TKButtonStyle(kind: kind, radius: 10, minHeight: 104))
+        .accessibilityLabel(title)
+        .accessibilityHint(L.s("Opens the app with made-up data. \(note).", "架空のデータで開きます。\(note)。"))
     }
 
     private func save() {

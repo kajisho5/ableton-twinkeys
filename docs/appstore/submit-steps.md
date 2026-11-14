@@ -258,7 +258,7 @@ GitHub で `docs/appstore/metadata-ja.md` と `metadata-en.md` を開いてお�
 1. **Sign-in required（サインインが必要）**：**オフ**（アカウントがないため）。
 2. **Contact Information（連絡先）**：自分の名前、メール、電話番号。電話は `+81` から始めます（例：`+81 90 1234 5678` のように、最初の 0 を取る）。数字だけだと受け付けません。
    - 自動化（A）は、ここが空のときだけ、TestFlight の「Beta App Review Information」に入れた名前・電話・メールを写します（記録には値を出しません）。TestFlight の側も空の欄は、作って入れずに「足りない」と表示します。
-3. **Notes（メモ）**：下の英語の文を、そのまま貼ります（2569バイト。上限は4000バイト）。
+3. **Notes（メモ）**：下の英語の文を、そのまま貼ります（2686バイト。上限は4000バイト）。
 4. **Attachment（添付）**：画面の動画があれば、ここに付けます（下の「Mac がないときの選択肢」）。
 
 ```text
@@ -266,7 +266,7 @@ TwinKeys Remote is a remote control for TwinKeys, a free, open-source Mac app fo
 
 IMPORTANT: the app needs a Mac to do anything.
 - It works only with a Mac running TwinKeys 2.2 or later and Ableton Live 11 or 12, on the same local network as the iPhone or iPad.
-- WITHOUT A MAC: tap "Try with sample data" on the first screen. Every screen then works with fictional sample data, "· Sample" is shown in the top bar, and nothing is sent anywhere. The Apple Watch app shows the same sample data. To leave, open Settings and tap "End the sample and connect to a Mac".
+- WITHOUT A MAC: on the first screen, under "NO MAC NEEDED TO TRY", tap "Live sample" (scenes and clips) or "QLab sample" (cue list and GO). Every screen then works with fictional sample data, "· Sample" is shown in the top bar, and nothing is sent anywhere. The Apple Watch app shows the same sample data. In Settings > Sample you can switch to the other sample, or tap "End the sample and connect to a Mac" to leave.
 - One Mac is enough to try every screen. The backup Mac is optional.
 - There is no account and no sign-in.
 
@@ -291,10 +291,10 @@ TwinKeys is an unofficial tool, not affiliated with or endorsed by Ableton. "Abl
 
 - 本物の Mac につないで撮った動画のとき：
   `A short screen recording of the app connected to TwinKeys on a Mac is attached.`
-- 「サンプルで試す」の画面を撮った動画のとき：
-  `The attached video shows "Try with sample data" (fictional data). It is not a real connection to a Mac.`
+- 「Live のサンプル」「QLab のサンプル」の画面を撮った動画のとき：
+  `The attached video shows the "Live sample" / "QLab sample" (fictional data). It is not a real connection to a Mac.`
 
-**日本語の意味（メモの中身）：** このアプリは Mac の TwinKeys（無料・オープンソース）のリモコンで、Mac がないと何もできないこと。1台の Mac で全部の画面を試せること。アカウントはないこと。Mac の準備（6手順、約10分）。Mac がないときは、最初の画面の「サンプルで試す」で全部の画面（Apple Watch も）を架空のデータで試せること。画面の説明。通信は自分の Mac とだけで、データは集めないこと。Ableton 社とは関係ないこと。
+**日本語の意味（メモの中身）：** このアプリは Mac の TwinKeys（無料・オープンソース）のリモコンで、Mac がないと何もできないこと。1台の Mac で全部の画面を試せること。アカウントはないこと。Mac の準備（6手順、約10分）。Mac がないときは、最初の画面の「Live のサンプル」か「QLab のサンプル」で全部の画面（Apple Watch も）を架空のデータで試せること。設定の「サンプル」の欄で、もう一方のサンプルへの切り替えと終了ができること。画面の説明。通信は自分の Mac とだけで、データは集めないこと。Ableton 社とは関係ないこと。
 
 ### 6-6. 出し方（Version Release）
 

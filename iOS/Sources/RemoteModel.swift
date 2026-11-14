@@ -102,13 +102,19 @@ final class RemoteModel: ObservableObject {
     @Published private(set) var demo: Bool
     /// Sample data started from the pairing screen (App Review has no Mac): shown as such, and can be ended.
     @Published private(set) var trialMode = false
+    /// Which sample is shown while trying it: Ableton Live (scenes and clips) or QLab (cue list and GO).
+    @Published private(set) var trialTarget: QLabTarget = .live
+    private var codeBeforeTrial = ""
 
     init(demo: Bool = false) {
         self.demo = demo
         capAtZeroDB = UserDefaults.standard.object(forKey: "capAtZeroDB") as? Bool ?? true
         if let raw = UserDefaults.standard.object(forKey: "lockScope") as? Int { lockScope = LockScope(rawValue: UInt8(clamping: raw)) }
         followSelection = UserDefaults.standard.object(forKey: "followSelection") as? Bool ?? true
-        if demo { loadDemo(); return }
+        if demo { loadDemo(target: Self.launchTarget ?? .live); return }
+        // `-trial` (screenshots): as after tapping a sample button on the pairing screen
+        // (`-trial -target qlab` for the QLab sample).
+        if ProcessInfo.processInfo.arguments.contains("-trial") { startTrial(target: Self.launchTarget ?? .live); return }
         if let code = Keychain.load("pairingCode"), Pairing.normalize(code) != nil {
             pairingCode = code
             phase = .searching
@@ -555,21 +561,33 @@ final class RemoteModel: ObservableObject {
 
     // MARK: Demo (screenshots and previews; fictional names)
 
-    /// "Try with sample data" on the pairing screen: nothing is sent anywhere.
-    func startTrial() {
+    /// "Live sample" or "QLab sample" on the pairing screen: nothing is sent anywhere.
+    /// `.qlab` opens QLab mode with the sample show; `.live` the Live set.
+    func startTrial(target: QLabTarget = .live) {
         disconnect()
         browser?.cancel(); browser = nil; macs = []
-        let code = pairingCode
+        // The user's own code (the sample shows a made-up one), kept across switching samples.
+        if !trialMode { codeBeforeTrial = pairingCode }
         demo = true; trialMode = true
-        loadDemo()
-        pairingCode = code
+        trialTarget = target
+        lastResult = nil; lastBackup = nil
+        live = LiveState(); status = nil
+        qlabStatus = nil; qlabCues = []
+        loadDemo(target: target)
+        pairingCode = codeBeforeTrial
+    }
+
+    /// Settings while trying: switch between the Live and the QLab sample.
+    func switchTrial() {
+        guard trialMode else { return }
+        startTrial(target: trialTarget == .qlab ? .live : .qlab)
     }
 
     /// Back to the pairing screen (or searching for the Mac with the saved code).
     func endTrial() {
         guard trialMode else { return }
         locked = false
-        demo = false; trialMode = false
+        demo = false; trialMode = false; trialTarget = .live
         live = LiveState(); status = nil; lastResult = nil; lastBackup = nil
         qlabStatus = nil; qlabCues = []
         wasConnected = false; lostAt = nil; switchedToBackup = false
@@ -577,7 +595,14 @@ final class RemoteModel: ObservableObject {
         startBrowsing()
     }
 
-    private func loadDemo() {
+    /// `-target qlab` / `-target both` on launch (screenshots).
+    static var launchTarget: QLabTarget? {
+        let a = ProcessInfo.processInfo.arguments
+        guard let i = a.firstIndex(of: "-target"), i + 1 < a.count else { return nil }
+        return QLabTarget(rawValue: a[i + 1])
+    }
+
+    private func loadDemo(target: QLabTarget) {
         pairingCode = "K7MQ2-WX9TP"
         phase = .connected("Main Stage Mac")
         // `-demo` (screenshots): the Apple Watch mark shows as connected. Trying it with sample data
@@ -614,14 +639,12 @@ final class RemoteModel: ObservableObject {
                                                  .init(kind: "scene", index: 6, main: "M2 本編", backup: "M2 本編 v2")],
                                           complete: true)
                                 : nil)
-        loadDemoQLab()
+        if target.drivesQLab { loadDemoQLab(target) }
     }
 
-    // MARK: QLab sample (`-demo -target qlab`; fictional workspace and cue names)
+    // MARK: QLab sample (`-demo -target qlab`, or "QLab sample"; fictional workspace and cue names)
 
-    private func loadDemoQLab() {
-        let a = ProcessInfo.processInfo.arguments
-        guard let i = a.firstIndex(of: "-target"), i + 1 < a.count, let t = QLabTarget(rawValue: a[i + 1]), t.drivesQLab else { return }
+    private func loadDemoQLab(_ t: QLabTarget) {
         let rows: [(String, String, QLabCueType, Double?, Int)] = [
             ("1", "開演前の確認", .memo, nil, 0), ("2", "客入れ BGM", .audio, 1080, 0), ("3", "客入れ BGM フェードアウト", .fade, 8, 0),
             ("4", "開演ベル", .audio, 6, 0), ("10", "第1場", .group, nil, 0), ("11", "鳥の声（朝）", .audio, 90, 1),
