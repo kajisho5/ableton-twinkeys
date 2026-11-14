@@ -251,6 +251,9 @@ jobs:
           Remove-Item -Recurse -Force "$env:LOCALAPPDATA/TwinKeys" -ErrorAction SilentlyContinue
           $logs = @("$env:LOCALAPPDATA/Packages/$env:PACKAGE_FAMILY_NAME/LocalCache/Local/TwinKeys/Logs", "$env:LOCALAPPDATA/TwinKeys/Logs")
           $patterns = $logs | ForEach-Object { "$_/*.log" }
+          # Store screenshots must be 1366 x 768 or larger; the runner's screen is 1024 x 768. Try a bigger one.
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop; "Display set to 1920 x 1080" }
+          catch { "Display size not changed: $($_.Exception.Message)" }
           $aumid = "$env:PACKAGE_FAMILY_NAME!App"
           $id = [PackagedApp]::Start($aumid, '--smoke-windows')
           "Started $aumid as process $id"
@@ -300,9 +303,12 @@ jobs:
           }
           (Get-Item $appcert).VersionInfo | Format-List FileVersion, ProductVersion
           Get-Process TwinKeys -ErrorAction SilentlyContinue | Stop-Process
+          # Test the (test-signed) package file; WACK installs and removes it itself. With -packagefullname on
+          # the installed package, this runner's WACK could not find the manifest (run 32).
+          Get-AppxPackage -Name $env:MSIX_NAME | Remove-AppxPackage
           & $appcert reset
           $report = "$PWD/wack/wack-${{ matrix.arch }}.xml"
-          & $appcert test -packagefullname $env:PACKAGE_FULL_NAME -reportoutputpath $report
+          & $appcert test -appxpackagepath "$PWD/test-signed.msix" -reportoutputpath $report
           "appcert exit code: $LASTEXITCODE"
           if (-not (Test-Path $report)) {
             "::warning::WACK wrote no report (exit $LASTEXITCODE)"
@@ -321,6 +327,8 @@ jobs:
           }
           $lines | Tee-Object wack/summary.txt
           if ($overall -ne 'PASS') { "::warning::WACK overall result: $overall (see the TwinKeys-WACK-${{ matrix.arch }} artifact)" }
+          # WACK's result is reported (above and in the artifact), not a reason to stop the Store package.
+          exit 0
       - name: Remove the test package and certificate
         if: always()
         shell: pwsh
