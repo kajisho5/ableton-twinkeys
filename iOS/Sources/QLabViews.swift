@@ -273,16 +273,20 @@ struct QLabCueListView: View {
     var showSide = true
     @State private var search = ""
     @State private var follow = true
+    /// Little width (an iPhone): no meters in the rows, so the names keep their room.
+    @State private var narrow = false
 
     var body: some View {
         GeometryReader { geo in
             HStack(alignment: .top, spacing: 12) {
                 list
-                if showSide && geo.size.width > 640 {
+                if showSide && geo.size.width > 900 {
                     VStack(spacing: 12) { hint; backupBox; Spacer(minLength: 0) }.frame(width: min(250, geo.size.width * 0.26))
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
+            .onAppear { narrow = geo.size.width < 760 }
+            .onChange(of: geo.size) { _, sz in narrow = sz.width < 760 }
         }
     }
 
@@ -295,11 +299,12 @@ struct QLabCueListView: View {
     private var list: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                SmallCaps("CUE LIST · \((model.qlabStatus?.listName ?? "").uppercased()) · \(model.qlabCues.count) CUES",
+                SmallCaps(narrow ? "\(model.qlabCues.count) CUES" : "CUE LIST · \((model.qlabStatus?.listName ?? "").uppercased()) · \(model.qlabCues.count) CUES",
                           spoken: L.s("Cue list, \(model.qlabCues.count) cues", "キューの一覧、\(model.qlabCues.count) 個"))
+                    .layoutPriority(1)
                 Spacer(minLength: 4)
                 TextField(L.s("Find a number or name", "番号か名前で探す"), text: $search)
-                    .textFieldStyle(.plain).font(.subheadline).padding(.horizontal, 10).frame(maxWidth: 260, minHeight: 34)
+                    .textFieldStyle(.plain).font(.subheadline).padding(.horizontal, 10).frame(maxWidth: narrow ? 170 : 260, minHeight: 34)
                     .tkPanel(radius: 6)
                 Toggle(isOn: $follow) { Text("FOLLOW").font(TK.mono(.caption)).tracking(1.5) }
                     .toggleStyle(TKToggleKeyStyle())
@@ -338,9 +343,10 @@ struct QLabCueListView: View {
             Text(numberText(c.number)).font(TK.mono(.subheadline)).monospacedDigit().foregroundStyle(TK.read).frame(width: 46, alignment: .leading)
             QLabTypeBadge(type: c.type).padding(.leading, CGFloat(min(c.depth, 4)) * 18)
             Text(c.name).font(.subheadline.weight(.bold)).foregroundStyle(done ? TK.dim : TK.read).lineLimit(1)
+                .layoutPriority(1)
             Spacer(minLength: 6)
             if let r = running {
-                if let d = r.duration, d > 0, let l = model.qlabLeft(r, now: now) {
+                if !narrow, let d = r.duration, d > 0, let l = model.qlabLeft(r, now: now) {
                     SegmentMeter(value: 1 - l / d, segments: 16).frame(width: 120, height: 10)
                 }
                 if let l = model.qlabLeft(r, now: now) {

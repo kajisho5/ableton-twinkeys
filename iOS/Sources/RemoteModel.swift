@@ -646,6 +646,9 @@ final class RemoteModel: ObservableObject {
         qlabStatusAt = Date()
         status?.target = t
         status?.lastCue = .init(label: "Space", memo: "GO", count: 12, delivery: "delivered")
+        // The cue keys as set for QLab on the Mac (Space GO, arrows the playhead, Esc Panic, A a cue).
+        status?.cueKeys = [(0x7E, "↑", "前へ"), (0x7D, "↓", "次へ"), (0x31, "Space", "GO"), (0x35, "Esc", "Panic"),
+                           (0x00, "A", "雷（予備）を GO"), (0x24, "Return", "")].map { .init(keycode: $0.0, label: $0.1, memo: $0.2) }
     }
 
     private func applyDemoQLab(_ cmd: QLabCommand) {
