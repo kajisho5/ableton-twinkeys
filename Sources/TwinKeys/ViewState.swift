@@ -89,6 +89,18 @@ struct ViewState: Equatable {
     var deskOtherName: String?
     /// The other Mac's own console link as it told us (nil: not linked, or a version without it).
     var peerDesk: DeskPeerStatus?
+    /// QLab mode (docs/design-qlab.md): what TwinKeys drives, this Mac's QLab, and the other Mac's.
+    var target: QLabTarget = .live
+    var qlabSettings = QLabSettings()
+    var qlab = QLabEngineSnapshot()
+    var qlabPasscodeSet = false
+    var qlabBackup: QLabBackupStatus?
+    var qlabLast: QLabLastCommand?
+    var qlabDiff: QLabCueDiff?
+    /// The other Mac's QLab packet (nil: not linked or not told) and whether it understands QLab mode.
+    var peerQLab: QLabLinkState?
+    var peerUnderstandsQLab: Bool?
+    var qlabKeysHash: UInt32 = 0
 
     var t: Strings { Strings(language) }
 

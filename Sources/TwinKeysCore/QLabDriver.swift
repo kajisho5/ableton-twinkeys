@@ -58,6 +58,8 @@ public final class QLabDriver: @unchecked Sendable {
         lock.lock(); settings = s; target = t; lock.unlock()
     }
 
+    public var currentTarget: QLabTarget { lock.lock(); defer { lock.unlock() }; return target }
+
     public var lastCommand: QLabLastCommand? { lock.lock(); defer { lock.unlock() }; return last }
 
     /// Backup side: wire the Conductor's hooks to this Mac's QLab. Call once.

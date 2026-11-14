@@ -137,6 +137,23 @@ final class InteropVectorsTests: XCTestCase {
         }
     }
 
+    static func qlabRemoteMessages() -> [(String, RemoteMessage)] {
+        let cue = QLabCue(uniqueID: "C-12", number: "12", name: "雨の音（遠く）", type: .audio, duration: 200, colorName: "none", depth: 1)
+        let running = QLabRunningCue(uniqueID: "C-12", number: "12", name: "雨の音（遠く）", type: .audio, elapsed: 132, duration: 200, paused: false)
+        return [
+            ("qlab_go", .qlab(id: 21, QLabCommand(action: .go, expect: "13"))),
+            ("qlab_playhead", .qlab(id: 22, QLabCommand(action: .setPlayhead, cueNumber: "15"))),
+            ("qlabCues", .qlabCues(QLabCueList(workspace: "sample-show", listName: "Main", offset: 0, total: 1, cues: [cue]))),
+            ("qlabStatus", .qlabStatus(QLabStatus(target: .qlab, state: .ready, version: "5.6.5", workspaceName: "sample-show",
+                                                  listName: "Main", permissions: [.view, .control], showMode: true, cueCount: 48,
+                                                  playheadID: "C-13", playheadNumber: "13", running: [running],
+                                                  backup: QLabBackupStatus(supported: true, state: .ready, showMode: false, cueCount: 48,
+                                                                           sameCues: true, playheadNumber: "13", samePlayhead: true, running: 1),
+                                                  last: QLabLastCommand(action: .go, number: "12", name: "雨の音（遠く）", main: "delivered", backup: "delivered"),
+                                                  stamp: 1_763_100_000))),
+        ]
+    }
+
     static func qlabFile() -> [String: Any] {
         let slipCases: [(String, [UInt8])] = [
             ("plain", [0x2F, 0x67, 0x6F, 0x00]),
@@ -154,6 +171,10 @@ final class InteropVectorsTests: XCTestCase {
                 let bytes = Packet(session: c.session, seq: c.seq, body: c.body).encode()
                 return ["name": c.name, "session": Int(c.session), "seq": Int(c.seq), "body": describe(c.body),
                         "bytes": hex(bytes), "size": bytes.count, "windows_error": "unknownType"]
+            },
+            // iPhone <-> Mac messages of QLab mode: TwinKeys for Windows must skip them (decode to nothing).
+            "remote_messages": qlabRemoteMessages().map { m -> [String: Any] in
+                ["name": m.0, "message": try! JSONSerialization.jsonObject(with: JSONEncoder().encode(m.1))]
             },
             "features_with_qlab": ["bytes": hex(Packet(session: 1, seq: 40, body: .features(flags: 1 | Conductor.qlabFeature, epoch: 7)).encode()),
                                    "flags": Int(1 | Conductor.qlabFeature), "epoch": 7],
@@ -637,6 +658,9 @@ final class InteropVectorsTests: XCTestCase {
             XCTAssertLessThanOrEqual(p.encode().count + SecureChannel.tagSize, WireProtocol.maxPacketSize, c.name)
         }
         for c in Self.oscCases { XCTAssertEqual(OSCMessage.decode(c.1.encoded()), c.1, c.0) }
+        for (name, m) in Self.qlabRemoteMessages() {
+            XCTAssertEqual(try JSONDecoder().decode(RemoteMessage.self, from: JSONEncoder().encode(m)), m, name)
+        }
     }
 
     func testSealedVectorsOpen() throws {

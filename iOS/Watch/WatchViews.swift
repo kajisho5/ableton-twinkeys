@@ -11,9 +11,16 @@ struct WatchRootView: View {
 
     var body: some View {
         TabView(selection: $page) {
-            GoPage(active: page == 0).tag(0)
-            ScenesPage().tag(1)
-            PanicPage().tag(2)
+            if model.qlab {
+                // QLab mode (docs/design/qlab-watch.png): GO, the cue list, PANIC (both Macs).
+                QLabGoPage().tag(0)
+                QLabCuesPage().tag(1)
+                QLabPanicPage().tag(2)
+            } else {
+                GoPage(active: page == 0).tag(0)
+                ScenesPage().tag(1)
+                PanicPage().tag(2)
+            }
         }
         .tabViewStyle(.page)
         .background(Color.black)

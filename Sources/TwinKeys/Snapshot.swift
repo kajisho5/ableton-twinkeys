@@ -93,6 +93,7 @@ enum Snapshot {
             ("desk-backup", deskReady, CGSize(width: 560, height: 520)),
             ("desk-switched", deskSwitched, CGSize(width: 560, height: 560)),
             ("desk-mismatch", deskMismatch, CGSize(width: 560, height: 560)),
+            ("qlab-main", qlabSample(cue), CGSize(width: 560, height: 620)),
         ]
         for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
             for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
@@ -109,6 +110,7 @@ enum Snapshot {
         renderHelp(to: dir)
         renderMenuBarIcons(to: dir)
         renderDeskSettings(state: deskReady, to: dir)
+        renderQLabSettings(state: qlabSample(cue), to: dir)
         for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
             for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
                 var s = connected
@@ -167,6 +169,49 @@ enum Snapshot {
         off.check = .mismatches([DeskMismatch(channel: DeskChannel(.input, 10), expected: -600, problem: .level(-2000))])
         mismatch.desk?.move = off
         return (ready, switched, mismatch)
+    }
+
+    /// QLab mode sample (docs/design/qlab-mac-settings.png; fictional workspace and cue names).
+    static func qlabSample(_ base: ViewState) -> ViewState {
+        var s = base
+        s.target = .qlab
+        s.deskMeName = "Main Stage Mac"
+        var q = QLabEngineSnapshot()
+        q.transportUp = true; q.state = .ready; q.version = "5.6.5"; q.showMode = true; q.listName = "Main"
+        q.permissions = [.view, .control]
+        let ws = QLabWorkspaceInfo(uniqueID: "W1", displayName: "sample-show")
+        q.workspaces = [ws]; q.workspace = ws
+        let rows: [(String, String, QLabCueType, Double?)] = [
+            ("1", "開演前の確認", .memo, nil), ("2", "客入れ BGM", .audio, 1080), ("10", "第1場", .group, nil),
+            ("12", "雨の音（遠く）", .audio, 200), ("13", "雷鳴 1", .audio, 12), ("14", "雨 フェードアウト", .fade, 5)]
+        q.cues = rows.map { QLabCue(uniqueID: "u" + $0.0, number: $0.0, name: $0.1, type: $0.2, duration: $0.3) }
+        q.allCues = q.cues
+        q.playhead = QLabCueRef(uniqueID: "u13", number: "13")
+        q.running = [QLabRunningCue(uniqueID: "u12", number: "12", name: "雨の音（遠く）", type: .audio, elapsed: 132, duration: 200, paused: false)]
+        s.qlab = q
+        s.qlabPasscodeSet = true
+        s.qlabLast = QLabLastCommand(action: .go, number: "12", name: "雨の音（遠く）", main: "delivered", backup: "delivered")
+        s.peerUnderstandsQLab = true
+        s.peerQLab = QLabLinkState(state: .ready, permissions: [.view, .control], showMode: false, target: .qlab, running: 1,
+                                   cueCount: q.cues.count, listHash: QLabCueSummary(q.cues).hash,
+                                   keysHash: QLabLinkState.keysHash(target: .qlab, keys: s.cueKeys), playhead: "13")
+        s.qlabKeysHash = QLabLinkState.keysHash(target: .qlab, keys: s.cueKeys)
+        s.qlabBackup = QLabBackupStatus(supported: true, state: .ready, showMode: false, cueCount: q.cues.count, sameCues: true,
+                                        playheadNumber: "13", samePlayhead: true, running: 1)
+        if let i = s.cueKeys.firstIndex(where: { $0.keycode == KeyNames.returnKey }) { s.cueKeys[i].qlab = QLabKeyAction(nil) }
+        return s
+    }
+
+    static func renderQLabSettings(state: ViewState, to dir: URL) {
+        for (suffix, language) in [("", AppLanguage.en), ("-ja", .ja)] {
+            for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                var s = state
+                s.language = language
+                let view = Form { QLabSettingsSection(state: s) }.formStyle(.grouped)
+                renderWindow(view: view, size: CGSize(width: 640, height: 1300), appearance: appearance, title: "QLab",
+                             to: dir.appendingPathComponent("settings-qlab-\(appearanceName)\(suffix).png"))
+            }
+        }
     }
 
     /// Settings > Console (Yamaha) with the sample, as in docs/design/mac-ql-dark.

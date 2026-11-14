@@ -71,12 +71,18 @@ public struct RemoteStatus: Codable, Equatable, Sendable {
     public var cueKeys: [CueKeySummary]
     /// 2.1: how the backup's Live set differs from the main's (nil: same, or not known).
     public var setDiff: SetDiff?
+    /// QLab mode (docs/design-qlab.md 6.3): what the Mac drives. nil from Macs before QLab mode
+    /// (Ableton Live); an older iPhone skips the key.
+    public var target: QLabTarget?
+    /// QLab mode: how the backup's cue list differs from the main's (nil: same, or not known).
+    public var qlabDiff: QLabCueDiff?
     public init(mainName: String, mainLiveConnected: Bool, backupName: String?, backupLinked: Bool,
                 backupLiveConnected: Bool, latencyMs: Double?, lastCue: CueSummary?, cueKeys: [CueKeySummary],
-                setDiff: SetDiff? = nil) {
+                setDiff: SetDiff? = nil, target: QLabTarget? = nil, qlabDiff: QLabCueDiff? = nil) {
         self.mainName = mainName; self.mainLiveConnected = mainLiveConnected; self.backupName = backupName
         self.backupLinked = backupLinked; self.backupLiveConnected = backupLiveConnected
         self.latencyMs = latencyMs; self.lastCue = lastCue; self.cueKeys = cueKeys; self.setDiff = setDiff
+        self.target = target; self.qlabDiff = qlabDiff
     }
 
     public struct CueSummary: Codable, Equatable, Sendable {
@@ -160,6 +166,10 @@ public enum RemoteMessage: Codable, Equatable, Sendable {
     case becomeMain(id: Int)
     case cue(id: Int, keycode: UInt16)
     case allNotesOff(id: Int)
+    /// QLab mode (docs/design-qlab.md 6.3): a QLab command for both Macs. Sent only to a Mac that lists
+    /// `RemoteFeature.qlab`. GO, Panic and the playhead are never stopped by the show lock; Stop
+    /// (`hardStop`) is stopped by it when it stops "Stop".
+    case qlab(id: Int, QLabCommand)
     /// Every 2 s (and right after `welcome`). `watch` (connection display): the iPhone's Apple Watch,
     /// also sent at once when it changes. It rides on the ping instead of being a message of its own
     /// because a Mac before 2.4 cannot decode a message case it does not know (it closes the
@@ -181,6 +191,11 @@ public enum RemoteMessage: Codable, Equatable, Sendable {
     /// `backup`: "delivered", "missing", "unconfirmed", "notLinked", "notSent"
     case result(id: Int, ok: Bool, error: String?, backup: String)
     case pong(Double)
+    /// QLab mode: the cue list shown (in pieces), when the iPhone connects and when it changes.
+    /// An iPhone before QLab mode skips it.
+    case qlabCues(QLabCueList)
+    /// QLab mode: this Mac's and the backup's QLab, when it changes (at most 5 a second while cues run).
+    case qlabStatus(QLabStatus)
 }
 
 /// Message kinds added after TwinKeys 2.1 that a Mac may or may not understand. A Mac on 2.1
@@ -193,8 +208,13 @@ public enum RemoteFeature {
     public static let becomeMain = "becomeMain"
     /// The Mac skips a message it cannot decode instead of closing the connection (2.4+).
     public static let skipsUnknown = "skipsUnknown"
-    /// What this version understands (sent in `welcome`).
+    /// What this version understands (sent in `welcome`). TwinKeys for Windows sends the same.
     public static let all = [commandAt, go, lockScope, becomeMain, skipsUnknown]
+    /// QLab mode (docs/design-qlab.md 6.3): the Mac drives QLab and understands `qlab`. Mac only
+    /// (TwinKeys for Windows does not drive QLab).
+    public static let qlab = "qlab"
+    /// What the Mac sends in `welcome`.
+    public static let mac = all + [qlab]
 }
 
 /// What the Mac the iPhone is connected to understands, and how to say things to it.

@@ -656,6 +656,10 @@ struct SettingsPane: View {
             linkRow("desktopcomputer", L.s("Mac (main)", "Mac（メイン）"), model.status?.mainName ?? "—", mainState)
                 .id(Self.connectionID)
             linkRow("desktopcomputer", L.s("Backup", "バックアップ"), model.status?.backupName ?? model.backupMacName ?? "—", backupState)
+            if model.qlabOn, let q = model.qlabStatus {
+                linkRow("list.bullet.rectangle", "QLab", "\(q.workspaceName ?? "—")（\(model.status?.mainName ?? "Mac")）",
+                        q.state.canControl ? (text: connectedText, color: Color.tkOK) : (text: L.s("Not connected", "つながっていません"), color: Color.tkWarn))
+            }
             linkRow("applewatch", "Apple Watch", L.s("TwinKeys (Watch)", "TwinKeys（Watch）"), watchState)
             linkRow("iphone", L.s("Pairing code", "合言葉"), model.pairingCode, nil)
             Button(L.s("Connect to another Mac (for example the backup)", "別の Mac につなぐ（バックアップなど）")) { model.chooseAnotherMac() }

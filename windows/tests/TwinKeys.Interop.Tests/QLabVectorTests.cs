@@ -37,4 +37,16 @@ public class QLabVectorTests
         // Bit 0 (answers cues) is what Windows reads; bit 2 (QLab) is ignored.
         Assert.Equal(1, f.Flags & 1);
     }
+
+    [Fact]
+    public void QLabRemoteMessagesAreSkipped()
+    {
+        // The iPhone link's QLab messages (qlab, qlabCues, qlabStatus): Windows does not list "qlab"
+        // in its welcome, so an iPhone never sends it one; anything that arrives is skipped.
+        var list = File()["remote_messages"]!.AsArray();
+        Assert.NotEmpty(list);
+        foreach (var v in list)
+            Assert.Null(RemoteMessage.FromJson(v!["message"]));
+        Assert.DoesNotContain("qlab", RemoteFeature.All);
+    }
 }

@@ -211,6 +211,104 @@
       "windows_error": "unknownType"
     }
   ],
+  "remote_messages": [
+    {
+      "message": {
+        "qlab": {
+          "_1": {
+            "action": 1,
+            "expect": "13"
+          },
+          "id": 21
+        }
+      },
+      "name": "qlab_go"
+    },
+    {
+      "message": {
+        "qlab": {
+          "_1": {
+            "action": 7,
+            "cueNumber": "15"
+          },
+          "id": 22
+        }
+      },
+      "name": "qlab_playhead"
+    },
+    {
+      "message": {
+        "qlabCues": {
+          "_0": {
+            "cues": [
+              {
+                "colorName": "none",
+                "depth": 1,
+                "duration": 200,
+                "name": "雨の音（遠く）",
+                "number": "12",
+                "type": 1,
+                "uniqueID": "C-12"
+              }
+            ],
+            "listName": "Main",
+            "offset": 0,
+            "total": 1,
+            "workspace": "sample-show"
+          }
+        }
+      },
+      "name": "qlabCues"
+    },
+    {
+      "message": {
+        "qlabStatus": {
+          "_0": {
+            "backup": {
+              "cueCount": 48,
+              "playheadNumber": "13",
+              "running": 1,
+              "sameCues": true,
+              "samePlayhead": true,
+              "showMode": false,
+              "state": 6,
+              "supported": true
+            },
+            "cueCount": 48,
+            "last": {
+              "action": 1,
+              "backup": "delivered",
+              "main": "delivered",
+              "name": "雨の音（遠く）",
+              "number": "12"
+            },
+            "listName": "Main",
+            "permissions": 5,
+            "playheadID": "C-13",
+            "playheadNumber": "13",
+            "running": [
+              {
+                "duration": 200,
+                "elapsed": 132,
+                "name": "雨の音（遠く）",
+                "number": "12",
+                "paused": false,
+                "type": 1,
+                "uniqueID": "C-12"
+              }
+            ],
+            "showMode": true,
+            "stamp": 1763100000,
+            "state": 6,
+            "target": "qlab",
+            "version": "5.6.5",
+            "workspaceName": "sample-show"
+          }
+        }
+      },
+      "name": "qlabStatus"
+    }
+  ],
   "slip": [
     {
       "framed": "c02f676f00c0",

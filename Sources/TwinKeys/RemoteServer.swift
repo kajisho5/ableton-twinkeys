@@ -43,6 +43,10 @@ final class RemoteServer {
     /// An approved iPhone asks this Mac to become the main (2.3).
     var becomeMain: () -> Void = {}
     var allNotesOff: () -> Void = {}
+    /// QLab mode: runs a QLab command on both Macs (QLabDriver); `done` on any queue.
+    var runQLab: (QLabCommand, @escaping (QLabDriver.Outcome) -> Void) -> Void = { _, d in d(QLabDriver.Outcome(ok: false, error: "qlab_off", backup: "notSent")) }
+    /// QLab mode: the cue list and status for an iPhone that just connected (any thread).
+    var qlabWelcome: () -> [RemoteMessage] = { [] }
     var snapshot: () -> LiveState = { LiveState() }
     var status: () -> RemoteStatus? = { nil }
     var onLog: ((String) -> Void)?
@@ -97,6 +101,10 @@ final class RemoteServer {
 
     /// Sends a Live change to every approved device.
     func broadcast(_ u: LiveUpdate) { queue.async { [weak self] in self?.sendAll(.update(u)) } }
+
+    /// Sends any message to every approved device (QLab mode: `qlabCues`, `qlabStatus`). An iPhone
+    /// before QLab mode skips them.
+    func broadcastMessage(_ m: RemoteMessage) { queue.async { [weak self] in self?.sendAll(m) } }
 
     func broadcastStatus() {
         queue.async { [weak self] in
@@ -272,11 +280,12 @@ final class RemoteServer {
         c.approved = true
         c.lastHeard = ProcessInfo.processInfo.systemUptime
         // 2.4: what this Mac understands, so a new iPhone never sends what an older Mac cannot read.
-        send(.welcome(macName: serverName, features: RemoteFeature.all), to: c)
+        send(.welcome(macName: serverName, features: RemoteFeature.mac), to: c)
         // In pieces (one clip column per message): a big set in one message could pass the
         // receive limit on the iPhone.
         for u in snapshot().initialUpdates() { send(.update(u), to: c) }
         if let s = status() { send(.status(s), to: c) }
+        for m in qlabWelcome() { send(m, to: c) }
         onLog?("Remote: \(c.hello?.deviceName ?? "?") connected")
         notifyCount()
     }
@@ -302,6 +311,17 @@ final class RemoteServer {
             let ok = pressCue(keycode)
             onLog?("Remote: \(c.hello?.deviceName ?? "?"): cue key \(keycode)\(ok ? "" : " (not a cue key)")")
             send(.result(id: id, ok: ok, error: ok ? nil : "not a cue key", backup: "see status"), to: c)
+        case let .qlab(id, cmd):
+            // GO, Panic and the playhead work under the show lock (as GO does for Live); Stop is one
+            // of the "stops" the lock may hold back.
+            if c.locked, c.lockScope.contains(.stops), cmd.action == .hardStop {
+                send(.result(id: id, ok: false, error: "locked", backup: "notSent"), to: c); return
+            }
+            let who = c.hello?.deviceName ?? "?"
+            onLog?("Remote: \(who): QLab \(cmd.action.name)\(cmd.cueNumber.map { " \($0)" } ?? "")\(cmd.expect.map { " (next \($0))" } ?? "")")
+            runQLab(cmd) { [weak self] o in
+                self?.queue.async { self?.send(.result(id: id, ok: o.ok, error: o.error, backup: o.backup), to: c) }
+            }
         case let .allNotesOff(id):
             onLog?("Remote: \(c.hello?.deviceName ?? "?"): All Notes Off")
             allNotesOff()

@@ -28,6 +28,7 @@ struct ContentView: View {
                     }
                     if let d = state.setDiff { setDiffBanner(d) }
                     if !state.cueKeys.isEmpty || state.lastCue != nil { CuePanel(state: state) }
+                    if state.target.drivesQLab { QLabPanel(state: state) }
                     peersSection
                     modeSection
                     permissionRow

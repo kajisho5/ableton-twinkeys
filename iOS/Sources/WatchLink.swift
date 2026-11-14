@@ -114,6 +114,24 @@ final class WatchLink: NSObject {
             default: st.lastCueOK = nil
             }
         }
+        if m.qlabOn, let q = m.qlabStatus {
+            st.target = q.target.rawValue
+            let now = Date()
+            if let r = q.running.first {
+                st.qlabNow = r.title
+                st.qlabLeft = m.qlabLeft(r, now: now)
+                st.qlabTotal = r.duration
+                st.running = !r.paused
+            }
+            if let n = m.qlabNext { st.qlabNext = n.title; st.qlabNextNumber = n.number }
+            st.qlabOK = m.isConnected && q.state.canControl && q.backup?.state.canControl == true
+            let cues = m.qlabCues
+            let at = cues.firstIndex { $0.uniqueID == q.playheadID } ?? 0
+            let ids = Set(q.running.map(\.uniqueID))
+            let lo = max(0, at - 3), hi = min(cues.count, at + 5)
+            st.qlabCues = lo < hi ? cues[lo..<hi].map { WatchQLabCue(number: $0.number, name: $0.name, running: ids.contains($0.uniqueID),
+                                                                       next: $0.uniqueID == q.playheadID) } : []
+        }
         st.locked = m.locked
         st.problem = m.lastResult
         st.stamp = Date().timeIntervalSince1970
@@ -151,6 +169,21 @@ final class WatchLink: NSObject {
             return nil
         case .allNotesOff:
             m.allNotesOff()
+            return nil
+        case let .qlabGo(expect):
+            guard m.qlabOn else { return "offline" }
+            guard Date().timeIntervalSince(lastGo) >= GoView.goGuard else { return "guard" }
+            // Only the cue the watch showed as next (as for Live: a changed "next" plays nothing).
+            guard expect == (m.qlabNext?.number ?? m.qlabStatus?.playheadNumber) else { return "changed" }
+            lastGo = Date()
+            m.qlabGo()
+            return nil
+        case .qlabPanic:
+            m.qlab(QLabCommand(action: .panic))
+            return nil
+        case let .qlabPlayhead(n):
+            guard !n.isEmpty else { return "qlab_no_number" }
+            m.qlab(QLabCommand(action: .setPlayhead, cueNumber: n))
             return nil
         }
     }

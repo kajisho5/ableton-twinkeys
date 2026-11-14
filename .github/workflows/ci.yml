@@ -80,6 +80,27 @@ jobs:
           wait $PID || true
           echo "--- TwinKeys log"; cat ~/Library/Logs/TwinKeys/*.log || true
           exit $RESULT
+      - name: QLab mode smoke test (the app connects to scripts/fake-qlab.py standing in for QLab)
+        timeout-minutes: 3
+        run: |
+          python3 scripts/fake-qlab.py --port 53100 --no-udp --no-passcode view,control --no-console > fake-qlab.log 2>&1 &
+          FAKE=$!
+          SETTINGS="$HOME/Library/Application Support/TwinKeys/settings.json"
+          cp "$SETTINGS" settings-before.json
+          # "TwinKeys drives: QLab" for this run only (the file is put back afterwards).
+          python3 -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['target']='qlab'; json.dump(d, open(p,'w'))" "$SETTINGS"
+          BIN=$(find .build -path '*Release/TwinKeys' -type f -perm +111 | head -1)
+          TWINKEYS_QLAB_PORT=53100 "$BIN" > qlab-app.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 40); do grep -q "EVENT connect" fake-qlab.log && break; sleep 0.5; done
+          sleep 2
+          kill -TERM $PID || true
+          wait $PID || true
+          kill $FAKE || true
+          cp settings-before.json "$SETTINGS"
+          echo "--- fake QLab"; cat fake-qlab.log
+          echo "--- TwinKeys log (QLab lines)"; grep -i qlab ~/Library/Logs/TwinKeys/*.log | tail -n 20 || true
+          grep -q "EVENT connect" fake-qlab.log || { echo "::error::TwinKeys did not connect to the fake QLab"; exit 1; }
       - name: Updater signature check rejects an app without the team's signature
         run: |
           if dist/TwinKeys.app/Contents/MacOS/TwinKeys --check-update-signature "$PWD/dist/TwinKeys.app" ABCDE12345; then
@@ -221,6 +242,19 @@ jobs:
             xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -pane session -landscape -setdiff
             sleep 5
             xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-landscape-setdiff.png"
+            # QLab mode (docs/design-qlab.md 4.2): the GO screen and the cue list with the sample show.
+            for turn in landscape portrait; do
+              for pane in go list cues; do
+                xcrun simctl terminate "$UDID" io.github.kajisho5.twinkeys.remote || true
+                if [ "$turn" = landscape ]; then
+                  xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -target qlab -pane $pane -landscape
+                else
+                  xcrun simctl launch "$UDID" io.github.kajisho5.twinkeys.remote -demo -target qlab -pane $pane
+                fi
+                sleep 5
+                xcrun simctl io "$UDID" screenshot "ios-screenshots/${kind// /-}-$turn-qlab-$pane.png"
+              done
+            done
             xcrun simctl shutdown "$UDID" || true
           done
           ls -la ios-screenshots
@@ -245,6 +279,11 @@ jobs:
               xcrun simctl launch "$UDID" "$WID" -AppleLanguages "($lang)" -demo -page $page
               sleep 6
               xcrun simctl io "$UDID" screenshot "ios-screenshots/Apple-Watch-$page-$lang.png"
+              # QLab mode: GO, the cue list and PANIC (both Macs).
+              xcrun simctl terminate "$UDID" "$WID" || true
+              xcrun simctl launch "$UDID" "$WID" -AppleLanguages "($lang)" -demo -target qlab -page $page
+              sleep 6
+              xcrun simctl io "$UDID" screenshot "ios-screenshots/Apple-Watch-qlab-$page-$lang.png"
             done
           done
           xcrun simctl shutdown "$UDID" || true
