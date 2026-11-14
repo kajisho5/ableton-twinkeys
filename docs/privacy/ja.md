@@ -1,14 +1,14 @@
 # プライバシーポリシー
 
-最終更新日：2026年11月12日
+最終更新日：2026年11月14日
 
-このポリシーは、Shogo Kajiyama / SEVENTHWELL が作っている **TwinKeys Remote**（iPhone・iPad アプリ）と **TwinKeys**（Mac アプリ）についてのものです。
+このポリシーは、Shogo Kajiyama / SEVENTHWELL が作っている **TwinKeys Remote**（iPhone・iPad アプリ）と **TwinKeys**（Mac アプリ・Windows アプリ）についてのものです。
 
 ## まとめ
 
 - TwinKeys Remote は、**データを一切集めません**。制作者にも、ほかの誰にも送りません。
 - アカウント、利用状況の分析、広告、トラッキング（ほかのアプリやサイトをまたいだ追跡）、アプリ内課金はありません。
-- 通信の相手は、**あなた自身の Mac** の TwinKeys だけです。手元のネットワーク（ローカルネットワーク）の中だけで通信し、インターネットにはつなぎません。
+- 通信の相手は、**あなた自身のコンピューター**（Mac か Windows）の TwinKeys だけです。手元のネットワーク（ローカルネットワーク）の中だけで通信し、インターネットにはつなぎません。
 
 ## iPhone・iPad の中に保存するもの
 
@@ -40,6 +40,15 @@
 - TwinKeys は、キューとノートを、同じネットワークのもう1台の Mac と TwinKeys Remote にだけ送ります。
 - 新しいバージョンを確かめるために、GitHub（api.github.com）にリリースの一覧を問い合わせ、新しいバージョンを GitHub からダウンロードします。ふつうのウェブの通信と同じく、GitHub には IP アドレスが届きます。くわしくは [GitHub のプライバシーに関する声明](https://docs.github.com/ja/site-policy/privacy-policies/github-general-privacy-statement)を見てください。自動の確認は、TwinKeys の「設定」の「アップデート」でオフにできます。
 - 設定とログは Mac の中にだけ保存します（`~/Library/Application Support/TwinKeys/` と `~/Library/Logs/TwinKeys/`）。
+
+## Windows 版の TwinKeys について
+
+- TwinKeys は、キューとノートを、同じネットワークのもう1台のコンピューター（Mac か Windows）と TwinKeys Remote にだけ送ります。この PC の中では、Ableton Live（TwinKeysBridge）と MIDI のポートにだけ送ります。
+- **キーボードについて：** 本番中に押したキーが「キューのキー」かどうかを判定するために、Windows のキーボードの仕組み（キーボードフック）を使います。判定するのはキューのキーかどうかだけで、打った文字を記録したり、どこかへ送ったりはしません。ログに書くのはキューのキーの名前だけです。
+- 合言葉は、Windows の仕組み（DPAPI）で暗号化して、この PC のこのユーザーの中にだけ保存します。
+- 設定とログはこの PC の中にだけ保存します（`%LOCALAPPDATA%\TwinKeys\`。Microsoft Store 版では、アプリ専用の場所に置かれます）。
+- 制作者のサーバーとは通信しません。Microsoft Store 版の更新は Microsoft Store が行います。Microsoft Store が集める情報は [Microsoft のプライバシーに関する声明](https://privacy.microsoft.com/ja-jp/privacystatement)を見てください。
+- Windows が「ネットワークへのアクセスを許可しますか」と聞いたときは、同じネットワークのもう1台のコンピューターと iPhone とつなぐためだけに使います。
 
 ## このウェブサイトについて
 

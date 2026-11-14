@@ -1,8 +1,10 @@
 name: Windows
 
 # TwinKeys for Windows (docs/design-windows.md, chapter 9): the C# core and its tests on Linux and
-# Windows, the WinUI app for x64 and ARM64 as unsigned ZIP files, and the link between the C# core and
-# the Mac's Swift Conductor on macOS.
+# Windows, the WinUI app for x64 and ARM64 as unsigned ZIP files and as MSIX packages for the Microsoft
+# Store (installed and started on the runner, checked with WACK when the runner has it, and bundled into
+# one .msixupload: docs/windows-store-submit.md), and the link between the C# core and the Mac's Swift
+# Conductor on macOS.
 on:
   push:
     paths:
@@ -73,7 +75,7 @@ jobs:
           - arch: arm64
             runner: windows-11-arm
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 40
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,6 +142,255 @@ jobs:
         with:
           name: TwinKeys-Windows-${{ matrix.arch }}
           path: windows/TwinKeys-Windows-*.zip
+          if-no-files-found: error
+      # ---- The Microsoft Store package (MSIX). docs/windows-store-submit.md; identity: windows/StoreIdentity.props.
+      - name: Build the MSIX (for the Microsoft Store, unsigned)
+        working-directory: windows
+        shell: pwsh
+        run: |
+          # The ZIP build above used the same project unpackaged: start from empty bin and obj folders.
+          Remove-Item -Recurse -Force src/TwinKeys.App/bin, src/TwinKeys.App/obj -ErrorAction SilentlyContinue
+          # Store package versions: four numbers, the first not 0, the last 0, higher on every upload.
+          $version = "1.0.$env:GITHUB_RUN_NUMBER.0"
+          dotnet build src/TwinKeys.App/TwinKeys.App.csproj -c Release -r win-${{ matrix.arch }} `
+            -p:Platform=${{ matrix.arch == 'x64' && 'x64' || 'ARM64' }} -p:WindowsPackageType=MSIX `
+            -p:GenerateAppxPackageOnBuild=true -p:UapAppxPackageBuildMode=SideloadOnly -p:AppxBundle=Never `
+            -p:AppxPackageSigningEnabled=false "-p:AppxPackageDir=$PWD/AppPackages/" "-p:StorePackageVersion=$version"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $made = @(Get-ChildItem AppPackages -Recurse -Filter *.msix)
+          $made | Select-Object FullName, Length
+          if ($made.Count -ne 1) { "::error::expected one .msix, found $($made.Count)"; Get-ChildItem AppPackages -Recurse; exit 1 }
+          New-Item -ItemType Directory -Force msix | Out-Null
+          $msix = "msix/TwinKeys-${{ matrix.arch }}-$version.msix"
+          Copy-Item $made[0].FullName $msix
+          "{0}: {1:N1} MB" -f $msix, ((Get-Item $msix).Length / 1MB)
+          # What went into the package: its manifest as Windows will read it, and a few files that must be there.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $msix).Path)
+          try {
+            $reader = New-Object System.IO.StreamReader($zip.GetEntry('AppxManifest.xml').Open())
+            $text = $reader.ReadToEnd(); $reader.Dispose()
+            $text
+            "Files in the package: $($zip.Entries.Count)"
+            $names = $zip.Entries | ForEach-Object { [Uri]::UnescapeDataString($_.FullName) }
+            foreach ($need in 'TwinKeys.exe', 'resources.pri', 'TwinKeysBridge/__init__.py', 'Assets/Square44x44Logo.targetsize-48_altform-unplated.png') {
+              if ($names -notcontains $need) { "::error::$need is not in the MSIX"; $missing = $true }
+            }
+          } finally { $zip.Dispose() }
+          if ($missing) { exit 1 }
+          $m = [xml]$text
+          if ($m.Package.Identity.Version -ne $version) { "::error::package version is $($m.Package.Identity.Version), not $version"; exit 1 }
+          if (-not ($text -match 'windows.firewallRules' -and $text -match '47801' -and $text -match '47803')) {
+            "::error::the firewall rules (UDP 47801, TCP 47803) are not in the package manifest"; exit 1
+          }
+          if ($m.Package.Identity.Name -like 'REPLACE-ME*') {
+            "::warning::The MSIX identity is still the placeholder in windows/StoreIdentity.props. Partner Center will not accept this package until the Product identity values are put there (docs/windows-store-submit.md)."
+          }
+          "MSIX_PATH=$((Resolve-Path $msix).Path)" >> $env:GITHUB_ENV
+          "MSIX_NAME=$($m.Package.Identity.Name)" >> $env:GITHUB_ENV
+          "MSIX_PUBLISHER=$($m.Package.Identity.Publisher)" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: TwinKeys-MSIX-${{ matrix.arch }}
+          path: windows/msix/*.msix
+          if-no-files-found: error
+      - name: Install the MSIX on this runner (signed with a throwaway test certificate)
+        working-directory: windows
+        shell: pwsh
+        run: |
+          # The Store signs the real package; Windows only installs a signed one, so sign a copy here with a
+          # certificate made now, whose subject is the manifest's Publisher.
+          # https://learn.microsoft.com/windows/msix/package/create-certificate-package-signing
+          $cert = New-SelfSignedCertificate -Type Custom -KeyUsage DigitalSignature -CertStoreLocation Cert:\CurrentUser\My `
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}") -Subject $env:MSIX_PUBLISHER `
+            -FriendlyName "TwinKeys CI test certificate (throwaway)"
+          Export-Certificate -Cert $cert -FilePath test-cert.cer | Out-Null
+          Import-Certificate -FilePath test-cert.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          # signtool from the Windows SDK build tools package that the Windows App SDK already restored.
+          $nuget = ((dotnet nuget locals global-packages --list) -replace '^global-packages:\s*', '').Trim()
+          $hostArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
+          $signtool = Get-ChildItem (Join-Path $nuget 'microsoft.windows.sdk.buildtools') -Recurse -Filter signtool.exe |
+            Where-Object { $_.Directory.Name -eq $hostArch } | Select-Object -First 1
+          if (-not $signtool) { "::error::signtool.exe ($hostArch) not found under $nuget"; exit 1 }
+          $signtool.FullName
+          Copy-Item $env:MSIX_PATH test-signed.msix
+          & $signtool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint /s My test-signed.msix
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Add-AppxPackage -Path test-signed.msix
+          $pkg = Get-AppxPackage -Name $env:MSIX_NAME
+          if (-not $pkg) { "::error::the package did not install"; exit 1 }
+          $pkg | Format-List Name, Publisher, Version, Architecture, PackageFullName, PackageFamilyName, InstallLocation, SignatureKind
+          "PACKAGE_FULL_NAME=$($pkg.PackageFullName)" >> $env:GITHUB_ENV
+          "PACKAGE_FAMILY_NAME=$($pkg.PackageFamilyName)" >> $env:GITHUB_ENV
+      - name: Launch smoke test from the installed package
+        working-directory: windows
+        shell: pwsh
+        run: |
+          # Start it the way Windows starts a packaged app (with its package identity), with --smoke-windows.
+          # https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-iapplicationactivationmanager-activateapplication
+          Add-Type -TypeDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          [ComImport, Guid("2e941141-7f97-4756-ba1d-9decde894a3d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+          public interface IApplicationActivationManager {
+            [PreserveSig] int ActivateApplication([MarshalAs(UnmanagedType.LPWStr)] string appUserModelId,
+              [MarshalAs(UnmanagedType.LPWStr)] string arguments, int options, out uint processId);
+          }
+          [ComImport, Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]
+          public class ApplicationActivationManager { }
+          public static class PackagedApp {
+            public static uint Start(string aumid, string arguments) {
+              var manager = (IApplicationActivationManager)new ApplicationActivationManager();
+              uint pid;
+              Marshal.ThrowExceptionForHR(manager.ActivateApplication(aumid, arguments, 0, out pid));
+              return pid;
+            }
+          }
+          "@
+          # The ZIP test above wrote here; a packaged app's new AppData files go to its own folder instead.
+          Remove-Item -Recurse -Force "$env:LOCALAPPDATA/TwinKeys" -ErrorAction SilentlyContinue
+          $logs = @("$env:LOCALAPPDATA/Packages/$env:PACKAGE_FAMILY_NAME/LocalCache/Local/TwinKeys/Logs", "$env:LOCALAPPDATA/TwinKeys/Logs")
+          $patterns = $logs | ForEach-Object { "$_/*.log" }
+          # Store screenshots must be 1366 x 768 or larger; the runner's screen is 1024 x 768. Try a bigger one.
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop; "Display set to 1920 x 1080" }
+          catch { "Display size not changed: $($_.Exception.Message)" }
+          $aumid = "$env:PACKAGE_FAMILY_NAME!App"
+          $id = [PackagedApp]::Start($aumid, '--smoke-windows')
+          "Started $aumid as process $id"
+          $p = Get-Process -Id $id
+          "Running from: $($p.Path)"
+          $failed = $false
+          if ($p.Path -notlike '*\WindowsApps\*') { "::error::the started TwinKeys is not the one in the package"; $failed = $true }
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Seconds 1
+            if ((Get-Content $patterns -ErrorAction SilentlyContinue) -match 'Smoke: all windows opened') { break }
+          }
+          Start-Sleep -Seconds 3
+          # A picture of the screen, for the Store listing (Partner Center wants 1366 x 768 or larger).
+          try {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            New-Item -ItemType Directory -Force screens | Out-Null
+            $bmp.Save("$PWD/screens/TwinKeys-${{ matrix.arch }}-screen-$($b.Width)x$($b.Height).png", [System.Drawing.Imaging.ImageFormat]::Png)
+            $g.Dispose(); $bmp.Dispose()
+            "Screen: $($b.Width) x $($b.Height)"
+          } catch { "::warning::no screenshot: $_" }
+          $p.Refresh()
+          if ($p.HasExited) { "TwinKeys exited early (code $($p.ExitCode))"; $failed = $true }
+          else { "Working set: {0:N1} MB" -f ($p.WorkingSet64 / 1MB); Stop-Process -Id $p.Id }
+          $logs | ForEach-Object { "$_ exists: $(Test-Path $_)" }
+          $log = Get-Content $patterns -ErrorAction SilentlyContinue
+          $log
+          if (-not ($log -match 'Smoke: all windows opened')) { "::error::the packaged app did not open all its windows"; $failed = $true }
+          if ($log -match 'window failed|XAML resource reference failed|Unhandled') { "::error::a window failed in the packaged app (see the log above)"; $failed = $true }
+          if ($failed) { exit 1 }
+      - name: Windows App Certification Kit (WACK), if this runner has it
+        working-directory: windows
+        shell: pwsh
+        timeout-minutes: 30
+        run: |
+          # https://learn.microsoft.com/windows/uwp/debug-test-perf/windows-app-certification-kit
+          $appcert = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\App Certification Kit\appcert.exe'
+          New-Item -ItemType Directory -Force wack | Out-Null
+          if (-not (Test-Path $appcert)) {
+            "::warning::WACK did not run: the Windows App Certification Kit is not installed on this runner ($appcert)."
+            "Windows Kits\10 has:"; Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10') -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+            "WACK not run: $appcert is not on the ${{ matrix.runner }} runner." | Set-Content wack/summary.txt
+            exit 0
+          }
+          (Get-Item $appcert).VersionInfo | Format-List FileVersion, ProductVersion
+          Get-Process TwinKeys -ErrorAction SilentlyContinue | Stop-Process
+          # Test the (test-signed) package file; WACK installs and removes it itself. With -packagefullname on
+          # the installed package, this runner's WACK could not find the manifest (run 32).
+          Get-AppxPackage -Name $env:MSIX_NAME | Remove-AppxPackage
+          & $appcert reset
+          $report = "$PWD/wack/wack-${{ matrix.arch }}.xml"
+          & $appcert test -appxpackagepath "$PWD/test-signed.msix" -reportoutputpath $report
+          "appcert exit code: $LASTEXITCODE"
+          if (-not (Test-Path $report)) {
+            "::warning::WACK wrote no report (exit $LASTEXITCODE)"
+            "WACK ran but wrote no report (exit $LASTEXITCODE)" | Set-Content wack/summary.txt
+            exit 0
+          }
+          $x = [xml](Get-Content $report -Raw)
+          $overall = $x.REPORT.OVERALL_RESULT
+          $lines = @("WACK overall result: $overall")
+          foreach ($t in $x.SelectNodes('//TEST')) {
+            $result = "$($t.RESULT.InnerText)".Trim()
+            $lines += ("{0,-8} {1}" -f $result, $t.NAME)
+            if ($result -ne 'PASS') {
+              foreach ($msg in $t.SelectNodes('.//MESSAGE')) { $lines += "         $($msg.TEXT)$($msg.InnerText)" }
+            }
+          }
+          $lines | Tee-Object wack/summary.txt
+          if ($overall -ne 'PASS') { "::warning::WACK overall result: $overall (see the TwinKeys-WACK-${{ matrix.arch }} artifact)" }
+          # WACK's result is reported (above and in the artifact), not a reason to stop the Store package.
+          exit 0
+      - name: Remove the test package and certificate
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:MSIX_NAME) { Get-AppxPackage -Name $env:MSIX_NAME | Remove-AppxPackage -ErrorAction SilentlyContinue }
+          Get-ChildItem Cert:\LocalMachine\TrustedPeople, Cert:\CurrentUser\My |
+            Where-Object FriendlyName -eq 'TwinKeys CI test certificate (throwaway)' | Remove-Item -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: TwinKeys-WACK-${{ matrix.arch }}
+          path: windows/wack/
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: TwinKeys-Screenshot-${{ matrix.arch }}
+          path: windows/screens/*.png
+          if-no-files-found: ignore
+
+  store-package:
+    name: Store upload file (.msixupload and .msixbundle, x64 + ARM64)
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: TwinKeys-MSIX-*
+          path: in
+          merge-multiple: true
+      - name: Bundle both architectures and make the .msixupload
+        shell: pwsh
+        run: |
+          # MakeAppx bundle: https://learn.microsoft.com/windows/msix/packaging-tool/bundle-msix-packages
+          # .msixupload: https://learn.microsoft.com/windows/msix/package/packaging-uwp-apps#create-your-app-package-upload-file-manually
+          Get-ChildItem in | Select-Object Name, Length
+          if (@(Get-ChildItem in -Filter *.msix).Count -ne 2) { "::error::expected the x64 and arm64 .msix"; exit 1 }
+          $bin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $makeappx = Get-ChildItem $bin -Directory | Where-Object Name -match '^10\.' | Sort-Object { [version]$_.Name } -Descending |
+            ForEach-Object { Join-Path $_.FullName 'x64\makeappx.exe' } | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $makeappx) { "::error::makeappx.exe not found under $bin"; exit 1 }
+          "MakeAppx: $makeappx"
+          $version = "1.0.$env:GITHUB_RUN_NUMBER.0"
+          New-Item -ItemType Directory out | Out-Null
+          & $makeappx bundle /d in /p "out/TwinKeys-$version.msixbundle" /bv $version /o
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          # An .msixupload is a ZIP of the bundle (here without the optional .appxsym symbols), renamed.
+          Compress-Archive -Path "out/TwinKeys-$version.msixbundle" -DestinationPath "out/TwinKeys-$version.zip"
+          Rename-Item "out/TwinKeys-$version.zip" "TwinKeys-$version.msixupload"
+          Get-ChildItem out | ForEach-Object { "{0}: {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
+          "VERSION=$version" >> $env:GITHUB_ENV
+      # Single files, not zipped, so they download as they are (also on an iPhone).
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: out/TwinKeys-${{ env.VERSION }}.msixupload
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: out/TwinKeys-${{ env.VERSION }}.msixbundle
+          archive: false
           if-no-files-found: error
 
   interop-macos:
