@@ -678,7 +678,7 @@ docs/help/ja.md・en.md      「QLab を2台で動かす」の章
 12. 古い iPhone アプリ（1.3）が「QLab だけ」の Mac につながったときの「新しくしてください」の文（6.3）は出していない（iPhone は自分の版を Mac に知らせないため）。つながりは切れない。
 13. 8.1 の「2つの TwinKeys と2つの偽の QLab」の通しの試験は、Core の2台の試験（偽の QLab の代わりに `QLabPlanner` で動く QLab）と、本物の TwinKeys 1つを偽の QLab につなぐ CI の確認に分けた。
 14. Windows の設定の「QLab モードは Mac 版だけ」（フェーズ3）は作っていない（今回の範囲外）。Windows 版のコードは変えず、読み捨てをテストで確かめただけ。
-15. 版番号（`VERSION`、iOS の `MARKETING_VERSION`）は変えていない。リリースノートの下書きは `docs/release-notes-draft-qlab.md`。
+15. 版番号（`VERSION`、iOS の `MARKETING_VERSION`）は変えていない。リリースノートは 2.4.0（`release-notes/ja/2.4.0.md`・`en/2.4.0.md`）に写した。
 
 ### 15.3 本物で確かめること（CI ではできない）
 
