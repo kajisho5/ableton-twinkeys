@@ -1,20 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  MSIX manifest for the Microsoft Store (phase 2, docs/design-windows.md 7.2). The phase 1 ZIP build is
-  unpackaged and does not use it (the Publisher is a placeholder until the Store assigns one). It declares the UDP 47801 firewall exception (private and domain networks) so the Store
-  version does not need the firewall prompt:
-  https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-desktop2-firewallrules
+  MSIX manifest for the Microsoft Store (docs/design-windows.md 7.2, docs/windows-store-submit.md).
+
+  This is a TEMPLATE: the build (target TwinKeysStampAppxManifest in TwinKeys.App.csproj, only when
+  WindowsPackageType is MSIX) writes obj/msix/Package.appxmanifest from it, putting in the values from
+  windows/StoreIdentity.props for the @@...@@ marks. Do not type the Partner Center values here.
+  The unpackaged ZIP build (WindowsPackageType None) does not use this file.
+
+  - desktop2:FirewallRules: UDP 47801 (the link between the two computers) and TCP 47803 (the iPhone remote),
+    private and domain networks only, so the Store version needs no firewall prompt.
+    https://learn.microsoft.com/uwp/schemas/appxpackage/uapmanifestschema/element-desktop2-firewallrules
+  - desktop:StartupTask: "Start at sign-in" for the packaged app (a packaged app's writes to the HKCU Run key
+    are private to the package, so Platform/StartupRegistration.cs uses this instead).
+    https://learn.microsoft.com/uwp/schemas/appxpackage/uapmanifestschema/element-desktop-startuptask
+  - runFullTrust: a WinUI 3 desktop app (keyboard hook, WinMM MIDI, notification-area icon).
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
-  IgnorableNamespaces="uap rescap desktop2">
-  <Identity Name="TwinKeys" Publisher="CN=TwinKeys" Version="0.1.0.0" />
+  IgnorableNamespaces="uap rescap desktop desktop2">
+  <Identity Name="@@StoreIdentityName@@" Publisher="@@StoreIdentityPublisher@@" Version="@@StorePackageVersion@@" />
   <Properties>
     <DisplayName>TwinKeys</DisplayName>
-    <PublisherDisplayName>SEVENTHWELL</PublisherDisplayName>
+    <PublisherDisplayName>@@StorePublisherDisplayName@@</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   <Dependencies>
@@ -26,8 +37,13 @@
   </Resources>
   <Applications>
     <Application Id="App" Executable="TwinKeys.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="TwinKeys" Description="TwinKeys" BackgroundColor="transparent"
-        Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <uap:VisualElements DisplayName="TwinKeys"
+        Description="Sends the same cue keys to a main and a backup computer at once."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square71x71Logo="Assets\Square71x71Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png" ShortName="TwinKeys" />
+      </uap:VisualElements>
       <Extensions>
         <desktop2:Extension Category="windows.firewallRules">
           <desktop2:FirewallRules Executable="TwinKeys.exe">
@@ -37,6 +53,9 @@
             <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="47803" LocalPortMax="47803" Profile="domain" />
           </desktop2:FirewallRules>
         </desktop2:Extension>
+        <desktop:Extension Category="windows.startupTask" Executable="TwinKeys.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="TwinKeysAtSignIn" Enabled="false" DisplayName="TwinKeys" />
+        </desktop:Extension>
       </Extensions>
     </Application>
   </Applications>

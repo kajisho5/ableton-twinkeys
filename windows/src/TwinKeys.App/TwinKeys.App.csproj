@@ -4,9 +4,12 @@
     Packages (stable, exact versions):
       Microsoft.WindowsAppSDK 2.6.5    https://www.nuget.org/packages/Microsoft.WindowsAppSDK/2.6.5
       CommunityToolkit.Mvvm 8.4.2      https://www.nuget.org/packages/CommunityToolkit.Mvvm/8.4.2
-    Phase 1 ships as an unsigned, self-contained ZIP (unpackaged: WindowsPackageType None). The MSIX
-    manifest (Package.appxmanifest) is what the Store version (phase 2) will use; it is not packaged yet.
+    Two builds from this one project (docs/design-windows.md 7.2):
+      - the unsigned, self-contained ZIP (unpackaged): the default, WindowsPackageType None;
+      - the MSIX for the Microsoft Store: -p:WindowsPackageType=MSIX -p:GenerateAppxPackageOnBuild=true
+        (see .github/workflows/windows.yml). Its identity comes from ../../StoreIdentity.props.
   -->
+  <Import Project="../../StoreIdentity.props" />
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
@@ -19,7 +22,7 @@
     <Platforms>x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
-    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsPackageType Condition="'$(WindowsPackageType)' == ''">None</WindowsPackageType>
     <!-- As in the WinUI templates: without it no resources.pri is made, and WinUI cannot load any XAML (seen in CI). -->
     <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
@@ -30,6 +33,33 @@
          resources.pri, or WinUI finds neither App.xaml nor its own themeresources.xaml (seen in CI). -->
     <ProjectPriFileName>resources.pri</ProjectPriFileName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <!-- The Store signs the package itself; CI signs a copy with a throwaway test certificate to install it. -->
+    <AppxPackageSigningEnabled Condition="'$(AppxPackageSigningEnabled)' == ''">false</AppxPackageSigningEnabled>
+    <AppxBundle Condition="'$(AppxBundle)' == ''">Never</AppxBundle>
+    <_TwinKeysStampedManifest>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)msix\Package.appxmanifest</_TwinKeysStampedManifest>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <!-- The stamped copy of Package.appxmanifest (the SDK only picks Package.appxmanifest up when no
+         AppxManifest item is given). -->
+    <AppxManifest Include="$(_TwinKeysStampedManifest)" SubType="Designer" />
+  </ItemGroup>
+  <!-- Puts the StoreIdentity.props values into the manifest template. -->
+  <Target Name="TwinKeysStampAppxManifest" BeforeTargets="PrepareForBuild" Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <Warning Condition="'$(StoreIdentityIsPlaceholder)' == 'true'"
+             Text="StoreIdentity.props still has the REPLACE-ME placeholders: this MSIX installs for testing, but Partner Center will not accept it (docs/windows-store-submit.md)." />
+    <PropertyGroup>
+      <_TwinKeysAppxNs>&lt;Namespace Prefix='m' Uri='http://schemas.microsoft.com/appx/manifest/foundation/windows10' /&gt;</_TwinKeysAppxNs>
+    </PropertyGroup>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(_TwinKeysStampedManifest)'))" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Package.appxmanifest" DestinationFiles="$(_TwinKeysStampedManifest)" />
+    <XmlPoke XmlInputPath="$(_TwinKeysStampedManifest)" Namespaces="$(_TwinKeysAppxNs)" Query="/m:Package/m:Identity/@Name" Value="$(StoreIdentityName)" />
+    <XmlPoke XmlInputPath="$(_TwinKeysStampedManifest)" Namespaces="$(_TwinKeysAppxNs)" Query="/m:Package/m:Identity/@Publisher" Value="$(StoreIdentityPublisher)" />
+    <XmlPoke XmlInputPath="$(_TwinKeysStampedManifest)" Namespaces="$(_TwinKeysAppxNs)" Query="/m:Package/m:Identity/@Version" Value="$(StorePackageVersion)" />
+    <XmlPoke XmlInputPath="$(_TwinKeysStampedManifest)" Namespaces="$(_TwinKeysAppxNs)" Query="/m:Package/m:Properties/m:PublisherDisplayName" Value="$(StorePublisherDisplayName)" />
+    <Error Condition="$([System.IO.File]::ReadAllText('$(_TwinKeysStampedManifest)').Contains('@@'))" Text="Package.appxmanifest has an @@ mark that StoreIdentity.props does not fill." />
+    <Message Importance="high" Text="MSIX identity: $(StoreIdentityName) / $(StoreIdentityPublisher) / $(StorePublisherDisplayName), version $(StorePackageVersion)" />
+  </Target>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
