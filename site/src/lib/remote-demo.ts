@@ -2,8 +2,10 @@
 // Apple Watch app, with fictional data. Nothing here talks to a network. Every action is a pure function
 // that returns a new state, so the page script only renders.
 
-export type Pane = 'go' | 'session';
-export type WatchPage = 0 | 1 | 2; // GO, scene list, All Notes Off
+export type Mode = 'live' | 'qlab';
+/** Live: GO and Session. QLab: GO and the cue list. */
+export type Pane = 'go' | 'session' | 'list';
+export type WatchPage = 0 | 1 | 2; // Live: GO, scene list, All Notes Off. QLab: GO, cue list, PANIC.
 
 export interface Clip {
   has: boolean;
@@ -18,6 +20,10 @@ export interface DemoData {
 }
 
 export interface DemoState {
+  /** What the sample shows: Ableton Live (scenes and clips) or QLab (cues). */
+  mode: Mode;
+  /** QLab mode: the cue list, what runs, the playhead. */
+  ql: QLabState;
   /** Scene that is playing (the GO screen's "Now playing"). */
   playing: number | null;
   /** Playing slot per track (null: stopped). */
@@ -47,8 +53,8 @@ export interface DemoState {
   lastGoAt: number;
 }
 
-export type EventKind = 'go' | 'clip' | 'scene' | 'stopTrack' | 'select' | 'play' | 'stop' | 'notesOff';
-export type NoticeKind = 'notesOff' | 'unreachable' | 'stopHold' | 'unlockHold' | 'switched' | 'end';
+export type EventKind = 'go' | 'clip' | 'scene' | 'stopTrack' | 'select' | 'play' | 'stop' | 'notesOff' | 'playhead' | 'panic';
+export type NoticeKind = 'notesOff' | 'unreachable' | 'stopHold' | 'unlockHold' | 'switched' | 'end' | 'panic' | 'stopped';
 
 export const TEMPO = 124;
 /** Every demo clip is 16 bars (64 beats) long and loops. */
@@ -72,9 +78,12 @@ export function demoData(sceneNames: string[]): DemoData {
   return { scenes: sceneNames, tracks, colors: COLORS, clips };
 }
 
-/** Scene 3 playing for a few seconds, scene 4 selected: the same picture as the app's screenshots. */
-export function initial(data: DemoData, now: number): DemoState {
+/** Scene 3 playing for a few seconds, scene 4 selected: the same picture as the app's screenshots.
+ *  In QLab mode: 12 and the loop 11.5 running, 13 standing by (the app's QLab sample). */
+export function initial(data: DemoData, now: number, mode: Mode = 'live'): DemoState {
   const st: DemoState = {
+    mode,
+    ql: qlabInitial(now),
     playing: null,
     trackSlot: data.tracks.map(() => null),
     next: 3,
@@ -177,7 +186,13 @@ export function setLock(s: DemoState, on: boolean): DemoState {
 }
 
 export function setPane(s: DemoState, pane: Pane): DemoState {
+  if (s.mode === 'live' ? pane === 'list' : pane === 'session') return s;
   return { ...s, pane };
+}
+
+/** Switching between Live and QLab starts the chosen one from the beginning. */
+export function setMode(data: DemoData, s: DemoState, mode: Mode, now: number): DemoState {
+  return s.mode === mode ? s : initial(data, now, mode);
 }
 
 export function setWatchPage(s: DemoState, page: WatchPage): DemoState {
@@ -255,4 +270,173 @@ export function visibleNotice(s: DemoState, now: number, ms = 3500): NoticeKind 
 
 export function recentEvent(s: DemoState, now: number, ms = 2500): DemoState['lastEvent'] {
   return s.lastEvent && now - s.lastEvent.at < ms ? s.lastEvent : null;
+}
+
+// MARK: QLab mode (the app's QLab sample: fictional workspace "sample-show", list "Main")
+
+export type QCueType = 'memo' | 'audio' | 'fade' | 'group' | 'network';
+
+export interface QCue {
+  number: string;
+  type: QCueType;
+  /** Seconds (audio and fades); null: none (memo, group, network). */
+  dur: number | null;
+  /** A loop: plays until stopped; `dur` is one pass. */
+  loop?: boolean;
+  /** Inside a group (indented in the list). */
+  depth: 0 | 1;
+  /** A fade: the cue number it fades out (and stops at its end). */
+  fades?: string;
+}
+
+/** The 16 cues of the app's QLab sample (iOS/Sources/RemoteModel.swift, loadDemoQLab). Names are in the texts. */
+export const QCUES: QCue[] = [
+  { number: '1', type: 'memo', dur: null, depth: 0 },
+  { number: '2', type: 'audio', dur: 1080, depth: 0 },
+  { number: '3', type: 'fade', dur: 8, depth: 0, fades: '2' },
+  { number: '4', type: 'audio', dur: 6, depth: 0 },
+  { number: '10', type: 'group', dur: null, depth: 0 },
+  { number: '11', type: 'audio', dur: 90, depth: 1 },
+  { number: '11.5', type: 'audio', dur: 300, loop: true, depth: 1 },
+  { number: '12', type: 'audio', dur: 200, depth: 1 },
+  { number: '13', type: 'audio', dur: 12, depth: 1 },
+  { number: '14', type: 'fade', dur: 5, depth: 1, fades: '12' },
+  { number: '15', type: 'network', dur: null, depth: 0 },
+  { number: '20', type: 'group', dur: null, depth: 0 },
+  { number: '21', type: 'audio', dur: 150, depth: 1 },
+  { number: '22', type: 'audio', dur: 9, depth: 1 },
+  { number: '23', type: 'fade', dur: 6, depth: 1, fades: '21' },
+  { number: '90', type: 'audio', dur: 4, depth: 0 },
+];
+
+export const QTYPE_SHORT: Record<QCueType, string> = { memo: 'MEMO', audio: 'AUD', fade: 'FADE', group: 'GRP', network: 'NET' };
+
+export interface QRun {
+  /** Index into QCUES. */
+  i: number;
+  startedAt: number;
+  /** When it stops by itself (ms); null: loops until stopped. */
+  endsAt: number | null;
+}
+
+export interface QLabState {
+  /** Index of the cue standing by (the playhead, the same on both Macs); null: past the end. */
+  playhead: number | null;
+  /** Cues started, newest last. Ended ones are dropped by the next action (see qRunning). */
+  running: QRun[];
+  /** The last GO: which cue, and whether both Macs took it. */
+  last: { i: number; at: number } | null;
+}
+
+const qIndex = (n: string) => QCUES.findIndex((c) => c.number === n);
+
+/** 12 Distant rain 1:03 from its end, the loop 11.5 under it, 13 standing by (as in the app's sample and the mockup). */
+export function qlabInitial(now: number): QLabState {
+  const i12 = qIndex('12'), i115 = qIndex('11.5');
+  return {
+    playhead: qIndex('13'),
+    running: [
+      { i: i115, startedAt: now - 385_000, endsAt: null },
+      { i: i12, startedAt: now - 137_000, endsAt: now - 137_000 + 200_000 },
+    ],
+    last: { i: i12, at: now - 137_000 },
+  };
+}
+
+/** Groups are never the playhead: the first cue at or after `i` (or before, going back) that is not a group. */
+export function qPlayable(i: number, dir: 1 | -1 = 1): number | null {
+  for (let k = i; k >= 0 && k < QCUES.length; k += dir) if (QCUES[k].type !== 'group') return k;
+  return null;
+}
+
+/** Cues running at `now`, the newest first. */
+export function qRunning(q: QLabState, now: number): QRun[] {
+  return q.running.filter((r) => r.endsAt === null || r.endsAt > now).sort((a, b) => b.startedAt - a.startedAt);
+}
+
+/** The cue the GO screen shows as "Now playing": the newest running. */
+export function qNow(q: QLabState, now: number): QRun | null {
+  return qRunning(q, now)[0] ?? null;
+}
+
+/** Seconds left of a running cue (a loop counts down its pass and starts again). */
+export function qLeft(r: QRun, now: number): number {
+  const c = QCUES[r.i];
+  const total = (r.endsAt === null ? (c.dur ?? 0) * 1000 : r.endsAt - r.startedAt) || 1;
+  const t = Math.max(0, now - r.startedAt);
+  return (r.endsAt === null ? total - (t % total) : Math.max(0, r.endsAt - now)) / 1000;
+}
+
+/** 0…1 of a running cue's length (for the bar). */
+export function qProgress(r: QRun, now: number): number {
+  const c = QCUES[r.i];
+  const total = r.endsAt === null ? (c.dur ?? 0) : Math.max(0.001, (r.endsAt - r.startedAt) / 1000);
+  return total > 0 ? Math.min(1, 1 - qLeft(r, now) / total) : 0;
+}
+
+/** A cue's length as the list shows it ("3:20", "0:12", "∞" for a loop, "" for none). */
+export function qDuration(c: QCue): string {
+  if (c.loop) return '∞';
+  if (c.dur === null) return '';
+  const v = Math.round(c.dur);
+  return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`;
+}
+
+function withQ(s: DemoState, ql: QLabState, now: number): DemoState {
+  return { ...s, ql: { ...ql, running: qRunning(ql, now) } };
+}
+
+/** GO: fires the cue standing by on both Macs and moves the playhead to the next cue (groups skipped).
+ *  A second GO within 0.5 s is ignored (as in the app). */
+export function qGo(names: string[], s: DemoState, now: number): DemoState {
+  if (now - s.lastGoAt < GO_GUARD_MS) return s;
+  if (!reachable(s)) return unreachable(s, now);
+  const i = s.ql.playhead;
+  if (i === null) return { ...s, notice: { kind: 'end', at: now } };
+  const c = QCUES[i];
+  let running = qRunning(s.ql, now).filter((r) => r.i !== i);
+  if (c.type === 'fade' && c.fades !== undefined) {
+    const target = qIndex(c.fades);
+    const end = now + (c.dur ?? 0) * 1000;
+    running = running.map((r) => (r.i === target && (r.endsAt === null || r.endsAt > end) ? { ...r, endsAt: end } : r));
+  }
+  // Memos and network cues happen at once; audio and fades run for their length.
+  if (c.dur !== null) running = [...running, { i, startedAt: now, endsAt: c.loop ? null : now + c.dur * 1000 }];
+  const ql: QLabState = { playhead: qPlayable(i + 1), running, last: { i, at: now } };
+  return { ...withQ(s, ql, now), lastGoAt: now, lastEvent: { kind: 'go', at: now, detail: qLabel(names, i) } };
+}
+
+/** Moves the playhead on both Macs (list tap, ▲ Back / Next ▼, the watch). Never fires. */
+export function qSetPlayhead(names: string[], s: DemoState, i: number, now: number, dir: 1 | -1 = 1): DemoState {
+  if (!reachable(s)) return unreachable(s, now);
+  if (i < 0 || i >= QCUES.length) return s;
+  const p = qPlayable(i, dir) ?? qPlayable(i, dir === 1 ? -1 : 1);
+  if (p === null || p === s.ql.playhead) return s;
+  return { ...withQ(s, { ...s.ql, playhead: p }, now), lastEvent: { kind: 'playhead', at: now, detail: qLabel(names, p) } };
+}
+
+export function qBack(names: string[], s: DemoState, now: number): DemoState {
+  const from = s.ql.playhead ?? QCUES.length;
+  return qSetPlayhead(names, s, from - 1, now, -1);
+}
+
+export function qNext(names: string[], s: DemoState, now: number): DemoState {
+  if (s.ql.playhead === null) return s;
+  return qSetPlayhead(names, s, s.ql.playhead + 1, now, 1);
+}
+
+/** PANIC (both Macs): everything stops. */
+export function qPanic(s: DemoState, now: number): DemoState {
+  if (!reachable(s)) return unreachable(s, now);
+  return { ...s, ql: { ...s.ql, running: [] }, lastEvent: { kind: 'panic', at: now }, notice: { kind: 'panic', at: now } };
+}
+
+/** STOP (long press, both Macs): everything stops at once. */
+export function qStop(s: DemoState, now: number): DemoState {
+  if (!reachable(s)) return unreachable(s, now);
+  return { ...s, ql: { ...s.ql, running: [] }, lastEvent: { kind: 'stop', at: now }, notice: { kind: 'stopped', at: now } };
+}
+
+export function qLabel(names: string[], i: number): string {
+  return `${QCUES[i].number}  ${names[i] ?? ''}`;
 }

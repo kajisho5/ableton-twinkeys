@@ -154,6 +154,7 @@ jobs:
           cache: npm
           cache-dependency-path: site/package-lock.json
       - run: npm ci
+      - run: npm test
       - run: npm run build
 
   ios:

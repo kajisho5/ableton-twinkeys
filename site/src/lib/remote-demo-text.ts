@@ -95,12 +95,79 @@ export interface DemoText {
   foot2: string;
   live: { go: string; select: string; switched: string; mainStopped: string; notesOff: string; reset: string };
   fallbackAlt: string;
+  /** The Ableton Live | QLab switch above the sample. */
+  modeLabel: string;
+  modeHint: string;
+  modeLive: string;
+  /** QLab mode. */
+  q: QLabText;
+}
+
+export interface QLabText {
+  /** Names of the 16 sample cues, in the order of QCUES (remote-demo.ts). */
+  cues: string[];
+  workspace: string;
+  runningCap: string;
+  runningN: string;
+  listCap: string;
+  panic: string;
+  panicAria: string;
+  statusOk: string;
+  nowPlaying: string;
+  noneRunning: string;
+  next: string;
+  noneNext: string;
+  backupToo: string;
+  mainLost: string;
+  left: string;
+  back: string;
+  fwd: string;
+  playhead: string;
+  stop: string;
+  stopSub: string;
+  stopAria: string;
+  goCap: string;
+  goSub: string;
+  lastGo: string;
+  lastGoLost: string;
+  lastGoNone: string;
+  goAria: string;
+  listCount: string;
+  search: string;
+  follow: string;
+  followAria: string;
+  listHint: string;
+  nextTag: string;
+  noMatch: string;
+  types: { memo: string; audio: string; fade: string; group: string; network: string };
+  panes: { list: string; cues: string; go: string; settings: string };
+  // watch
+  watchDesc: string;
+  watchPages: [string, string, string];
+  chooseCue: string;
+  lamps: string;
+  lampsLost: string;
+  // Macs and the map
+  qlabOk: string;
+  standby: string;
+  nothingRunning: string;
+  qlabMain: string;
+  qlabBackup: string;
+  thisMacOnly: string;
+  qlabStopped: string;
+  // controls and notes
+  controlsNote1: string;
+  foot1: string;
+  foot2: string;
+  notice: { panic: string; stopped: string; end: string };
+  live: { go: string; playhead: string; panic: string; stopped: string; mode: string; modeLive: string };
+  events: { playhead: string; panic: string; stop: string };
 }
 
 export const demoText: Record<Lang, DemoText> = {
   ja: {
     title: '触って試す',
-    lead: '架空のデータで動く見本です。この画面は Mac にも Live にもつながっていません。',
+    lead: '架空のデータで動く見本です。この画面は Mac にも Live・QLab にもつながっていません。',
     scenes: ['オープニング', 'SE 拍手', 'M1 イントロ', 'M1 本編', '暗転', 'M2 イントロ', 'M2 本編', 'エンディング'],
     nowPlaying: 'いま再生中',
     next: '次',
@@ -202,10 +269,80 @@ export const demoText: Record<Lang, DemoText> = {
     },
     fallbackAlt:
       '横向きの iPhone の TwinKeys Remote。シーンとクリップの一覧、上に再生・停止・テンポ・全ノートオフ・本番ロック（架空のサンプル）。',
+    modeLabel: '見本の対象',
+    modeHint: '切り替えると、見本の中身が変わります',
+    modeLive: 'Ableton Live',
+    q: {
+      cues: [
+        '開演前の確認', '客入れ BGM', '客入れ BGM フェードアウト', '開演ベル', '第1場', '鳥の声（朝）',
+        '夜の環境音（ループ）', '雨の音（遠く）', '雷鳴 1', '雨 フェードアウト', '映像へ合図', '第2場',
+        '街のざわめき', '電話の音', 'ざわめき フェードアウト', '雷（予備）',
+      ],
+      workspace: 'ワークスペース',
+      runningCap: '動いている',
+      runningN: '{n} キュー',
+      listCap: 'リスト',
+      panic: 'PANIC（2台）',
+      panicAria: 'PANIC：2台の QLab を止める',
+      statusOk: 'バックアップ ✓ · QLab ✓ · 2 ms',
+      nowPlaying: 'いま鳴っている',
+      noneRunning: '動いているキューはありません',
+      next: '次',
+      noneNext: '待機中のキューはありません',
+      backupToo: 'バックアップも {n} で待機中',
+      mainLost: 'メインの Mac が応答しません',
+      left: '残り',
+      back: '▲ 前へ',
+      fwd: '次へ ▼',
+      playhead: '再生位置（2台）',
+      stop: 'STOP',
+      stopSub: '長押し',
+      stopAria: '2台とも停止（長押し）',
+      goCap: 'QLAB',
+      goSub: '次のキューを鳴らす',
+      lastGo: '直前の GO：{x} メイン ✓ バックアップ ✓',
+      lastGoLost: '直前の GO：{x} バックアップ ✓',
+      lastGoNone: '直前の GO：まだありません',
+      goAria: 'GO：QLab のキュー {x}',
+      listCount: '{n} キュー',
+      search: '番号か名前で探す',
+      follow: '追従',
+      followAria: '再生位置に付いていく',
+      listHint: 'タップで2台の再生位置をそこへ移します（鳴らしません）',
+      nextTag: '次',
+      noMatch: '見つかりません',
+      types: { memo: 'メモ', audio: 'オーディオ', fade: 'フェード', group: 'グループ', network: 'ネットワーク' },
+      panes: { list: '一覧', cues: 'キュー', go: 'GO', settings: '設定' },
+      watchDesc: 'GO・キューの一覧・PANIC',
+      watchPages: ['GO', 'キューの一覧', 'PANIC'],
+      chooseCue: 'キューを選ぶ',
+      lamps: 'メイン ✓ · バックアップ ✓',
+      lampsLost: 'メイン ✗',
+      qlabOk: 'QLab ✓',
+      standby: '待機：{x}',
+      nothingRunning: '■ 動いているキューはありません',
+      qlabMain: 'QLab（メイン）',
+      qlabBackup: 'QLab（バックアップ）',
+      thisMacOnly: 'この Mac の中だけ',
+      qlabStopped: '止まっています',
+      controlsNote1: '止めても、バックアップの Mac の QLab はずっと鳴り続けます。iPhone には、操作の届け先を切り替える案内が出ます。',
+      foot1: '見本で動くのは GO と一覧です。キューのキー・設定はアプリで使えます。',
+      foot2: '音は鳴りません。代わりに、2台の QLab が同時に受け取ったことを表示します。',
+      notice: { panic: 'PANIC を2台に送りました', stopped: 'STOP を2台に送りました', end: 'キューの最後です' },
+      live: {
+        go: '{x} を2台の QLab で鳴らしました',
+        playhead: '次を {x} にしました',
+        panic: 'PANIC を送りました。2台とも止まりました',
+        stopped: '2台とも止めました',
+        mode: 'QLab の見本に切り替えました',
+        modeLive: 'Ableton Live の見本に切り替えました',
+      },
+      events: { playhead: '再生位置', panic: 'PANIC', stop: 'STOP' },
+    },
   },
   en: {
     title: 'Try it',
-    lead: 'A working sample with made-up data. This page is not connected to any Mac or to Live.',
+    lead: 'A working sample with made-up data. This page is not connected to any Mac, to Live or to QLab.',
     scenes: ['Opening', 'SE Applause', 'M1 Intro', 'M1 Main', 'Blackout', 'M2 Intro', 'M2 Main', 'Ending'],
     nowPlaying: 'Now playing',
     next: 'Next',
@@ -307,5 +444,75 @@ export const demoText: Record<Lang, DemoText> = {
     },
     fallbackAlt:
       'TwinKeys Remote on an iPhone held sideways: the session grid of scenes and clips, with play, stop, tempo, All Notes Off and the show lock along the top (sample data).',
+    modeLabel: 'Sample for',
+    modeHint: 'Switching changes what the sample shows',
+    modeLive: 'Ableton Live',
+    q: {
+      cues: [
+        'Pre-show check', 'House music', 'House music fade out', 'Show bell', 'Scene 1', 'Birds (morning)',
+        'Night ambience (loop)', 'Distant rain', 'Thunder 1', 'Rain fade out', 'Cue to video', 'Scene 2',
+        'Street crowd', 'Phone ring', 'Crowd fade out', 'Thunder (spare)',
+      ],
+      workspace: 'Workspace',
+      runningCap: 'Running',
+      runningN: '{n} cues',
+      listCap: 'List',
+      panic: 'PANIC (both)',
+      panicAria: 'PANIC: stop QLab on both Macs',
+      statusOk: 'Backup ✓ · QLab ✓ · 2 ms',
+      nowPlaying: 'Now playing',
+      noneRunning: 'No cue running',
+      next: 'Next · standing by',
+      noneNext: 'Nothing standing by',
+      backupToo: 'Backup standing by on {n} too',
+      mainLost: 'The main Mac is not answering',
+      left: 'Left',
+      back: '▲ Back',
+      fwd: 'Next ▼',
+      playhead: 'Playhead (both)',
+      stop: 'STOP',
+      stopSub: 'Hold',
+      stopAria: 'Stop on both Macs (hold)',
+      goCap: 'QLAB',
+      goSub: 'Fire the next cue',
+      lastGo: 'Last GO: {x} · main ✓ backup ✓',
+      lastGoLost: 'Last GO: {x} · backup ✓',
+      lastGoNone: 'Last GO: none yet',
+      goAria: 'GO: QLab cue {x}',
+      listCount: '{n} cues',
+      search: 'Find a number or name',
+      follow: 'Follow',
+      followAria: 'Follow the playhead',
+      listHint: 'Tap to move the playhead on both Macs there (does not fire)',
+      nextTag: 'next',
+      noMatch: 'No match',
+      types: { memo: 'Memo', audio: 'Audio', fade: 'Fade', group: 'Group', network: 'Network' },
+      panes: { list: 'List', cues: 'Cues', go: 'GO', settings: 'Settings' },
+      watchDesc: 'GO, cue list, PANIC',
+      watchPages: ['GO', 'Cue list', 'PANIC'],
+      chooseCue: 'Choose cue',
+      lamps: 'Main ✓ · Backup ✓',
+      lampsLost: 'Main ✗',
+      qlabOk: 'QLab ✓',
+      standby: 'Standing by: {x}',
+      nothingRunning: '■ No cue running',
+      qlabMain: 'QLab (main)',
+      qlabBackup: 'QLab (backup)',
+      thisMacOnly: 'Inside this Mac only',
+      qlabStopped: 'Stopped',
+      controlsNote1: "Stop it: QLab on the backup Mac keeps playing all along. The iPhone offers to send its controls to the backup.",
+      foot1: 'GO and the cue list work in this sample. Cue keys and Settings work in the app.',
+      foot2: 'No sound plays. Instead you see both QLabs receive each action at the same time.',
+      notice: { panic: 'PANIC sent to both Macs', stopped: 'STOP sent to both Macs', end: 'End of the cue list' },
+      live: {
+        go: '{x} fired on both QLabs',
+        playhead: 'Next is now {x}',
+        panic: 'PANIC sent: both stopped',
+        stopped: 'Both stopped',
+        mode: 'Now showing the QLab sample',
+        modeLive: 'Now showing the Ableton Live sample',
+      },
+      events: { playhead: 'playhead', panic: 'PANIC', stop: 'STOP' },
+    },
   },
 };
