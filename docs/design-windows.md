@@ -806,3 +806,37 @@ TwinKeysBridge（`LiveBridge/`）は Mac と Windows で同じものを使いま
 - 本物の iPhone（TwinKeys Remote 1.3）が `_twinkeys-remote._tcp` で Windows の PC を見つけるか、承認の4桁が一致するか、操作・GO・ショーロック・キューのボタン・Apple Watch の表示。ファイアウォールの確認の出方（TCP 47803）。
 - 「メインのコンピューターが止まったときは」の帯：メインの LAN ケーブルを抜いて 3 秒で出るか、「この PC をメインにする」で Live に届くか。
 
+
+---
+
+## 16. Microsoft Store 用の MSIX の実装メモ（2026-11-14）
+
+> **本物の Windows PC では未確認です。** 確かめたのは CI（windows-2025、windows-11-arm）での、MSIX のビルド・テスト用証明書でのインストール・インストールしたパッケージからの `--smoke-windows` だけです。提出の手順は `docs/windows-store-submit.md`。
+
+### 16.1 できたもの
+
+| 場所 | 中身 |
+|---|---|
+| `windows/StoreIdentity.props` | Store の製品 ID（Identity Name、Publisher、PublisherDisplayName）を置く**唯一の場所**。Partner Center の値が来るまでは `REPLACE-ME` の仮の値。パッケージの版（`StorePackageVersion`、CI は `1.0.<実行番号>.0`）もここ |
+| `windows/src/TwinKeys.App/Package.appxmanifest` | ひな形。`WindowsPackageType=MSIX` のときだけ、ビルド（`TwinKeysStampAppxManifest`）が `obj/msix/Package.appxmanifest` に写して、上の値を XmlPoke で入れる |
+| `TwinKeys.App.csproj` | 何も付けなければ今までどおりの ZIP（unpackaged）。`-p:WindowsPackageType=MSIX -p:GenerateAppxPackageOnBuild=true` で MSIX（署名なし、Windows App SDK と .NET は同梱のまま） |
+| `Platform/StartupRegistration.cs` | パッケージから動いているとき（`GetCurrentPackageFullName`）は、Run キーの代わりにマニフェストの `desktop:StartupTask`（`TwinKeysAtSignIn`）を使う |
+| `windows/assets-src/TwinKeys-windows.svg`、`windows/scripts/make-msix-assets.py` | Windows のアイコン（`TwinKeys.ico` の 256px と同じ絵）をベクターで描き直し、タイル・ストアロゴ・`targetsize`（`_altform-unplated` つき）を 100/200/400% で作る。Partner Center 用の 300×300 は `windows/store/` |
+| `.github/workflows/windows.yml` | build：ZIP のあとに MSIX を作り、テスト用証明書で署名した写しをインストールし、パッケージとして起動（`IApplicationActivationManager`）して `--smoke-windows`、WACK（ランナーにあれば）、画面の写真。store-package：2 つの .msix を MakeAppx で .msixbundle にまとめ、ZIP にして .msixupload にする |
+
+### 16.2 設計と変えたところ・決めたこと（理由つき）
+
+1. **パッケージの版は 0.2.0 ではなく `1.0.<CI の実行番号>.0`。** Store は「最初の数字は 0 以外、最後は 0、更新のたびに大きく」と決めているため【事実】https://learn.microsoft.com/windows/apps/publish/publish-your-app/msix/app-package-requirements 。アプリの中の版（`Directory.Build.props` の 0.2.0）とは別に数えます。
+2. **製品 ID はマニフェストに直接書かず、props から入れる。** 書き換える場所を1つにし、iPhone から GitHub の画面で直せるようにするため。
+3. **サインイン時の起動は、パッケージ版だけ StartupTask。** パッケージのアプリが HKCU に書いた値は、そのパッケージだけのものになり、Windows の Run キーとしては働かないため【事実】https://learn.microsoft.com/windows/msix/desktop/desktop-to-uwp-behind-the-scenes 。StartupTask は引数を渡せないので、`AppInstance.GetActivatedEventArgs().Kind == StartupTask` で「サインイン時の起動」と見分けます。
+4. **設定とログの場所**：パッケージ版が `%LOCALAPPDATA%\TwinKeys` に新しく作るファイルは、`%LOCALAPPDATA%\Packages\<パッケージファミリー名>\LocalCache\Local\TwinKeys` に入ります（アンインストールで消える）【事実】同上。コードは変えていません。ZIP 版の設定はパッケージ版に引き継がれないことがあります【推測】。
+5. **Windows App SDK は同梱（self-contained）のまま。** Store が Windows App SDK のランタイムを別に入れる「フレームワーク依存」にはしていません。ZIP 版と同じ作りにして、確かめることを減らすため。パッケージは大きくなります。
+6. **.msixupload は MakeAppx のバンドルを ZIP にしたもの**（公式の「手で作る」方法。シンボルの .appxsym は入れていない＝Partner Center のクラッシュ解析は使えない）【事実】https://learn.microsoft.com/windows/msix/package/packaging-uwp-apps#create-your-app-package-upload-file-manually
+
+### 16.3 本物の機械・Partner Center で確かめること
+
+- Partner Center が、この .msixupload（シンボルなし、self-contained、`runFullTrust`）を受け付けて審査に通すか。
+- Store から入れた TwinKeys で、ファイアウォールの例外（UDP 47801、TCP 47803）が効き、確認の画面が出ないか。
+- StartupTask でサインイン時に起動し、ウインドウを出さずにトレイだけになるか。「設定」>「アプリ」>「スタートアップ」に出るか。
+- キーボードフック、WinMM、トレイ、DPAPI がパッケージの中でも ZIP 版と同じに動くか。
+- TwinKeysBridge の組み込み（ドキュメントへの書き込み）がパッケージ版でもできるか。
