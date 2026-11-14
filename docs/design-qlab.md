@@ -1,6 +1,6 @@
 # TwinKeys 詳細設計書（案）：QLab モード
 
-- 状態：**承認待ち**。アプリのコードはまだ書いていません（この文書と図だけ）
+- 状態：**承認済み・フェーズ0〜2 を実装済み**（2026-11-14。13 章の8点はすべて案のとおり承認。3 は「メインの QLab につながっていないときは GO をバックアップにも送らない」）。実装と設計の違いは 15 章。本物の QLab・Mac・iPhone での確認はまだ（15.3）
 - 調べた日：2026-11-13（QLab の版・機能はこの日の qlab.app の内容です）
 - 対象（版番号は案）：TwinKeys（Mac）2.5.0 ＋ TwinKeys Remote（iPhone・iPad・Apple Watch）1.4
 - 図：`docs/design/qlab-iphone-go.png`、`qlab-iphone-cuelist.png`、`qlab-watch.png`、`qlab-mac-settings.png`、`qlab-system.png`（絵の元：`design/qlab/make_qlab.py`）。キューの名前とワークスペースは架空です
@@ -634,3 +634,58 @@ docs/help/ja.md・en.md      「QLab を2台で動かす」の章
 - 値段：https://qlab.app/shop/
 - swift-osc：https://github.com/orchetect/swift-osc
 - このリポジトリ：`Sources/TwinKeysCore/WireProtocol.swift`（パケットの種類）、`Sources/TwinKeysCore/RemoteChannel.swift`（iPhone のメッセージ、知らない種類の読み捨て、`RemoteMacCompat`）、`Sources/TwinKeys/RemoteServer.swift`（GO の扱い）、`Sources/TwinKeys/LiveBridgeClient.swift`、`scripts/fake-yamaha-desk.py`、`docs/design-v2-remote.md`、`docs/design-v1.3-restyle.md`、`docs/design-windows.md`
+
+---
+
+## 15. 実装の記録（フェーズ0〜2）
+
+### 15.1 作ったもの
+
+| 場所 | ファイル | 中身 |
+|---|---|---|
+| Core | `QLabOSC.swift` | OSC 1.0（s・i・f・T/F・b、読みは d・h も）と SLIP（RFC 1055、両端に END、途中で切れたデータ、16 MB の上限） |
+| Core | `QLabProtocol.swift` | 住所、`/reply` の JSON、`/update`、`/workspaces`・`/cueLists`（グループを字下げで平らに）の読み取り |
+| Core | `QLabModel.swift` | 6.1・6.3 の型（`QLabTarget`・`QLabAction`・`QLabCommand`・`QLabKeyAction`・`QLabStatus`・`QLabCueList` など）、`QLabSettings` |
+| Core | `QLabPlanner.swift` | 5.3 の決めごと（GO に番号、バックアップの直し、ないキューは鳴らさない、「次」が変わったら GO しない、0.3 秒の二度押しよけ、再生位置の合わせ、id で1回だけ） |
+| Core | `QLabCompare.swift` | 一覧の要約（数と FNV-1a）、違いの表、パケット 0x25 の中身（`QLabLinkState`） |
+| Core | `QLabEngine.swift` | 5.2 のつながりの段階（設計の `QLabClient` の中身を、OS に関係なくテストできるよう Core に置いた） |
+| Core | `QLabDriver.swift` | メインとバックアップの動き（自分の QLab で動かす・同時に 0x23 で送る・返事を待つ・バックアップで動かす・再生位置を合わせる・iPhone への状態） |
+| Core | `WireProtocol.swift`・`Conductor.swift` | 0x23〜0x26、`features` のビット 2（0x04）、送り直し 0.1 秒・0.3 秒で赤、キューのキーの QLab の動き |
+| Core | `RemoteChannel.swift` | `qlab`・`qlabCues`・`qlabStatus`、`welcome.features` の `"qlab"`（Mac だけ）、`RemoteStatus.target`・`qlabDiff` |
+| Mac | `QLabClient.swift` | Network.framework の TCP（127.0.0.1、ループバックだけ、1→5 秒でつなぎ直し）、パスコードのキーチェーン |
+| Mac | `QLabSettingsView.swift`・`Strings+QLab.swift` | 設定の「QLab」（図 `qlab-mac-settings` のとおり）、メインの画面の QLab の欄 |
+| iPhone | `QLabViews.swift`・`MainView.swift`・`RemoteModel.swift` | GO（QLab 版）、キューの一覧、上の帯（WORKSPACE・RUNNING・LIST・PANIC（2台））、サンプル（`-demo -target qlab`） |
+| Watch | `QLabWatchViews.swift`・`WatchWire.swift` | GO（残り時間の輪）・一覧・PANIC（2台） |
+| テスト | `scripts/fake-qlab.py`・`test_fake_qlab.py` | 偽の QLab（TCP＋SLIP、UDP、パスコードと権限、`/alwaysReply`、`/updates`、GO・Panic 2回・時間で終わるキュー、端末の命令） |
+| テスト | `QLabOSCTests`・`QLabDriverTests`・`QLabFakeServerTests` | 8.1 の Linux の分。偽の QLab とは本物の TCP で話す（Linux と macOS の CI の両方） |
+| テスト | `shared/test-vectors/qlab.json`・`windows/tests/.../QLabVectorTests.cs` | Windows 版が 0x23〜0x26 を unknownType で読み捨て、QLab のビット付きの `features` を読め、iPhone の QLab のメッセージを読み飛ばすこと |
+| CI | `ci.yml` | 本物の TwinKeys を偽の QLab につなぐ確認、iPhone・iPad・Watch の QLab 画面のスクリーンショット |
+| 手順書 | `docs/help/ja.md`・`en.md` | 「QLab を2台で動かす」（フェーズ0の Workspace MIDI の手順を含む） |
+
+### 15.2 設計との違い
+
+1. **設定は「タブ」ではなく、今の設定の画面（1枚のフォーム）の先頭に「QLab」の節**として足した（今の Mac 版の設定にタブがないため）。
+2. **`QLabClient` の中身を Core の `QLabEngine` に、2台の決めごとを `QLabDriver` に**置いた。Linux の CI で、偽の QLab と本物の TCP で試せるようにするため。アプリの `QLabClient` は Network.framework のつながりだけ。
+3. つながりの段階に **`noAnswer`（返事がない）・`noWorkspace`・`needsPasscode`** を足した（10 章の表示に合わせるため）。
+4. 権限：`/connect` の返事が `ok:view|control` の形なら、それを使う。`ok` だけなら 5.2 の確かめ方（今の再生位置へ `playheadID`、`denied` なら見るだけ）。
+5. 「届いた ✓」は QLab の返事（`/alwaysReply` の `ok`）だけで決める。再生位置が進んだことでの確認（5.3-6）はしていない（12-1 が不明のため）。
+6. パケット 0x25 の3バイト目は「showMode」だけでなく**フラグ**（ビット0 本番モード、ビット1 「再生位置を合わせて」（メインからだけ）、ビット2〜3 動かすもの）。「割り当てのハッシュ」は、動かすものとキューのキーの QLab の動きのハッシュ。0x26 の名前は最大 64 バイト。
+7. 承認の3（メインの QLab につながっていないときは送らない）は、**GO・番号の GO・再生位置の移動**に当てた。Panic・Stop・一時停止は、止める方向なのでバックアップには送る。
+8. 動いているキューは、GO・再生位置の移動・`/update` のあと3秒と、動いているものがある間だけ 1 秒に 5 回読む。再生位置と本番モードは 2 秒ごと。一覧の長さは、読んだあとに `valuesForKeys ["currentDuration"]` で少しずつ（0.1 秒に 5 個）読む。
+9. 「両方」のとき、iPhone の GO は QLab の GO（GO が動かすものを選ぶ設定は作っていない。Live のシーンはセッションの画面から）。
+10. メインの画面は、「直前のキュー」の欄に混ぜず、その下に **QLab の欄**（つながり、NEXT、直前の QLab の命令と BACKUP の結果）を足した。「つながり」の行の「QLab ✓」もこの欄に出す。
+11. 2台のキュー一覧の違いは数と黄色の注意だけ（Mac の設定と iPhone の一覧の右下）。違いの表の画面（「違いを見る」）はまだない（`RemoteStatus.qlabDiff` で iPhone には届いている）。
+12. 古い iPhone アプリ（1.3）が「QLab だけ」の Mac につながったときの「新しくしてください」の文（6.3）は出していない（iPhone は自分の版を Mac に知らせないため）。つながりは切れない。
+13. 8.1 の「2つの TwinKeys と2つの偽の QLab」の通しの試験は、Core の2台の試験（偽の QLab の代わりに `QLabPlanner` で動く QLab）と、本物の TwinKeys 1つを偽の QLab につなぐ CI の確認に分けた。
+14. Windows の設定の「QLab モードは Mac 版だけ」（フェーズ3）は作っていない（今回の範囲外）。Windows 版のコードは変えず、読み捨てをテストで確かめただけ。
+15. 版番号（`VERSION`、iOS の `MARKETING_VERSION`）は変えていない。リリースノートの下書きは `docs/release-notes-draft-qlab.md`。
+
+### 15.3 本物で確かめること（CI ではできない）
+
+8.3 の 1〜11 のすべてに加えて：
+
+- Network.framework の `requiredInterfaceType = .loopback` で 127.0.0.1:53000 につながるか。QLab を後から開いたとき・終わらせたときのつなぎ直し。
+- 設定の画面（パスコード、ワークスペースの選択、キューのキーの割り当て）を本物の Mac で触ったときの見え方。
+- 2台の Mac で、キューのキー・iPhone の GO・Watch の GO が2台の QLab に同時に届くか、バックアップの再生位置がずれたときに直るか、0.3 秒の赤が出るか。
+- iPhone（実機）での GO の画面・一覧のスクロールと FOLLOW、本番ロック中の長押し、Apple Watch（実機）の3画面。
+- 「QLab だけ」でキューのキーが MIDI ノートを出さないこと、「両方」で Live と QLab の両方が動くこと、「Ableton Live」で今までと何も変わらないこと。

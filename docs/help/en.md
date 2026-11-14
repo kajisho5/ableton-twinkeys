@@ -230,6 +230,64 @@ The console settings are the same on both Macs: a change on one Mac is copied to
 - Run `python3 scripts/fake-yamaha-desk.py --model ql5 --set 1=-6 --set 9=-inf` in Terminal and enter the IP address of the Mac running it in TwinKeys (127.0.0.1 on the same Mac).
 - Type `in 1 -10` in its Terminal window to move a fader as if on the console; every connected Mac hears about it. `--no-read` acts like a console whose levels cannot be read, and `--model dm5` (and so on) changes the model.
 
+## Running QLab on two Macs
+
+TwinKeys can keep Figure 53's QLab 5 on two Macs together, as it does for Live. There are two ways.
+
+- Both Macs GO at once: MIDI notes Yes · QLab mode Yes
+- Delivery check (✓ / red): MIDI notes No · QLab mode Yes (QLab's own answer)
+- Notices and fixes a different playhead: MIDI notes No · QLab mode Yes
+- Cue names and time left on the iPhone and Apple Watch: MIDI notes No · QLab mode Yes
+
+Remote control of QLab (OSC, MIDI) works in the free, unlicensed QLab too.
+
+### With MIDI notes (settings only, works today)
+
+TwinKeys sends each cue key as a note to the virtual MIDI port "TwinKeys" on both Macs. Map the same notes to GO and so on in both QLabs and both Macs run.
+
+1. Open the same workspace file (same cues, same numbers) on both Macs.
+2. In QLab, open Workspace Settings → Controls → Workspace MIDI and choose "TwinKeys" as the MIDI input (not yet checked with a real QLab).
+3. Map a cue key's note to "GO" (Space is note 40, E1, by default; see TwinKeys' Settings → Cue Keys). Map "Panic" the same way.
+4. Make the same mapping in the other Mac's QLab.
+
+This cannot show cue names or time left, check delivery, or notice a different playhead: if someone moves one QLab's playhead, TwinKeys does not know.
+
+### Using QLab mode
+
+Each Mac's TwinKeys sends OSC to the QLab on its own Mac only (TCP 127.0.0.1:53000); it never sends to the other Mac's QLab. Keys pressed on the main Mac and GO on the iPhone go to the backup's TwinKeys over the usual encrypted link, and the backup's TwinKeys runs its own QLab.
+
+1. Open the same workspace file on both Macs (the two are matched by cue number).
+2. In QLab's Workspace Settings → Network → OSC Access, check the passcode (4 digits) and its permissions. TwinKeys needs "view" and "control" ("edit" is not needed).
+3. On both Macs, open TwinKeys' Settings (⌘,) → QLab and set "TwinKeys drives" to QLab or Both. The default is Ableton Live, which leaves QLab alone.
+4. Wait for the green "Connected to QLab 5.6.5". With several workspaces open, choose one. Type the passcode and click Save (it goes into this Mac's keychain and is never sent to the other Mac).
+5. Under "Cue key → QLab action", choose for each key: GO, Next, Previous, Panic, Stop, GO cue number, or None. By default Space = GO, ↓ = Next, ↑ = Previous, Esc = Panic.
+6. Set up the other Mac the same way (differences show in yellow under "The two QLabs").
+
+With "QLab" only, cue keys send no MIDI notes (if QLab's Workspace MIDI is also mapped to TwinKeys, cues would run twice). Turn on "Also send MIDI notes (QLab only mode)" if you need them. With "Both", one key sends the Live note and the QLab action.
+
+### How the two Macs stay together
+
+- GO carries the number of the cue standing by on the main Mac. If the backup's playhead is elsewhere, it GOes that cue ("corrected"). If the backup has no cue with that number, it plays nothing (safer than playing a different cue).
+- "Move the backup's playhead to the main's" (on by default): each time the main's playhead moves, the backup moves to the cue with the same number.
+- "No GO when “next” differs from what the iPhone showed" (on by default): right after someone moved the playhead on the Mac, a GO from the iPhone plays nothing unexpected. "QLab's next cue changed" shows; check, then press again.
+- If the main Mac's QLab is not connected, GO is not sent to the backup either (so that only one Mac never plays). Panic and Stop are still sent.
+- The delivery check works as for cues: resent every 0.1 s, and red "No answer from the backup" after 0.3 s without an answer.
+- Cues without a number cannot be matched between the Macs: move to them with Next / Previous.
+
+### iPhone and Apple Watch (QLab mode)
+
+- Top bar: MAIN · BACKUP · QLAB lamps, WORKSPACE, RUNNING (cues running), LIST, and **PANIC (both)**. Pressed again during the fade, QLab stops at once. With "Both" the button is "All Notes Off + PANIC".
+- GO: the running cue (time left), the cue standing by (number, name, type, length) and "BACKUP standing by on 13 too". ▲ Back / Next ▼ move both playheads. STOP is a long press.
+- List: with QLab only it replaces Session and Mixer. A tap moves both playheads there (no GO); with the show lock on, hold 0.5 s. On the right: whether the backup's cue count and playhead are the same.
+- The Cues screen is unchanged: a button runs the QLab action set on the Mac.
+- GO, PANIC and the playhead work with the show lock on. STOP does not when the lock stops "Stop".
+- Apple Watch: swipe between GO (the ring is the running cue's time left), the cue list, and PANIC (both).
+- QLab mode needs the TwinKeys and TwinKeys Remote versions that have it on both Macs and the iPhone. An older iPhone app shows no QLab screens (the connection stays up).
+
+### Trying it without QLab
+
+The source code on GitHub has a test script that acts like QLab, `scripts/fake-qlab.py` (Python 3 only; it is not Figure 53's software and does not behave like QLab in every detail). Run `python3 scripts/fake-qlab.py --port 53100`, then start TwinKeys with `TWINKEYS_QLAB_PORT=53100` and it connects to that port. Passcodes: 1234 (every permission) or 5678 (view only). On its terminal you can type `go`, `next`, `move 15` (as if done on the Mac), `drop`, `mute`.
+
 ## Troubleshooting
 
 **"Local Network: Not allowed" is shown**
@@ -327,6 +385,8 @@ If you create the port later, TwinKeys finds it within a few seconds.
 4. Main and backup, the delivery check, the cue count and All Notes Off work as between two Macs.
 
 The Mac version lists a Windows PC it finds (both use `_twinkeys._udp`). Whether a Mac and a PC find each other has not been checked on real machines yet; if they do not, connect by IP address.
+
+QLab runs on macOS only, so TwinKeys for Windows does not drive it (QLab mode is Mac only). With a Mac and a PC, the Mac's Settings → QLab says that QLab runs on that Mac only.
 
 ### The Live link (TwinKeysBridge) on Windows
 
