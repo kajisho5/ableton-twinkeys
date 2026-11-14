@@ -638,8 +638,12 @@ class Server:
 
     def drop(self):
         for k, s in list(self.conns.items()):
+            # Separately: on macOS shutdown can fail (the peer is gone) and the socket must still close.
             try:
                 s.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
                 s.close()
             except OSError:
                 pass

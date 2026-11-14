@@ -231,11 +231,14 @@ final class QLabFakeServerTests: XCTestCase {
 
     func testWorkspaceClosingAndConnectionDrop() throws {
         try start()
-        XCTAssertTrue(run { self.engine.snapshot.state == .ready })
+        // Ready and the list read: /updates 1 (sent right after the connect) has been handled by now.
+        XCTAssertTrue(run { self.engine.snapshot.state == .ready && !self.engine.snapshot.cues.isEmpty && self.engine.snapshot.playhead != nil })
+        var states: [QLabConnState] = []
+        engine.onChange = { [unowned self] in if states.last != self.engine.snapshot.state { states.append(self.engine.snapshot.state) } }
         fake.type("close")
         // The workspace says it closes: back to the start, then connected again (the fake keeps it open).
-        XCTAssertTrue(run { self.engine.snapshot.state != .ready })
-        XCTAssertTrue(run { self.engine.snapshot.state == .ready })
+        XCTAssertTrue(run { states.contains(.connecting) }, "states \(states); fake: \(fake.all)")
+        XCTAssertTrue(run { self.engine.snapshot.state == .ready }, "states \(states)")
         fake.type("drop")
         XCTAssertTrue(run { self.closed })
         XCTAssertEqual(engine.snapshot.state, .connecting)
