@@ -811,7 +811,7 @@ TwinKeysBridge（`LiveBridge/`）は Mac と Windows で同じものを使いま
 
 ## 16. Microsoft Store 用の MSIX の実装メモ（2026-11-14）
 
-> **本物の Windows PC では未確認です。** 確かめたのは CI（windows-2025、windows-11-arm）での、MSIX のビルド・テスト用証明書でのインストール・インストールしたパッケージからの `--smoke-windows` だけです。提出の手順は `docs/windows-store-submit.md`。
+> **本物の Windows PC では未確認です。** 確かめたのは CI（windows-2025、windows-11-arm）での、MSIX のビルド・テスト用証明書でのインストール・インストールしたパッケージからの `--smoke-windows`（実行ファイルが `C:\Program Files\WindowsApps\…` から動き、ログがパッケージ用の `LocalCache` に出ることも確認）と、x64 の WACK（全体 PASS、任意のテスト 2 つが FAIL：Windows App SDK の .winmd の GUID、Blocked executables）だけです。提出の手順は `docs/windows-store-submit.md`。
 
 ### 16.1 できたもの
 
@@ -831,7 +831,9 @@ TwinKeysBridge（`LiveBridge/`）は Mac と Windows で同じものを使いま
 3. **サインイン時の起動は、パッケージ版だけ StartupTask。** パッケージのアプリが HKCU に書いた値は、そのパッケージだけのものになり、Windows の Run キーとしては働かないため【事実】https://learn.microsoft.com/windows/msix/desktop/desktop-to-uwp-behind-the-scenes 。StartupTask は引数を渡せないので、`AppInstance.GetActivatedEventArgs().Kind == StartupTask` で「サインイン時の起動」と見分けます。
 4. **設定とログの場所**：パッケージ版が `%LOCALAPPDATA%\TwinKeys` に新しく作るファイルは、`%LOCALAPPDATA%\Packages\<パッケージファミリー名>\LocalCache\Local\TwinKeys` に入ります（アンインストールで消える）【事実】同上。コードは変えていません。ZIP 版の設定はパッケージ版に引き継がれないことがあります【推測】。
 5. **Windows App SDK は同梱（self-contained）のまま。** Store が Windows App SDK のランタイムを別に入れる「フレームワーク依存」にはしていません。ZIP 版と同じ作りにして、確かめることを減らすため。パッケージは大きくなります。
-6. **.msixupload は MakeAppx のバンドルを ZIP にしたもの**（公式の「手で作る」方法。シンボルの .appxsym は入れていない＝Partner Center のクラッシュ解析は使えない）【事実】https://learn.microsoft.com/windows/msix/package/packaging-uwp-apps#create-your-app-package-upload-file-manually
+6. **ファイアウォールの例外は Package 直下の Extensions に置く。** Application の下に置くと MakeAppx が「windows.firewallRules は Package の Extensions に」と断った（CI 32 回目）【事実】。
+7. **WACK は、インストール済みのパッケージ名（-packagefullname）ではなく、ファイル（-appxpackagepath）で動かす。** 前者ではこのランナーの WACK がマニフェストを見つけられず、ほとんどのテストが「could not be found」で落ちた【事実：CI 32 回目】。WACK の結果は警告と成果物で知らせ、ジョブは落としません。
+8. **.msixupload は MakeAppx のバンドルを ZIP にしたもの**（公式の「手で作る」方法。シンボルの .appxsym は入れていない＝Partner Center のクラッシュ解析は使えない）【事実】https://learn.microsoft.com/windows/msix/package/packaging-uwp-apps#create-your-app-package-upload-file-manually
 
 ### 16.3 本物の機械・Partner Center で確かめること
 

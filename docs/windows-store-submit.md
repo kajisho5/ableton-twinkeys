@@ -68,11 +68,11 @@ Windows の PC がなくても、iPhone の Safari だけで進められるよ�
 
 | 名前 | 中身 |
 |---|---|
-| `TwinKeys-1.0.<番号>.0.msixupload` | **Store に出すのはこれ**。x64 と ARM64 を1つにした束（バンドル）が入っている |
+| `TwinKeys-1.0.<番号>.0.msixupload` | **Store に出すのはこれ**。x64 と ARM64 を1つにした束（バンドル）が入っている。約 190 MB【事実：CI 33 回目】 |
 | `TwinKeys-1.0.<番号>.0.msixbundle` | 同じ束そのもの。Partner Center はこれも受け付けます【事実】 |
 | `TwinKeys-MSIX-x64` / `TwinKeys-MSIX-arm64` | アーキテクチャごとの .msix（zip に入っている） |
 | `TwinKeys-WACK-x64` / `-arm64` | Windows App Certification Kit（WACK）の結果 |
-| `TwinKeys-Screenshot-x64` / `-arm64` | CI の画面の写真（Store のスクリーンショットの材料。下の 5） |
+| `TwinKeys-Screenshot-x64` / `-arm64` | CI の画面の写真（x64 は 1920×1080、ARM64 は 1024×768）。下の 5 |
 | `TwinKeys-Windows-x64` / `-arm64` | 今までどおりの ZIP 版（Store には使わない） |
 
 - **パッケージの版**は `1.0.<CI の実行番号>.0` です【事実】。Store は「4つの数字、最初は 0 以外、最後は 0、更新のたびに大きく」と決めているためです【事実】（https://learn.microsoft.com/windows/apps/publish/publish-your-app/msix/app-package-requirements）。アプリの中の版（0.2.0）とは別です。
@@ -84,7 +84,7 @@ Windows の PC がなくても、iPhone の Safari だけで進められるよ�
 
 1. Partner Center でアプリを開き、**Start submission**（提出の開始）を押します【事実】。
 2. **Packages**（パッケージ）を開き、3 の `.msixupload` を「ファイル」から選んで上げます【事実】。.msixupload を上げるのがおすすめと書かれています【事実】（https://learn.microsoft.com/windows/apps/publish/publish-your-app/msix/upload-app-packages）。
-   - iPhone の Safari から数十〜百数十 MB のファイルを上げられるかは【不明】。途中で止まるときは、Wi-Fi で、画面を消さずに待ってください。
+   - ファイルは約 190 MB です【事実】。iPhone の Safari からこの大きさを上げられるかは【不明】。途中で止まるときは、Wi-Fi で、画面を消さずに待ってください。
    - 「名前が予約した名前と違う」「ID が違う」と出たら、2 の値の写し間違いです【事実】（https://learn.microsoft.com/windows/apps/publish/publish-your-app/msix/resolve-submission-errors）。
 3. 「Windows 10/11 Desktop」に x64 と ARM64 が並べば OK です【推測】。
 
@@ -102,7 +102,7 @@ Windows の PC がなくても、iPhone の Safari だけで進められるよ�
 | What's new / Features / Keywords | なくてもよい | 【事実】 |
 | Copyright | `© 2026 Shogo Kajiyama / SEVENTHWELL` | — |
 
-**スクリーンショット**：CI が画面を撮って `TwinKeys-Screenshot-…` に入れます。CI の画面の大きさが 1366×768 より小さいときは、そのままでは使えません（ファイル名に大きさが入っています）。そのときは、本物の Windows PC で撮るか、Claude に「Store 用に 1920×1080 の画像を作って」と頼んでください。**画面が実際のアプリと違うものは出さないでください**（Store の方針）【事実】。
+**スクリーンショット**：CI が、パッケージから起動した TwinKeys の画面を撮って `TwinKeys-Screenshot-x64` に入れます（1920×1080。大きさは足りています）【事実】。ただし、CI の画面には、テスト用に全部のウインドウが重なって開いていて、CI の黒い画面（コンソール）や「Test Mode」の文字も写っています【事実】。**そのままでは Store 向きではありません**【推測】。本物の Windows PC で撮るか、Claude に「Store 用のスクリーンショットを CI で撮れるようにして」と頼んでください。実際のアプリと違う画面は出さないでください【事実：Store の方針】。
 
 **説明の文案（日本語）**：
 
@@ -200,7 +200,7 @@ TwinKeys は `runFullTrust` を使うので、理由を書く欄が出ます【�
 | x64 と ARM64 の MSIX を作る | CI で確認（`.github/workflows/windows.yml` の build） |
 | テスト用の証明書で署名した MSIX を、CI の Windows にインストールする | CI で確認 |
 | インストールした MSIX から起動し、全部のウインドウと設定のページを開く（`--smoke-windows`） | CI で確認 |
-| WACK（Store の技術テストとほぼ同じもの） | ランナーに WACK があるときだけ動く。結果は `TwinKeys-WACK-…`。ないときは「WACK did not run」と黄色で出る |
+| WACK（Store の技術テストとほぼ同じもの） | **x64 のランナー（windows-2025、WACK 10.0.26100.9457）で動き、全体の結果は PASS**【事実：CI 33 回目】。任意（OPTIONAL）のテスト 2 つだけ FAIL：「General metadata correctness」（Windows App SDK 自身の .winmd の GUID の重なり）と「Blocked executables」（.NET や Windows App SDK の DLL に、プロセスを起動する関数への参照がある）。どちらも TwinKeys のコードではなく、同梱の部品の中身です【事実】。審査で問題になるかは【不明】。ARM64 のランナー（windows-11-arm）には WACK が入っていないので動かない【事実】 |
 | 2 つをまとめた .msixbundle と .msixupload | CI で作る（store-package）。Partner Center が受け付けるかは【不明】（上げてみるまで分からない） |
 | Store に出したアプリが本物の PC で動くか（キーボードフック、MIDI、ファイアウォールの例外、サインイン時の起動、Mac とつながるか） | **未確認**（本物の PC が要る。`docs/design-windows.md` 9.3） |
 | Store の更新が本番中に起きないか | **未確認**（`docs/design-windows.md` 7.3 の【不明】のまま） |
