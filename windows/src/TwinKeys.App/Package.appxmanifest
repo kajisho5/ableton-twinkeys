@@ -45,14 +45,6 @@
           Square310x310Logo="Assets\Square310x310Logo.png" ShortName="TwinKeys" />
       </uap:VisualElements>
       <Extensions>
-        <desktop2:Extension Category="windows.firewallRules">
-          <desktop2:FirewallRules Executable="TwinKeys.exe">
-            <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="47801" LocalPortMax="47801" Profile="private" />
-            <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="47801" LocalPortMax="47801" Profile="domain" />
-            <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="47803" LocalPortMax="47803" Profile="private" />
-            <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="47803" LocalPortMax="47803" Profile="domain" />
-          </desktop2:FirewallRules>
-        </desktop2:Extension>
         <desktop:Extension Category="windows.startupTask" Executable="TwinKeys.exe" EntryPoint="Windows.FullTrustApplication">
           <desktop:StartupTask TaskId="TwinKeysAtSignIn" Enabled="false" DisplayName="TwinKeys" />
         </desktop:Extension>
@@ -62,4 +54,15 @@
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
+  <!-- Package-level, as MakeAppx requires for windows.firewallRules. -->
+  <Extensions>
+    <desktop2:Extension Category="windows.firewallRules">
+      <desktop2:FirewallRules Executable="TwinKeys.exe">
+        <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="47801" LocalPortMax="47801" Profile="private" />
+        <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="47801" LocalPortMax="47801" Profile="domain" />
+        <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="47803" LocalPortMax="47803" Profile="private" />
+        <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="47803" LocalPortMax="47803" Profile="domain" />
+      </desktop2:FirewallRules>
+    </desktop2:Extension>
+  </Extensions>
 </Package>
