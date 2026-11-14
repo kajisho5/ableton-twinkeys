@@ -42,6 +42,15 @@ final class AppModel: ObservableObject {
     /// 2.4 (experimental): the Yamaha console's faders. Both Macs read them; only the Mac that is
     /// not the main moves them (when the main stops).
     let desk = DeskClient()
+    /// QLab mode (docs/design-qlab.md): this Mac's QLab, and the main/backup logic around it.
+    let qlab = QLabClient()
+    private var qlabDriver: QLabDriver!
+    /// The driver is never called with the Conductor's lock held, nor on the QLab client's queue.
+    private let qlabQueue = DispatchQueue(label: "TwinKeys.qlab.driver", qos: .userInitiated)
+    private var qlabLastBroadcast = 0.0
+    private var qlabStatusSent: QLabStatus?
+    private var qlabCuesSent: [QLabCue]?
+    private var qlabBroadcastQueued = false
     private struct DeskWanted: Equatable { var settings: DeskSettings; var routes: [DeskRoute] }
     /// What the console link last got (nil: stopped).
     private var deskConfig: DeskWanted?
@@ -174,6 +183,7 @@ final class AppModel: ObservableObject {
         let conductor = self.conductor
         let network = self.network
         startRemote(name: Host.current().localizedName ?? "Mac")
+        startQLab()
         // Key callbacks first: refresh() below may already start the key tap.
         keyMonitor.onKey = { input in conductor.handleKey(input) }
         keyMonitor.onEventsMissed = { conductor.releaseHeldKeys() }
@@ -243,6 +253,7 @@ final class AppModel: ObservableObject {
         network.flush(timeout: 0.3)
         network.stop()
         remote?.stop()
+        qlab.stop()
         bridge.stop()
         desk.stop()
         try? store.save(settings)
@@ -486,6 +497,7 @@ final class AppModel: ObservableObject {
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.roleChanged(isMain: isMain) } }
         }
         r.allNotesOff = { conductor.panic() }
+
         r.snapshot = { bridge.snapshot() }
         r.status = { [weak self] in
             guard let self else { return nil }
@@ -630,7 +642,7 @@ final class AppModel: ObservableObject {
                               backupLiveConnected: peerName != nil && conductor.peerLiveConnected == true,
                               latencyMs: { if case let .connected(_, ms) = s.link { return ms }; return nil }(),
                               lastCue: cue, cueKeys: settings.cueKeys.map { .init(keycode: $0.keycode, label: $0.label, memo: $0.memo) },
-                              setDiff: s.setDiff)
+                              setDiff: s.setDiff, target: settings.target, qlabDiff: s.qlabDiff)
         remoteLock.lock()
         let changed = statusSnapshot != st
         statusSnapshot = st
@@ -990,6 +1002,171 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: QLab mode (docs/design-qlab.md)
+
+    private func startQLab() {
+        let log = self.log, conductor = self.conductor, client = self.qlab
+        client.onLog = { log.write($0) }
+        let d = QLabDriver(conductor: conductor, settings: settings.qlab, target: settings.target,
+                           clock: { ProcessInfo.processInfo.systemUptime },
+                           snapshot: { client.snapshot() },
+                           runLocal: { cmd, asBackup, done in client.run(cmd, asBackup: asBackup, done: done) },
+                           followLocal: { client.follow($0) })
+        d.log = { log.write($0) }
+        d.onLastChanged = { [weak self] in DispatchQueue.main.async { MainActor.assumeIsolated { self?.qlabChanged() } } }
+        d.attach()
+        qlabDriver = d
+        let q = qlabQueue
+        conductor.onQLabCueKey = { [weak d] k in q.async { d?.key(k) } }
+        // iPhone: QLab commands, and what a newly connected iPhone needs first.
+        remote?.runQLab = { [weak d] cmd, done in
+            q.async {
+                guard let d else { done(QLabDriver.Outcome(ok: false, error: "qlab_off", backup: "notSent")); return }
+                d.command(cmd, done: done)
+            }
+        }
+        remote?.qlabWelcome = { [weak d] in
+            guard let d, d.currentTarget.drivesQLab else { return [] }
+            let snap = client.snapshot()
+            return QLabCueList.pieces(workspace: snap.workspace?.displayName ?? "", listName: snap.listName, cues: snap.cues).map { RemoteMessage.qlabCues($0) }
+                + [.qlabStatus(d.status(snap, stamp: Date().timeIntervalSince1970))]
+        }
+        qlabPasscodeSaved = !QLabPasscodeStore.load().isEmpty
+        client.onChange = { [weak self] _ in DispatchQueue.main.async { MainActor.assumeIsolated { self?.qlabChanged() } } }
+        client.onWorkspaceChosen = { [weak self] ws in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, self.settings.qlab.workspaceID != ws.uniqueID else { return }
+                    self.settings.qlab.workspaceID = ws.uniqueID
+                    self.settings.qlab.workspaceName = ws.displayName
+                    try? self.store.save(self.settings)
+                }
+            }
+        }
+        // Settle the driver's commands (the backup's answers) every 0.1 s.
+        let t = DispatchSource.makeTimerSource(queue: q)
+        t.schedule(deadline: .now() + 0.1, repeating: 0.1, leeway: .milliseconds(20))
+        t.setEventHandler { [weak d] in d?.tick() }
+        t.resume()
+        qlabTimer = t
+        applyQLab()
+    }
+
+    private var qlabTimer: DispatchSourceTimer?
+
+    var qlabActions: QLabSettingsActions {
+        QLabSettingsActions(
+            setTarget: { [weak self] in self?.setTarget($0) },
+            setQLabSettings: { [weak self] in self?.setQLabSettings($0) },
+            chooseQLabWorkspace: { [weak self] in self?.chooseQLabWorkspace($0) },
+            setQLabPasscode: { [weak self] in self?.setQLabPasscode($0) },
+            setCueQLab: { [weak self] a, k in self?.setCueQLab(a, for: k) }
+        )
+    }
+
+    /// Applies the target and the QLab settings (Ableton Live: cue keys exactly as before, QLab closed).
+    private func applyQLab() {
+        let t = settings.target
+        var q = settings.qlab
+        // Tests and the fake QLab: another port (scripts/fake-qlab.py --port).
+        if let p = ProcessInfo.processInfo.environment["TWINKEYS_QLAB_PORT"].flatMap({ UInt16($0) }) { q.port = p }
+        conductor.setCueKeyMode(notes: t.drivesLive || q.notesInQLabMode, qlab: t.drivesQLab)
+        qlabDriver?.setSettings(q, target: t)
+        qlab.configure(on: t.drivesQLab, settings: q, passcode: QLabPasscodeStore.load())
+        refresh()
+    }
+
+    func setTarget(_ t: QLabTarget) {
+        guard t != settings.target else { return }
+        settings.target = t
+        try? store.save(settings)
+        log.write("TwinKeys drives: \(t.rawValue)")
+        applyQLab()
+    }
+
+    func setQLabSettings(_ q: QLabSettings) {
+        guard q != settings.qlab else { return }
+        settings.qlab = q
+        try? store.save(settings)
+        applyQLab()
+    }
+
+    func chooseQLabWorkspace(_ ws: QLabWorkspaceInfo) {
+        var q = settings.qlab
+        q.workspaceID = ws.uniqueID; q.workspaceName = ws.displayName
+        setQLabSettings(q)
+    }
+
+    /// Saves the passcode (4 digits, or empty) and connects again with it (only then: QLab makes each
+    /// wrong try wait longer).
+    func setQLabPasscode(_ code: String) {
+        let digits = String(code.filter(\.isNumber).prefix(4))
+        QLabPasscodeStore.save(digits)
+        qlabPasscodeSaved = !digits.isEmpty
+        log.write(digits.isEmpty ? "QLab passcode cleared" : "QLab passcode saved")
+        applyQLab()
+    }
+
+    /// Read from the keychain at start and when saved (not on every refresh).
+    private var qlabPasscodeSaved = false
+
+    func setCueQLab(_ action: QLabKeyAction, for code: UInt16) {
+        guard let i = settings.cueKeys.firstIndex(where: { $0.keycode == code }) else { return }
+        var keys = settings.cueKeys
+        keys[i].qlab = action
+        setCueKeys(keys)
+    }
+
+    /// Something about QLab changed: tell the other Mac and the iPhones (at most 5 times a second).
+    private func qlabChanged() {
+        qlabDriver?.publish(qlab.snapshot(), keys: settings.cueKeys)
+        refresh()
+        broadcastQLab()
+    }
+
+    private func broadcastQLab(force: Bool = false) {
+        guard let remote, settings.target.drivesQLab || qlabStatusSent?.target != settings.target else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        let wait = 0.2 - (now - qlabLastBroadcast)
+        if wait > 0, !force {
+            guard !qlabBroadcastQueued else { return }
+            qlabBroadcastQueued = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+                MainActor.assumeIsolated { self?.qlabBroadcastQueued = false; self?.broadcastQLab(force: true) }
+            }
+            return
+        }
+        qlabLastBroadcast = now
+        let snap = qlab.snapshot()
+        if snap.cues != qlabCuesSent {
+            qlabCuesSent = snap.cues
+            for piece in QLabCueList.pieces(workspace: snap.workspace?.displayName ?? "", listName: snap.listName, cues: snap.cues) {
+                remote.broadcastMessage(.qlabCues(piece))
+            }
+        }
+        let st = qlabDriver.status(snap, stamp: Date().timeIntervalSince1970)
+        // Running cues: their times move; send at most 5 a second, otherwise only real changes.
+        if let old = qlabStatusSent, old.sameExceptTimes(st), st.running.isEmpty { return }
+        qlabStatusSent = st
+        remote.broadcastMessage(.qlabStatus(st))
+    }
+
+    private func updateQLab(_ s: inout ViewState) {
+        s.target = settings.target
+        s.qlabSettings = settings.qlab
+        let snap = qlab.snapshot()
+        s.qlab = snap
+        s.qlabPasscodeSet = qlabPasscodeSaved
+        s.qlabLast = qlabDriver?.lastCommand
+        s.qlabBackup = qlabDriver?.backupStatus(snap)
+        s.qlabDiff = settings.target.drivesQLab ? conductor.qlabDiff : nil
+        s.peerQLab = conductor.peerQLabStatus
+        s.peerUnderstandsQLab = conductor.peerUnderstandsQLab
+        s.qlabKeysHash = QLabLinkState.keysHash(target: settings.target, keys: settings.cueKeys)
+        // The running cues' times and the heartbeat: keep the other Mac and the iPhones current.
+        if settings.target.drivesQLab, !snap.running.isEmpty { broadcastQLab() }
+    }
+
     // MARK: State
 
     /// The Bridge inside this app does not change while it runs: read its version once.
@@ -1065,6 +1242,7 @@ final class AppModel: ObservableObject {
         s.peerRemote = conductor.peerRemoteSummary
         let linkedName = s.linkedPeerID.flatMap { id in snap.peerNames[id] ?? peers.first { $0.id == id }?.name }
         updateDesk(&s, peerName: linkedName)
+        updateQLab(&s)
         updateRemoteStatus(s, snap)
         if s != state { state = s }
     }

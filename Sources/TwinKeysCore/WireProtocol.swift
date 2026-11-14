@@ -71,6 +71,17 @@ public enum PacketBody: Equatable, Sendable {
     /// (`DeskPacket`, docs/design-v2.4-ql.md). Type 0x22 (0x20 and 0x21 are taken); older
     /// versions drop the unknown type.
     case desk(DeskPacket)
+    /// QLab mode (docs/design-qlab.md 6.2): a QLab command from the main Mac. `id` is per sender
+    /// session; a resend carries the same id and is run only once. Type 0x23; older versions and
+    /// TwinKeys for Windows drop the unknown type (they are never sent one: features bit 2).
+    case qlabCommand(id: UInt32, QLabCommand)
+    /// What the backup's QLab did with command `id` (`QLabResultCode`). Type 0x24.
+    case qlabResult(id: UInt32, code: UInt8)
+    /// The sender's QLab in short, with each heartbeat and when it changes. From the main Mac it
+    /// also says "move your playhead here" (`follow`). Type 0x25.
+    case qlabState(QLabLinkState)
+    /// One cue of the sender's list (sent a few at a time while the lists' hashes differ). Type 0x26.
+    case qlabItem(index: UInt16, number: String, type: UInt8, name: String)
 
     var typeCode: UInt8 {
         switch self {
@@ -98,6 +109,10 @@ public enum PacketBody: Equatable, Sendable {
         case .roleHandover: return 0x1F
         case .remoteSummary: return 0x21
         case .desk: return 0x22
+        case .qlabCommand: return 0x23
+        case .qlabResult: return 0x24
+        case .qlabState: return 0x25
+        case .qlabItem: return 0x26
         }
     }
 }
@@ -178,6 +193,20 @@ extension Packet {
             b += [phones, watch]
         case let .desk(d):
             b += d.encoded()
+        case let .qlabCommand(id, c):
+            b.appendBE(id)
+            b.append(c.action.rawValue)
+            b.appendShort(c.cueNumber ?? "", max: QLabCommand.maxNumberBytes)
+            b.appendShort(c.expect ?? "", max: QLabCommand.maxNumberBytes)
+        case let .qlabResult(id, code):
+            b.appendBE(id); b.append(code)
+        case let .qlabState(s):
+            b += s.encoded()
+        case let .qlabItem(index, number, type, name):
+            b += [UInt8(index >> 8), UInt8(index & 0xFF)]
+            b.appendShort(number, max: QLabCommand.maxNumberBytes)
+            b.append(type)
+            b.appendShort(name, max: QLabCueSummary.maxNameBytes)
         }
         return b
     }
@@ -266,6 +295,27 @@ extension Packet {
         case 0x22:
             guard let d = DeskPacket.decode(p) else { throw DecodeError.badPayload }
             body = .desk(d)
+        case 0x23:
+            guard p.count >= 7, let action = QLabAction(rawValue: p[4]) else { throw DecodeError.badPayload }
+            var i = 5
+            guard let cue = p.readShort(&i, max: QLabCommand.maxNumberBytes),
+                  let expect = p.readShort(&i, max: QLabCommand.maxNumberBytes) else { throw DecodeError.badPayload }
+            let c = QLabCommand(action: action, cueNumber: cue.isEmpty ? nil : cue, expect: expect.isEmpty ? nil : expect)
+            guard c.isValid else { throw DecodeError.badPayload }
+            body = .qlabCommand(id: p.readBE32(at: 0), c)
+        case 0x24:
+            guard p.count >= 5 else { throw DecodeError.badPayload }
+            body = .qlabResult(id: p.readBE32(at: 0), code: p[4])
+        case 0x25:
+            guard let s = QLabLinkState.decode(p) else { throw DecodeError.badPayload }
+            body = .qlabState(s)
+        case 0x26:
+            guard p.count >= 5 else { throw DecodeError.badPayload }
+            var i = 2
+            guard let number = p.readShort(&i, max: QLabCommand.maxNumberBytes), i < p.count else { throw DecodeError.badPayload }
+            let type = p[i]; i += 1
+            guard let name = p.readShort(&i, max: QLabCueSummary.maxNameBytes) else { throw DecodeError.badPayload }
+            body = .qlabItem(index: UInt16(p[0]) << 8 | UInt16(p[1]), number: number, type: type, name: name)
         default: throw DecodeError.unknownType(data[3])
         }
         return Packet(session: session, seq: seq, body: body)
@@ -285,6 +335,20 @@ func truncatedUTF8(_ s: String, max: Int) -> String.UTF8View {
 extension Array where Element == UInt8 {
     mutating func appendBE(_ v: UInt32) { append(contentsOf: [UInt8(v >> 24), UInt8((v >> 16) & 0xFF), UInt8((v >> 8) & 0xFF), UInt8(v & 0xFF)]) }
     mutating func appendBE(_ v: UInt64) { appendBE(UInt32(v >> 32)); appendBE(UInt32(v & 0xFFFF_FFFF)) }
+    /// A length byte and at most `max` UTF-8 bytes (cut between characters).
+    mutating func appendShort(_ s: String, max: Int) {
+        let b = Array(truncatedUTF8(s, max: max))
+        append(UInt8(b.count)); append(contentsOf: b)
+    }
+    /// Reads what `appendShort` wrote at `i` (nil: too long or cut short) and moves `i` past it.
+    func readShort(_ i: inout Int, max: Int) -> String? {
+        guard i < count else { return nil }
+        let n = Int(self[i])
+        guard n <= max, i + 1 + n <= count else { return nil }
+        let s = String(decoding: self[(i + 1)..<(i + 1 + n)], as: UTF8.self)
+        i += 1 + n
+        return s
+    }
     func readBE32(at i: Int) -> UInt32 {
         (UInt32(self[i]) << 24) | (UInt32(self[i + 1]) << 16) | (UInt32(self[i + 2]) << 8) | UInt32(self[i + 3])
     }

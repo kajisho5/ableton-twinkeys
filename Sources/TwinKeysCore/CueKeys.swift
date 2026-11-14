@@ -12,10 +12,16 @@ public struct CueKey: Codable, Equatable, Hashable, Sendable, Identifiable {
     /// MIDI note number (0-127). Stays the same when other cue keys are added or removed,
     /// so mappings made in the DAW keep working.
     public var note: UInt8
+    /// QLab mode (docs/design-qlab.md 6.1): what this key does in QLab. nil: the default for the key
+    /// (`QLabKeyAction.defaultFor`); an action of nil: nothing.
+    public var qlab: QLabKeyAction?
 
     public var id: UInt16 { keycode }
 
-    enum CodingKeys: String, CodingKey { case keycode, label, memo, note }
+    /// The QLab action in effect (the default when none was chosen).
+    public var qlabAction: QLabKeyAction? { qlab ?? QLabKeyAction.defaultFor(keycode: keycode) }
+
+    enum CodingKeys: String, CodingKey { case keycode, label, memo, note, qlab }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -23,13 +29,15 @@ public struct CueKey: Codable, Equatable, Hashable, Sendable, Identifiable {
         note = try c.decode(UInt8.self, forKey: .note)
         label = (try? c.decodeIfPresent(String.self, forKey: .label)) ?? KeyNames.label(for: keycode)
         memo = (try? c.decodeIfPresent(String.self, forKey: .memo)) ?? ""
+        qlab = try? c.decodeIfPresent(QLabKeyAction.self, forKey: .qlab)
     }
 
-    public init(keycode: UInt16, label: String? = nil, memo: String = "", note: UInt8) {
+    public init(keycode: UInt16, label: String? = nil, memo: String = "", note: UInt8, qlab: QLabKeyAction? = nil) {
         self.keycode = keycode
         self.label = label ?? KeyNames.label(for: keycode)
         self.memo = memo
         self.note = note
+        self.qlab = qlab
     }
 
     /// Cue notes are given out from C1 (36) upwards.
@@ -83,6 +91,10 @@ public struct CueKey: Codable, Equatable, Hashable, Sendable, Identifiable {
             k.label = String(decoding: Array(truncatedUTF8(k.label, max: maxLabelBytes)), as: UTF8.self)
             if k.label.isEmpty { k.label = KeyNames.label(for: k.keycode) }
             k.memo = String(decoding: Array(truncatedUTF8(k.memo, max: maxMemoBytes)), as: UTF8.self)
+            if let c = k.qlab?.cue {
+                let t = String(decoding: Array(truncatedUTF8(c.trimmingCharacters(in: .whitespaces), max: QLabCommand.maxNumberBytes)), as: UTF8.self)
+                k.qlab?.cue = t.isEmpty ? nil : t
+            }
             out.append(k)
         }
         return out

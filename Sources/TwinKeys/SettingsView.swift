@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            QLabSettingsSection(state: model.state, actions: model.qlabActions)
             CueKeySettings(model: model)
             RemoteSettings(model: model)
             DeskSettingsSection(state: model.state, actions: model.deskActions)

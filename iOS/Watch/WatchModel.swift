@@ -131,6 +131,41 @@ final class WatchModel: NSObject, ObservableObject {
         }
     }
 
+    // MARK: QLab mode (docs/design-qlab.md 4.3)
+
+    var qlab: Bool { state?.qlab ?? false }
+
+    /// Seconds left of the running QLab cue now.
+    func qlabLeftNow(_ now: Date) -> Double? {
+        guard let st = state, let left = st.qlabLeft else { return nil }
+        guard st.running else { return left }
+        return max(0, left - now.timeIntervalSince(leftBase))
+    }
+
+    var canQLabGo: Bool { problem == nil && state?.qlabNextNumber != nil }
+
+    /// GO the cue shown as next on both Macs' QLab (a second GO within 0.5 s is ignored).
+    func qlabGo() {
+        guard Date().timeIntervalSince(lastGo) >= WatchWire.goGuard else { return }
+        guard canQLabGo else { haptic(.failure); show(problem ?? L.s("Nothing standing by", "待機中のキューはありません")); return }
+        lastGo = Date()
+        haptic(.click)
+        send(.qlabGo(expect: state?.qlabNextNumber)) { [weak self] ok, err in
+            if ok { self?.haptic(.success) } else { self?.failed(err) }
+        }
+    }
+
+    func qlabPanic() {
+        haptic(.click)
+        send(.qlabPanic) { [weak self] ok, err in if ok { self?.haptic(.success) } else { self?.failed(err) } }
+    }
+
+    func qlabMove(_ number: String) {
+        guard problem == nil else { haptic(.failure); show(problem ?? ""); return }
+        haptic(.click)
+        send(.qlabPlayhead(number: number)) { [weak self] ok, err in if !ok { self?.failed(err) } }
+    }
+
     /// Ask the iPhone for the current state (the app opened or the iPhone became reachable).
     func refresh() {
         guard !demo else { return }
@@ -179,7 +214,13 @@ final class WatchModel: NSObject, ObservableObject {
     /// Short texts for the iPhone's answers and its last command problem (`WatchState.problem`).
     static func text(for code: String) -> String {
         switch code {
-        case "changed": return L.s("Next scene changed. Check it, then press again.", "次のシーンが変わりました。確かめてから押してください")
+        case "changed": return L.s("Next changed. Check it, then press again.", "「次」が変わりました。確かめてから押してください")
+        case "qlab_next_changed": return L.s("QLab's next cue changed. Press again.", "QLab の次のキューが変わりました。もう一度押してください")
+        case "qlab_notConnected": return L.s("The main Mac's QLab is not connected", "メインの QLab につながっていません")
+        case "qlab_no_number": return L.s("That cue has no number", "番号のないキューです")
+        case "qlab_backup_missing", "qlab_backup_noSuchCue", "qlab_backup_notConnected", "qlab_backup_noAnswer", "qlab_backup_denied", "qlab_backup_badPasscode":
+            return L.s("Ran on the main Mac, not on the backup", "メインでは動き、バックアップでは動いていません")
+        case "qlab_backup_corrected": return L.s("Backup corrected to the same cue", "バックアップを同じキューに直しました")
         case "end": return L.s("End of the scene list", "シーンの最後です")
         case "offline": return L.s("iPhone is not connected to the Mac", "iPhone が Mac につながっていません")
         case "noApp", "unreachable": return L.s("Can't reach TwinKeys Remote. Open it on the iPhone.", "iPhone に届きません。TwinKeys Remote を開いてください")
@@ -245,6 +286,17 @@ final class WatchModel: NSObject, ObservableObject {
 
     private static func demoState() -> WatchState {
         var st = WatchState()
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-target"), i + 1 < a.count, a[i + 1] != "live" {
+            st.target = a[i + 1]
+            st.qlabNow = "12 雨の音（遠く）"
+            st.qlabNext = "13 雷鳴 1"; st.qlabNextNumber = "13"
+            st.qlabLeft = 68; st.qlabTotal = 200; st.running = true
+            st.qlabOK = true
+            st.qlabCues = [WatchQLabCue(number: "11.5", name: "夜の環境音", running: true), WatchQLabCue(number: "12", name: "雨の音（遠く）", running: true),
+                           WatchQLabCue(number: "13", name: "雷鳴 1", next: true), WatchQLabCue(number: "14", name: "雨 F.O."),
+                           WatchQLabCue(number: "15", name: "映像へ合図")]
+        }
         st.names = ["オープニング", "SE 拍手", "M1 イントロ", "M1 本編", "暗転", "M2 イントロ", "M2 本編", "エンディング"]
         st.playing = 2
         st.selected = 3
@@ -268,6 +320,21 @@ final class WatchModel: NSObject, ObservableObject {
             st.left = 95
             if i + 1 < st.names.count { st.selected = i + 1 }
         case .allNotesOff, .refresh: break
+        case .qlabGo:
+            st.qlabNow = st.qlabNext; st.qlabLeft = 12; st.qlabTotal = 12
+            if let i = st.qlabCues.firstIndex(where: \.next) {
+                st.qlabCues[i].running = true; st.qlabCues[i].next = false
+                if i + 1 < st.qlabCues.count {
+                    st.qlabCues[i + 1].next = true
+                    st.qlabNext = "\(st.qlabCues[i + 1].number) \(st.qlabCues[i + 1].name)"; st.qlabNextNumber = st.qlabCues[i + 1].number
+                } else { st.qlabNext = nil; st.qlabNextNumber = nil }
+            }
+        case .qlabPanic:
+            st.qlabNow = nil; st.qlabLeft = nil
+            for i in st.qlabCues.indices { st.qlabCues[i].running = false }
+        case let .qlabPlayhead(n):
+            for i in st.qlabCues.indices { st.qlabCues[i].next = st.qlabCues[i].number == n }
+            if let c = st.qlabCues.first(where: \.next) { st.qlabNext = "\(c.number) \(c.name)"; st.qlabNextNumber = c.number }
         }
         st.stamp = Date().timeIntervalSince1970
         apply(st)

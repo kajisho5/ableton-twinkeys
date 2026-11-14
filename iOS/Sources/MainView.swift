@@ -2,10 +2,11 @@ import SwiftUI
 import TwinKeysCore
 
 enum Pane: String, CaseIterable, Identifiable {
-    case session, mixer, cues, go, settings
+    case session, mixer, list, cues, go, settings
     var id: String { rawValue }
     var title: String {
         switch self {
+        case .list: return L.s("List", "一覧")
         case .session: return L.s("Session", "セッション")
         case .mixer: return L.s("Mixer", "ミキサー")
         case .cues: return L.s("Cues", "キュー")
@@ -16,6 +17,7 @@ enum Pane: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .session: return "square.grid.3x3.fill"
+        case .list: return "list.bullet.rectangle"
         case .mixer: return "slider.vertical.3"
         case .cues: return "bolt.fill"
         case .go: return "play.circle"
@@ -36,9 +38,24 @@ struct MainView: View {
     /// The Apple Watch mark in the top bar asks Settings to scroll to "Connection".
     @State private var showConnection = false
 
+    /// The panes for what the Mac drives (docs/design-qlab.md 4.2): QLab only hides Session and
+    /// Mixer behind the cue list; both adds the list; Ableton Live is as before.
+    private var panes: [Pane] {
+        if model.qlabOnly { return [.list, .cues, .go, .settings] }
+        if model.qlabOn { return [.session, .mixer, .list, .cues, .go, .settings] }
+        return [.session, .mixer, .cues, .go, .settings]
+    }
+
+    /// The pane shown: a pane the mode hides gives way to the cue list (or Session back in Live mode).
+    private var shown: Pane {
+        if panes.contains(pane) { return pane }
+        return model.qlabOnly ? .list : .session
+    }
+
     var body: some View {
         GeometryReader { geo in
             let lc = LayoutClass.of(geo.size)
+            let pane = shown
             VStack(spacing: 0) {
                 TopBar(compact: lc == .narrowPortrait, openConnection: openConnection)
                 if !model.isConnected && model.wasConnected { MainLostBanner() }
@@ -54,9 +71,42 @@ struct MainView: View {
                         content(pane, lc).frame(maxWidth: .infinity, maxHeight: .infinity)
                         rail
                     }
+                case .medium where model.qlabOnly:
+                    if pane == .go {
+                        QLabGoView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if pane == .list || pane == .cues {
+                        HStack(alignment: .top, spacing: 12) {
+                            QLabCueListView(showSide: false).frame(maxWidth: .infinity)
+                            CuesView().frame(width: min(300, geo.size.width * 0.4))
+                        }
+                        .padding(.horizontal, 12)
+                    } else {
+                        content(pane, lc).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    tabBar(panes: [.list, .go, .settings])
+                case .wide where model.qlabOnly:
+                    if pane == .settings {
+                        SettingsPane(showConnection: $showConnection).frame(maxWidth: 640)
+                    } else if pane == .go {
+                        QLabGoView().frame(maxWidth: 1000, maxHeight: .infinity)
+                    } else {
+                        // GO and the list side by side (design 4.2).
+                        HStack(alignment: .top, spacing: 12) {
+                            QLabCueListView(showSide: false).frame(maxWidth: .infinity)
+                            VStack(spacing: 12) {
+                                QLabGoView().frame(height: geo.size.height * 0.62)
+                                CuesView(compact: true)
+                            }
+                            .frame(width: min(420, geo.size.width * 0.36))
+                        }
+                        .padding(.horizontal, 12)
+                    }
+                    tabBar(panes: [.list, .go, .settings])
                 case .medium:
                     if pane == .go {
-                        GoView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                        goView.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if pane == .list {
+                        QLabCueListView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if pane == .session || pane == .cues {
                         HStack(alignment: .top, spacing: 12) {
                             SessionView(showSceneColumn: false).frame(maxWidth: .infinity)
@@ -66,12 +116,14 @@ struct MainView: View {
                     } else {
                         content(pane, lc).frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    tabBar(panes: [.session, .mixer, .go, .settings])
+                    tabBar(panes: model.qlabOn ? [.session, .mixer, .list, .go, .settings] : [.session, .mixer, .go, .settings])
                 case .wide:
                     if pane == .settings {
                         SettingsPane(showConnection: $showConnection).frame(maxWidth: 640)
                     } else if pane == .go {
-                        GoView().frame(maxWidth: 1000, maxHeight: .infinity)
+                        goView.frame(maxWidth: 1000, maxHeight: .infinity)
+                    } else if pane == .list {
+                        QLabCueListView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         HStack(alignment: .top, spacing: 12) {
                             SessionView(showSceneColumn: true).frame(maxWidth: .infinity)
@@ -83,7 +135,7 @@ struct MainView: View {
                         }
                         .padding(.horizontal, 12)
                     }
-                    tabBar(panes: [.session, .go, .settings])
+                    tabBar(panes: model.qlabOn ? [.session, .list, .go, .settings] : [.session, .go, .settings])
                 }
             }
         }
@@ -94,10 +146,16 @@ struct MainView: View {
         switch p {
         case .session: SessionView(showSceneColumn: lc == .narrowLandscape)
         case .mixer: MixerView(sideModes: lc == .narrowLandscape)
+        case .list: QLabCueListView()
         case .cues: CuesView()
-        case .go: GoView()
+        case .go: goView
         case .settings: SettingsPane(showConnection: $showConnection)
         }
+    }
+
+    /// GO for what the Mac drives: QLab (also for "both", where GO is QLab's) or Live's scenes.
+    @ViewBuilder private var goView: some View {
+        if model.qlabOn { QLabGoView() } else { GoView() }
     }
 
     /// Settings, at "Connection".
@@ -106,21 +164,21 @@ struct MainView: View {
         showConnection = true
     }
 
-    private var allTabs: some View { tabBar(panes: Pane.allCases) }
+    private var allTabs: some View { tabBar(panes: panes) }
 
     private func tabBar(panes: [Pane]) -> some View {
         HStack {
             ForEach(panes) { p in
                 Button { pane = p } label: {
                     VStack(spacing: 3) {
-                        LED(on: pane == p, size: 5)
+                        LED(on: shown == p, size: 5)
                         Image(systemName: p.symbol).font(.system(size: 18))
-                        Text(p.title).font(.caption2.weight(pane == p ? .bold : .regular))
+                        Text(p.title).font(.caption2.weight(shown == p ? .bold : .regular))
                     }
                     .frame(maxWidth: .infinity, minHeight: 50)
-                    .foregroundStyle(pane == p ? TK.accent : TK.dim)
+                    .foregroundStyle(shown == p ? TK.accent : TK.dim)
                 }
-                .accessibilityAddTraits(pane == p ? .isSelected : [])
+                .accessibilityAddTraits(shown == p ? .isSelected : [])
             }
         }
         .padding(.top, 4)
@@ -132,18 +190,18 @@ struct MainView: View {
     /// Five buttons share the height (a warning bar under the top bar takes some of it).
     private var rail: some View {
         VStack(spacing: 4) {
-            ForEach(Pane.allCases) { p in
+            ForEach(panes) { p in
                 Button { pane = p } label: {
                     VStack(spacing: 3) {
-                        LED(on: pane == p, size: 5)
+                        LED(on: shown == p, size: 5)
                         Image(systemName: p.symbol).font(.system(size: 16))
-                        Text(p.title).font(.system(size: 10, weight: pane == p ? .bold : .regular, design: .monospaced))
+                        Text(p.title).font(.system(size: 10, weight: shown == p ? .bold : .regular, design: .monospaced))
                             .lineLimit(1).minimumScaleFactor(0.7)
                     }
-                    .frame(width: 60).frame(minHeight: 44, maxHeight: 56)
-                    .foregroundStyle(pane == p ? TK.accent : TK.dim)
+                    .frame(width: 60).frame(minHeight: 40, maxHeight: 56)
+                    .foregroundStyle(shown == p ? TK.accent : TK.dim)
                 }
-                .accessibilityAddTraits(pane == p ? .isSelected : [])
+                .accessibilityAddTraits(shown == p ? .isSelected : [])
             }
             Spacer(minLength: 0)
         }
@@ -167,17 +225,21 @@ struct TopBar: View {
             HStack(spacing: 10) {
                 statusText
                 Spacer(minLength: 4)
-                if !compact { transport }
+                if !compact { if model.qlabOnly { QLabTopBarItems(compact: false) } else { transport } }
                 Spacer(minLength: 4)
-                Button(action: model.allNotesOff) {
-                    Text(L.s("All Notes Off", "全ノートオフ")).font(.subheadline.bold()).foregroundStyle(TK.red)
-                        .padding(.horizontal, 14).frame(minHeight: 40)
-                        .background(NotesOffBackground(radius: 8))
+                if model.qlabOn {
+                    QLabPanicButton()
+                } else {
+                    Button(action: model.allNotesOff) {
+                        Text(L.s("All Notes Off", "全ノートオフ")).font(.subheadline.bold()).foregroundStyle(TK.red)
+                            .padding(.horizontal, 14).frame(minHeight: 40)
+                            .background(NotesOffBackground(radius: 8))
+                    }
+                    .accessibilityHint(L.s("Stops every note on both Macs", "2台の Mac の音をすべて止めます"))
                 }
-                .accessibilityHint(L.s("Stops every note on both Macs", "2台の Mac の音をすべて止めます"))
                 lockButton
             }
-            if compact { HStack { transport; Spacer() } }
+            if compact { HStack { if model.qlabOnly { QLabTopBarItems(compact: false) } else { transport }; Spacer() } }
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .background(TK.top.ignoresSafeArea(edges: .top))
@@ -189,11 +251,21 @@ struct TopBar: View {
         let backupOK = st?.backupLinked ?? false
         // 2.1: the backup's own Live must answer too, or a cue reaches only one Live.
         let backupLive = backupOK && st?.backupLiveConnected == true
-        let allOK = st?.mainLiveConnected == true && backupLive
+        let q = model.qlabOn ? model.qlabStatus : nil
+        // QLab mode: both QLabs can GO (this Mac's and the backup's).
+        let qlabOK = q.map { $0.state.canControl && ($0.backup?.state.canControl ?? false) } ?? true
+        let liveOK = model.qlabOnly ? true : (st?.mainLiveConnected == true && backupLive)
+        let allOK = liveOK && qlabOK && (!model.qlabOnly || backupOK)
         let connected = model.isConnected
         let line: String = {
             guard connected else { return L.s("Main Mac: no answer", "メイン切断中") }
             guard backupOK else { return L.s("Backup not linked", "バックアップ未接続") }
+            if let q {
+                let mine = q.state.canControl ? "QLab ✓" : L.s("QLab ✗ not connected", "QLab ✗ 未接続")
+                let theirs = q.backup?.state.canControl == true ? "QLab ✓" : L.s("QLab ✗", "QLab ✗")
+                return L.s("Main ", "メイン ") + mine + " · " + L.s("Backup ", "バックアップ ") + theirs
+                    + (st?.latencyMs.map { " · \(Int($0.rounded())) ms" } ?? "")
+            }
             let live = backupLive ? L.s("Live ✓", "Live ✓") : L.s("Live ✗ no answer", "Live ✗ 応答なし")
             return L.s("Backup ✓", "バックアップ ✓") + " · " + live + (backupLive ? (st?.latencyMs.map { " · \(Int($0.rounded())) ms" } ?? "") : "")
         }()
@@ -209,7 +281,8 @@ struct TopBar: View {
                         HStack(spacing: 12) {
                             lamp("MAIN", mainLamp, on: true)
                             lamp("BACKUP", backupOK ? TK.accent : TK.yellow, on: connected)
-                            lamp("LIVE", allOK ? TK.accent : TK.yellow, on: connected)
+                            if !model.qlabOnly { lamp("LIVE", liveOK ? TK.accent : TK.yellow, on: connected) }
+                            if model.qlabOn { lamp("QLAB", qlabOK ? TK.accent : TK.yellow, on: connected) }
                         }
                         lamp("MAIN", mainLamp, on: true)
                     }
@@ -219,7 +292,7 @@ struct TopBar: View {
             HStack(spacing: 6) {
                 Text((st?.mainName ?? "TwinKeys") + (model.trialMode ? L.s(" · Sample", " · サンプル") : ""))
                     .font(TK.mono(.caption)).foregroundStyle(TK.read).lineLimit(1)
-                Text(line).font(.caption).foregroundStyle(!connected ? TK.red : backupLive ? TK.dim : TK.yellow).lineLimit(1)
+                Text(line).font(.caption).foregroundStyle(!connected ? TK.red : allOK ? TK.dim : TK.yellow).lineLimit(1)
             }
         }
         .accessibilityElement(children: .combine)
@@ -316,6 +389,25 @@ struct ResultBanner: View {
         case "structure_changed": return L.s("Live's tracks or scenes changed, so it was not sent. Tap again.",
                                              "Live のトラックやシーンが変わったので、送りませんでした。もう一度押してください。")
         case "locked": return L.s("Show lock is on.", "本番ロック中です。")
+        // QLab mode (docs/design-qlab.md 10).
+        case "qlab_next_changed": return L.s("QLab's next cue changed, so GO was not sent. Check it and press again.",
+                                             "QLab の次のキューが変わりました。確かめてから、もう一度押してください。")
+        case "qlab_notConnected": return L.s("Not sent: the main Mac's QLab is not connected (nothing went to the backup either).",
+                                             "メインの QLab につながっていません（バックアップにも送っていません）。")
+        case "qlab_denied": return L.s("QLab can show but not GO: add “control” in QLab's OSC Access.", "QLab の権限が「見る」だけです。OSC Access で「control」を付けてください。")
+        case "qlab_badPasscode": return L.s("The main Mac's QLab passcode is wrong.", "メインの Mac の QLab のパスコードが違います。")
+        case "qlab_noAnswer": return L.s("The main Mac's QLab did not answer.", "メインの QLab から返事がありません。")
+        case "qlab_noSuchCue": return L.s("The main Mac's QLab has no such cue.", "メインの QLab にそのキューがありません。")
+        case "qlab_no_number": return L.s("That cue has no number: use Back / Next.", "番号のないキューです。前へ・次へで動かしてください。")
+        case "qlab_off": return L.s("The Mac does not drive QLab.", "Mac は QLab を動かす設定ではありません。")
+        case "old_mac_qlab": return L.s("That Mac's TwinKeys cannot drive QLab: update it.", "その Mac の TwinKeys は QLab を動かせません。新しくしてください。")
+        case "qlab_backup_corrected": return L.s("Backup: its playhead differed, it played the same cue (corrected).", "バックアップの再生位置が違ったので、同じキューで GO しました（直しました）。")
+        case "qlab_backup_missing": return L.s("Ran on the main Mac; no answer from the backup Mac.", "メインでは動きましたが、バックアップから返事がありません。")
+        case "qlab_backup_noSuchCue": return L.s("Ran on the main Mac; the backup has no such cue (nothing played there).", "メインでは動きました。バックアップにそのキューがありません（鳴らしていません）。")
+        case "qlab_backup_notConnected": return L.s("Ran on the main Mac; the backup's QLab is not connected.", "メインでは動きました。バックアップの QLab につながっていません。")
+        case "qlab_backup_noAnswer": return L.s("Ran on the main Mac; the backup's QLab did not answer.", "メインでは動きました。バックアップの QLab から返事がありません。")
+        case "qlab_backup_denied", "qlab_backup_badPasscode":
+            return L.s("Ran on the main Mac; the backup's QLab refused it (passcode or permissions).", "メインでは動きました。バックアップの QLab が受け付けません（パスコードか権限）。")
         case "old_mac": return L.s("That Mac runs an older TwinKeys: make it the main on the Mac itself.",
                                    "その Mac の TwinKeys が古いため、Mac で「この Mac をメインにする」を押してください。")
         case "late": return L.s("Live ran it after all (late). Do not tap again.", "Live で遅れて動きました。押し直さないでください。")

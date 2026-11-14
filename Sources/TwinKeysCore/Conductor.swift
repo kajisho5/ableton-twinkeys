@@ -184,9 +184,14 @@ public final class Conductor: @unchecked Sendable {
         if input.isDown, blockCueKeys, input.modifiers.isEmpty, engine.isCueKey(input.keycode) {
             swallowed.insert(input.keycode); swallow = true
         }
+        // QLab mode without MIDI notes: a cue key only runs its QLab action.
+        if !cueNotes {
+            if input.isDown, !input.isRepeat, input.modifiers.isEmpty, let cue = engine.cueKeys[input.keycode] { onQLabCueKey?(cue) }
+            return swallow
+        }
         for (m, cue) in engine.handleEvents(input) {
             emitLocal(m, fromKeys: true)
-            if let cue, case .noteOn = m { sendCue(m, cue); continue }
+            if let cue, case .noteOn = m { sendCue(m, cue); if qlabKeys { onQLabCueKey?(cue) }; continue }
             if case .noteOff = m, let i = sentCues.lastIndex(where: { $0.cue.keycode == input.keycode }) {
                 sentCues[i].keyUp = true
             }
@@ -201,10 +206,14 @@ public final class Conductor: @unchecked Sendable {
     public func pressCue(keycode: UInt16) -> Bool {
         lock.lock(); defer { lock.unlock() }
         guard sendKeys, !quitting, engine.isCueKey(keycode), !engine.held.keys.contains(keycode) else { return false }
+        if !cueNotes {
+            if let cue = engine.cueKeys[keycode] { onQLabCueKey?(cue) }
+            return true
+        }
         for input in [KeyInput(keycode: keycode, isDown: true), KeyInput(keycode: keycode, isDown: false)] {
             for (m, cue) in engine.handleEvents(input) {
                 emitLocal(m, fromKeys: true)
-                if let cue, case .noteOn = m { sendCue(m, cue); continue }
+                if let cue, case .noteOn = m { sendCue(m, cue); if qlabKeys { onQLabCueKey?(cue) }; continue }
                 if case .noteOff = m, let i = sentCues.lastIndex(where: { $0.cue.keycode == keycode }) { sentCues[i].keyUp = true }
                 sendRemote(m)
             }
@@ -306,6 +315,8 @@ public final class Conductor: @unchecked Sendable {
         let orderFree: Bool
         switch packet.body {
         case .heartbeat, .heartbeatAck, .held, .features, .cueName, .noteAck, .cueCount, .liveAck, .liveStatus, .setSummary, .setItem, .liveResult, .roleClaim, .remoteSummary, .desk: orderFree = true
+        // QLab: a command is run once by its id (a resend may overtake it); the rest is state.
+        case .qlabCommand, .qlabResult, .qlabState, .qlabItem: orderFree = true
         case let .liveCommand(_, c): orderFree = !c.isContinuous   // a late fader value must not overwrite a newer one
         default: orderFree = false
         }
@@ -367,6 +378,7 @@ public final class Conductor: @unchecked Sendable {
         case let .features(flags, epoch):
             guard link.peer == peer else { return peer }
             peerAnswersCues = flags & 1 != 0
+            peerQLab = flags & Self.qlabFeature != 0
             // The other Mac (re)connected and started counting again, maybe without this Mac
             // noticing a drop: start again too, and send our cue names (it forgot them).
             // 1.0.1 and later repeat their link counter (epoch) with every heartbeat, so one lost
@@ -416,6 +428,40 @@ public final class Conductor: @unchecked Sendable {
         case let .liveStatus(on):
             guard link.peer == peer else { return peer }
             peerLive = on
+        case let .qlabCommand(id, cmd):
+            guard link.peer == peer, link.isConnected else { return peer }
+            link.receivedOther(from: peer, now: now)
+            let key = QLabSeenCommands.key(session: packet.session, id: id)
+            if qlabSeen.first(key) {
+                if let run = onQLabCommandRun {
+                    run(cmd) { [weak self] code in
+                        // Never under the lock (the hook may answer right away).
+                        DispatchQueue.global().async { self?.reportQLabRun(key: key, id: id, code, to: peer) }
+                    }
+                } else {
+                    qlabSeen.setResult(key, .notConnected)
+                    sendBody(.qlabResult(id: id, code: QLabResultCode.notConnected.rawValue), to: peer)
+                }
+            } else if let r = qlabSeen.result(key) {
+                sendBody(.qlabResult(id: id, code: r.rawValue), to: peer)     // our answer was lost: again
+            }
+        case let .qlabResult(id, code):
+            guard link.peer == peer else { return peer }
+            if var p = pendingQLab[id] {
+                p.delivery = QLabResultCode(rawValue: code)?.name ?? "noAnswer"
+                pendingQLab[id] = p
+            }
+        case let .qlabState(st):
+            guard link.peer == peer, link.isConnected else { return peer }
+            peerQLabState = st
+            var pc = peerQLabCues ?? QLabPeerCues()
+            pc.summary(count: st.cueCount, hash: st.listHash)
+            peerQLabCues = pc
+            onPeerQLabState?(st, sendKeys)
+        case let .qlabItem(index, number, type, name):
+            guard link.peer == peer, var pc = peerQLabCues else { return peer }
+            pc.item(index: Int(index), QLabCueSummary.Item(number: number, type: QLabCueType(rawValue: type) ?? .other, name: name))
+            peerQLabCues = pc
         case let .remoteSummary(phones, watch):
             guard link.peer == peer else { return peer }
             peerRemote = RemoteSummary(phones: Int(phones), watch: WatchLevel(rawValue: watch) ?? .absent)
@@ -494,6 +540,7 @@ public final class Conductor: @unchecked Sendable {
         linkChanged()
         checkCue(now)
         checkLive(now)
+        checkQLab(now)
         // A key "held" longer than maxProtectedHold probably lost its key-up: end it on both
         // Macs through the engine, so it also leaves the held list sent to the peer.
         for note in engine.heldNotes {
@@ -777,16 +824,17 @@ public final class Conductor: @unchecked Sendable {
         guard up else { pendingHello = nil; return }
         resetCues()
         peerAnswersCues = false; peerCueNames.removeAll(); peerEpoch = nil; pendingHello = nil
+        peerQLab = false; peerQLabState = nil; peerQLabCues = nil
         linkEpoch &+= 1
         if let p = link.peer {
             // Bit 2: "I start counting again" (for 1.0.0); the new epoch does the same for 1.0.1+.
-            sendBody(.features(flags: 3, epoch: linkEpoch), to: p, copies: redundancy)
+            sendBody(.features(flags: 3 | Self.qlabFeature, epoch: linkEpoch), to: p, copies: redundancy)
             sendCueNames(to: p)
             sendDesk(rows: true, to: p)
         }
     }
 
-    private func features() -> PacketBody { .features(flags: 1, epoch: linkEpoch) }
+    private func features() -> PacketBody { .features(flags: 1 | Self.qlabFeature, epoch: linkEpoch) }
 
     /// Start counting again. A cue still waiting for its answer is reported as not confirmed
     /// instead of disappearing.
@@ -988,6 +1036,144 @@ public final class Conductor: @unchecked Sendable {
         if rows { for r in deskShare.rows(me: myID, peer: p) { sendBody(.desk(r), to: p) } }
     }
 
+    // MARK: QLab mode (docs/design-qlab.md 5.3, 6.2)
+
+    /// Features bit 2: the sender understands the QLab packets 0x23–0x26 (TwinKeys for Windows and
+    /// older Macs never set it, and are never sent them).
+    public static let qlabFeature: UInt8 = 4
+    /// The other Mac said it understands QLab packets.
+    private var peerQLab = false
+    /// The backup runs QLab commands forwarded by the main Mac here (called with the lock held: hand
+    /// the work to another queue); answer with what its QLab did.
+    public var onQLabCommandRun: ((QLabCommand, @escaping (QLabResultCode) -> Void) -> Void)?
+    /// The other Mac's QLab state arrived (called with the lock held: hand the work to another queue).
+    /// On the backup this carries the main Mac's playhead to follow.
+    /// The second value: this Mac sends the keys (it is the main Mac).
+    public var onPeerQLabState: ((QLabLinkState, Bool) -> Void)?
+    /// A cue key went down (keyboard or iPhone) while QLab mode is on (called with the lock held).
+    public var onQLabCueKey: ((CueKey) -> Void)?
+    /// Cue keys send MIDI notes (false: "QLab only" without notes; the keys then only run QLab).
+    private var cueNotes = true
+    /// Cue keys also run their QLab action (QLab or both).
+    private var qlabKeys = false
+    private var qlabSeen = QLabSeenCommands()
+    private struct PendingQLab { var cmd: QLabCommand; var sentAt: Double; var resends = 0; var delivery = "waiting" }
+    private var pendingQLab: [UInt32: PendingQLab] = [:]
+    private var qlabCommandID: UInt32 = 0
+    private var localQLab: QLabLinkState?
+    private var localQLabCues: QLabCueSummary?
+    private var peerQLabState: QLabLinkState?
+    private var peerQLabCues: QLabPeerCues?
+    private var qlabCursor = 0
+    static let qlabItemsPerHeartbeat = 8
+
+    /// What cue keys do: `notes` (MIDI notes as before) and/or `qlab` (their QLab action).
+    /// Ableton Live mode is notes only, exactly as before QLab mode existed.
+    public func setCueKeyMode(notes: Bool, qlab: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        if !notes, cueNotes { for off in engine.releaseAll() { emitLocal(off, fromKeys: true); sendRemote(off) } }
+        cueNotes = notes; qlabKeys = qlab
+    }
+
+    public enum QLabForward: Equatable, Sendable {
+        case sent(UInt32)
+        case notLinked
+        /// The other Mac's TwinKeys does not understand QLab mode (older, or Windows).
+        case unsupported
+    }
+
+    /// Main Mac: send a QLab command to the backup (resent every 0.1 s, missing after 0.3 s, as cues).
+    public func forwardQLab(_ cmd: QLabCommand) -> QLabForward {
+        lock.lock(); defer { lock.unlock() }
+        guard cmd.isValid, link.isConnected, let p = link.peer else { return .notLinked }
+        guard peerQLab else { return .unsupported }
+        qlabCommandID &+= 1
+        let id = qlabCommandID
+        pendingQLab[id] = PendingQLab(cmd: cmd, sentAt: clock())
+        if pendingQLab.count > 64, let oldest = pendingQLab.keys.min() { pendingQLab.removeValue(forKey: oldest) }
+        sendBody(.qlabCommand(id: id, cmd), to: p, copies: redundancy)
+        return .sent(id)
+    }
+
+    /// "waiting", "missing" (no answer in 0.3 s), or what the backup's QLab did (`QLabResultCode.name`),
+    /// "unknown" for an id not (or no longer) known.
+    public func qlabDelivery(_ id: UInt32) -> String {
+        lock.lock(); defer { lock.unlock() }
+        return pendingQLab[id]?.delivery ?? "unknown"
+    }
+
+    /// This Mac's QLab in short (nil: QLab mode off). Sent with each heartbeat; a change at once.
+    public func setLocalQLab(_ st: QLabLinkState?, cues: QLabCueSummary?) {
+        lock.lock(); defer { lock.unlock() }
+        let changed = st != localQLab
+        localQLab = st
+        if cues != localQLabCues { localQLabCues = cues; qlabCursor = 0 }
+        if changed, link.isConnected, let p = link.peer, peerQLab, let st { sendBody(.qlabState(st), to: p) }
+    }
+
+    /// This Mac sends the keys (the main Mac).
+    public var sendsKeys: Bool { lock.lock(); defer { lock.unlock() }; return sendKeys }
+
+    /// The other Mac understands QLab mode (nil: not linked).
+    public var peerUnderstandsQLab: Bool? {
+        lock.lock(); defer { lock.unlock() }
+        return link.isConnected ? peerQLab : nil
+    }
+
+    /// The other Mac's QLab as it last told us (nil: not linked, or QLab mode off there).
+    public var peerQLabStatus: QLabLinkState? {
+        lock.lock(); defer { lock.unlock() }
+        return link.isConnected ? peerQLabState : nil
+    }
+
+    /// How this Mac's cue list differs from the other Mac's (nil: same or not known).
+    public var qlabDiff: QLabCueDiff? {
+        lock.lock(); defer { lock.unlock() }
+        guard link.isConnected, let mine = localQLabCues else { return nil }
+        return QLabCueDiff.compare(mine: mine, peer: peerQLabCues)
+    }
+
+    private func reportQLabRun(key: UInt64, id: UInt32, _ code: QLabResultCode, to peer: String) {
+        lock.lock(); defer { lock.unlock() }
+        qlabSeen.setResult(key, code)
+        guard link.peer == peer, link.isConnected else { return }
+        sendBody(.qlabResult(id: id, code: code.rawValue), to: peer, copies: redundancy)
+    }
+
+    /// With each heartbeat: the state, and while the lists differ, the next few cues.
+    private func sendQLab(to p: String) {
+        guard peerQLab, let st = localQLab else { return }
+        sendBody(.qlabState(st), to: p)
+        guard let mine = localQLabCues, !mine.items.isEmpty, let peer = peerQLabState,
+              peer.listHash != mine.hash || peer.cueCount != mine.items.count else { return }
+        for _ in 0..<min(Self.qlabItemsPerHeartbeat, mine.items.count) {
+            if qlabCursor >= mine.items.count { qlabCursor = 0 }
+            let i = qlabCursor
+            qlabCursor += 1
+            let it = mine.items[i]
+            sendBody(.qlabItem(index: UInt16(clamping: i), number: it.number, type: it.type.rawValue, name: it.name), to: p)
+        }
+    }
+
+    private func checkQLab(_ now: Double) {
+        guard let p = link.peer, link.isConnected else {
+            for k in pendingQLab.keys where pendingQLab[k]!.delivery == "waiting" { pendingQLab[k]!.delivery = "missing" }
+            return
+        }
+        for (id, var c) in pendingQLab where c.delivery == "waiting" {
+            let age = now - c.sentAt
+            if age >= Self.cueAnswerTimeout {
+                c.delivery = "missing"
+                log("QLab \(c.cmd.action.name): no answer from \(name(of: p)) within \(Int(Self.cueAnswerTimeout * 1000)) ms")
+            } else if age >= Self.cueResendInterval * Double(c.resends + 1), c.resends < 2 {
+                c.resends += 1
+                sendBody(.qlabCommand(id: id, c.cmd), to: p)
+            }
+            pendingQLab[id] = c
+        }
+        pendingQLab = pendingQLab.filter { $0.value.delivery == "waiting" || now - $0.value.sentAt < 10 }
+    }
+
     /// The control a "latest value counts" command sets, or nil for one-shot commands.
     static func latestKey(_ cmd: LiveCommand) -> String? {
         switch cmd {
@@ -1141,6 +1327,7 @@ public final class Conductor: @unchecked Sendable {
                 if mainClaim > 0 { sendBody(.roleClaim(millis: mainClaim), to: p) }
                 sendSet(to: p)
                 sendDesk(rows: false, to: p)
+                sendQLab(to: p)
                 heartbeatsSinceNames += 1
                 if heartbeatsSinceNames >= 10, link.isConnected { sendCueNames(to: p) }
             case let .sendHeartbeatAck(p, t):

@@ -33,12 +33,36 @@ struct WatchState: Codable, Equatable, Sendable {
     /// When the iPhone made this (seconds since 1970).
     var stamp: Double = 0
 
+    // QLab mode (docs/design-qlab.md 6.4): the iPhone and the watch ship together, so no older watch
+    // has to read these. "live", "qlab" or "both".
+    var target = "live"
+    /// "12 雨の音（遠く）": the newest running cue.
+    var qlabNow: String?
+    /// "13 雷鳴 1": the cue standing by, and its number (GO checks it).
+    var qlabNext: String?
+    var qlabNextNumber: String?
+    /// Seconds left of the running cue when this was made, and its length (the ring).
+    var qlabLeft: Double?
+    var qlabTotal: Double?
+    /// Both QLabs can GO.
+    var qlabOK = false
+    /// A few cues around the playhead for the list page.
+    var qlabCues: [WatchQLabCue] = []
+
+    var qlab: Bool { target != "live" }
+
     /// Same, apart from the clock: the time left only counts when it moved off the countdown by over 1.5 s
     /// (so a running clip does not send a new state every second).
     func sameAs(_ newer: WatchState) -> Bool {
         var a = self, b = newer
         a.left = nil; b.left = nil; a.stamp = 0; b.stamp = 0
+        a.qlabLeft = nil; b.qlabLeft = nil
         guard a == b else { return false }
+        switch (qlabLeft, newer.qlabLeft) {
+        case (nil, nil): break
+        case let (l?, r?): if abs(max(0, l - (newer.stamp - stamp)) - r) >= 1.5 { return false }
+        default: return false
+        }
         switch (left, newer.left) {
         case (nil, nil): return true
         case let (l?, r?):
@@ -55,6 +79,14 @@ struct WatchState: Codable, Equatable, Sendable {
     }
 }
 
+/// One row of the watch's QLab list.
+struct WatchQLabCue: Codable, Equatable, Sendable {
+    var number: String
+    var name: String
+    var running = false
+    var next = false
+}
+
 /// What the watch asks the iPhone to do. Sent with `sendMessage` only (never queued for later: a late GO is worse than none).
 enum WatchCommand: Codable, Equatable, Sendable {
     /// GO: play `scene` (the scene the watch showed as next), then the next scene becomes "next".
@@ -64,6 +96,12 @@ enum WatchCommand: Codable, Equatable, Sendable {
     case allNotesOff
     /// Send the current state back (the watch app opened, or the iPhone became reachable).
     case refresh
+    /// QLab mode: GO the cue the watch showed as next (`expect`: its number).
+    case qlabGo(expect: String?)
+    /// QLab mode: Panic on both Macs (again during the fade: stop at once).
+    case qlabPanic
+    /// QLab mode: move the playhead to that cue on both Macs (no GO).
+    case qlabPlayhead(number: String)
 }
 
 /// Dictionary keys and helpers shared by both sides.

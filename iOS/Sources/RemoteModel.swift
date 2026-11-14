@@ -49,6 +49,13 @@ final class RemoteModel: ObservableObject {
         }
     }
     @Published var lastBackup: String?
+    /// QLab mode (docs/design-qlab.md 6.3): the Mac's QLab and the backup's, the cue list shown, and
+    /// when the status arrived (running cues count down from then).
+    @Published var qlabStatus: QLabStatus?
+    @Published var qlabCues: [QLabCue] = []
+    @Published var qlabStatusAt = Date()
+    /// Ids of QLab commands (their results get QLab texts).
+    private var qlabIDs: Set<Int> = []
     /// 2.3: the main screen stays up when the link drops (stale data is better than the pairing
     /// screen mid-show). Set at the first welcome; cleared when choosing another Mac.
     @Published var wasConnected = false
@@ -326,6 +333,20 @@ final class RemoteModel: ObservableObject {
                 }
             case let .pong(t):
                 if let p = probePing, t >= p { probePing = nil }      // a Mac on 2.2.0 or newer
+            case let .qlabCues(piece):
+                qlabCues = QLabCueList.merge(piece, into: qlabCues)
+            case let .qlabStatus(st):
+                qlabStatus = st
+                qlabStatusAt = Date()
+            case let .result(rid, ok, err, backup) where qlabIDs.contains(rid):
+                qlabIDs.remove(rid)
+                lastBackup = backup
+                if !ok {
+                    // A double press merged on the Mac is not a problem worth a banner.
+                    if err != "qlab_double" { lastResult = err ?? "qlab_error" }
+                } else if ["missing", "noSuchCue", "notConnected", "noAnswer", "denied", "badPasscode", "corrected"].contains(backup) {
+                    lastResult = "qlab_backup_" + backup
+                }
             case let .result(rid, ok, err, backup):
                 lastBackup = backup
                 // Fader and tempo moves: no banner per step (the top bar shows the backup's Live).
@@ -445,6 +466,50 @@ final class RemoteModel: ObservableObject {
         send(.cue(id: nextID, keycode: keycode))
     }
 
+    // MARK: QLab mode (docs/design-qlab.md 4.2)
+
+    /// What the Mac drives (Ableton Live for Macs before QLab mode).
+    var target: QLabTarget { qlabStatus?.target ?? status?.target ?? .live }
+
+    /// The Mac drives QLab and understands QLab commands: the QLab screens are shown.
+    var qlabOn: Bool { target.drivesQLab && (demo || compat.understands(RemoteFeature.qlab)) }
+
+    /// QLab only: Session and Mixer give way to the cue list.
+    var qlabOnly: Bool { qlabOn && target == .qlab }
+
+    /// The cue standing by on the main Mac's QLab.
+    var qlabNext: QLabCue? {
+        guard let id = qlabStatus?.playheadID else { return nil }
+        return qlabCues.first { $0.uniqueID == id }
+    }
+
+    /// Seconds left of a running cue now (counted down from when the status arrived).
+    func qlabLeft(_ r: QLabRunningCue, now: Date) -> Double? {
+        guard let d = r.duration, d > 0 else { return nil }
+        let e = r.elapsed + (r.paused ? 0 : max(0, now.timeIntervalSince(qlabStatusAt)))
+        return max(0, d - e)
+    }
+
+    /// GO, Panic, the playhead and Stop on both Macs' QLab. GO, Panic and the playhead work under the
+    /// show lock; Stop is held back when the lock stops "Stop".
+    func qlab(_ cmd: QLabCommand) {
+        if cmd.action == .hardStop, locked, lockScope.contains(.stops) { lastResult = "locked"; return }
+        switch cmd.action {
+        case .go, .goCue: UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        case .panic, .hardStop: UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        default: UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        if demo { applyDemoQLab(cmd); return }
+        guard compat.understands(RemoteFeature.qlab) else { lastResult = "old_mac_qlab"; return }
+        nextID += 1
+        qlabIDs.insert(nextID)
+        if qlabIDs.count > 100 { qlabIDs.removeAll() }
+        send(.qlab(id: nextID, cmd))
+    }
+
+    /// GO with the cue the iPhone shows as next (the Mac refuses it if QLab's next changed meanwhile).
+    func qlabGo() { qlab(QLabCommand(action: .go, expect: qlabNext?.number ?? qlabStatus?.playheadNumber)) }
+
     func allNotesOff() {
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
         nextID += 1
@@ -506,6 +571,7 @@ final class RemoteModel: ObservableObject {
         locked = false
         demo = false; trialMode = false
         live = LiveState(); status = nil; lastResult = nil; lastBackup = nil
+        qlabStatus = nil; qlabCues = []
         wasConnected = false; lostAt = nil; switchedToBackup = false
         phase = pairingCode.isEmpty ? .needsCode : .searching
         startBrowsing()
@@ -548,6 +614,70 @@ final class RemoteModel: ObservableObject {
                                                  .init(kind: "scene", index: 6, main: "M2 本編", backup: "M2 本編 v2")],
                                           complete: true)
                                 : nil)
+        loadDemoQLab()
+    }
+
+    // MARK: QLab sample (`-demo -target qlab`; fictional workspace and cue names)
+
+    private func loadDemoQLab() {
+        let a = ProcessInfo.processInfo.arguments
+        guard let i = a.firstIndex(of: "-target"), i + 1 < a.count, let t = QLabTarget(rawValue: a[i + 1]), t.drivesQLab else { return }
+        let rows: [(String, String, QLabCueType, Double?, Int)] = [
+            ("1", "開演前の確認", .memo, nil, 0), ("2", "客入れ BGM", .audio, 1080, 0), ("3", "客入れ BGM フェードアウト", .fade, 8, 0),
+            ("4", "開演ベル", .audio, 6, 0), ("10", "第1場", .group, nil, 0), ("11", "鳥の声（朝）", .audio, 90, 1),
+            ("11.5", "夜の環境音（ループ）", .audio, 0, 1), ("12", "雨の音（遠く）", .audio, 200, 1), ("13", "雷鳴 1", .audio, 12, 1),
+            ("14", "雨 フェードアウト", .fade, 5, 1), ("15", "映像へ合図", .network, nil, 0), ("20", "第2場", .group, nil, 0),
+            ("21", "街のざわめき", .audio, 150, 1), ("22", "電話の音", .audio, 9, 1), ("23", "ざわめき フェードアウト", .fade, 6, 1),
+            ("90", "雷（予備）", .audio, 4, 0),
+        ]
+        qlabCues = rows.map { QLabCue(uniqueID: "C-" + $0.0, number: $0.0, name: $0.1, type: $0.2, duration: $0.3, depth: $0.4) }
+        func running(_ n: String, _ e: Double, _ d: Double?) -> QLabRunningCue {
+            let c = qlabCues.first { $0.number == n }!
+            return QLabRunningCue(uniqueID: c.uniqueID, number: n, name: c.name, type: c.type, elapsed: e, duration: d, paused: false)
+        }
+        qlabStatus = QLabStatus(target: t, state: .ready, version: "5.6.5", workspaceName: "sample-show", listName: "Main",
+                                permissions: [.view, .control], showMode: true, cueCount: qlabCues.count,
+                                playheadID: "C-13", playheadNumber: "13",
+                                running: [running("12", 132, 200), running("11.5", 80, 300)],
+                                backup: QLabBackupStatus(supported: true, state: .ready, showMode: true, cueCount: qlabCues.count,
+                                                         sameCues: true, playheadNumber: "13", samePlayhead: true, running: 2),
+                                last: QLabLastCommand(action: .go, number: "12", name: "雨の音（遠く）", main: "delivered", backup: "delivered"),
+                                stamp: Date().timeIntervalSince1970)
+        qlabStatusAt = Date()
+        status?.target = t
+        status?.lastCue = .init(label: "Space", memo: "GO", count: 12, delivery: "delivered")
+        // The cue keys as set for QLab on the Mac (Space GO, arrows the playhead, Esc Panic, A a cue).
+        status?.cueKeys = [(0x7E, "↑", "前へ"), (0x7D, "↓", "次へ"), (0x31, "Space", "GO"), (0x35, "Esc", "Panic"),
+                           (0x00, "A", "雷（予備）を GO"), (0x24, "Return", "")].map { .init(keycode: $0.0, label: $0.1, memo: $0.2) }
+    }
+
+    private func applyDemoQLab(_ cmd: QLabCommand) {
+        guard var st = qlabStatus else { return }
+        let i = qlabCues.firstIndex { $0.uniqueID == st.playheadID }
+        func move(_ j: Int?) {
+            let c = j.flatMap { $0 >= 0 && $0 < qlabCues.count ? qlabCues[$0] : nil }
+            st.playheadID = c?.uniqueID; st.playheadNumber = c?.number
+            st.backup?.playheadNumber = c?.number
+        }
+        func start(_ j: Int) {
+            let c = qlabCues[j]
+            st.running.insert(QLabRunningCue(uniqueID: c.uniqueID, number: c.number, name: c.name, type: c.type,
+                                             elapsed: 0, duration: c.duration, paused: false), at: 0)
+            st.last = QLabLastCommand(action: .go, number: c.number, name: c.name, main: "delivered", backup: "delivered")
+            move(j + 1)
+        }
+        switch cmd.action {
+        case .go: if let i { start(i) }
+        case .goCue: if let j = qlabCues.firstIndex(where: { $0.number == cmd.cueNumber }) { start(j) }
+        case .playheadNext: move(min((i ?? -1) + 1, qlabCues.count - 1))
+        case .playheadPrevious: move(max((i ?? 1) - 1, 0))
+        case .setPlayhead: move(qlabCues.firstIndex { $0.number == cmd.cueNumber })
+        case .panic, .hardStop: st.running = []
+        case .pause, .resume: break
+        }
+        st.backup?.running = st.running.count
+        qlabStatus = st
+        qlabStatusAt = Date()
     }
 
     private func applyDemo(_ cmd: LiveCommand) {
