@@ -1,14 +1,14 @@
 # Privacy Policy
 
-Last updated: November 12, 2026
+Last updated: November 14, 2026
 
-This policy covers **TwinKeys Remote** (the iPhone and iPad app) and **TwinKeys** (the Mac app), made by Shogo Kajiyama / SEVENTHWELL.
+This policy covers **TwinKeys Remote** (the iPhone and iPad app) and **TwinKeys** (the Mac and Windows apps), made by Shogo Kajiyama / SEVENTHWELL.
 
 ## In short
 
 - TwinKeys Remote **collects no data**. Nothing is sent to us or to anyone else.
 - No accounts, no analytics, no advertising, no tracking, no in-app purchases.
-- The app talks only to TwinKeys on **your own Macs**, on your local network. It does not connect to the internet.
+- The app talks only to TwinKeys on **your own computers** (Mac or Windows), on your local network. It does not connect to the internet.
 
 ## What TwinKeys Remote keeps on your iPhone or iPad
 
@@ -40,6 +40,15 @@ Nothing. We do not run any server for these apps and we receive no data from the
 - TwinKeys sends cues and notes only to your other Mac and to TwinKeys Remote on your local network.
 - To check for updates, TwinKeys asks GitHub (api.github.com) for the list of releases and downloads new versions from GitHub. GitHub receives your IP address, as with any web request; see the [GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). You can turn automatic checks off in TwinKeys Settings > Updates.
 - Settings and logs stay on your Mac (`~/Library/Application Support/TwinKeys/` and `~/Library/Logs/TwinKeys/`).
+
+## TwinKeys for Windows
+
+- TwinKeys sends cues and notes only to the other computer (Mac or Windows) on the same network and to TwinKeys Remote. On the PC itself, it talks only to Ableton Live (TwinKeysBridge) and to MIDI ports.
+- **About the keyboard:** to tell whether a key pressed during a show is a cue key, TwinKeys uses Windows' keyboard hook. It only checks whether the key is a cue key. It never records what you type and never sends it anywhere; the log holds cue key names only.
+- The pairing code is encrypted with Windows' DPAPI and kept for this Windows user on this PC only.
+- Settings and logs stay on the PC (`%LOCALAPPDATA%\TwinKeys\`; the Microsoft Store version keeps them in the app's own folder).
+- TwinKeys does not talk to any server of ours. The Microsoft Store version is updated by the Microsoft Store; for what the Store collects, see the [Microsoft Privacy Statement](https://privacy.microsoft.com/en-us/privacystatement).
+- When Windows asks whether to allow network access, it is used only to connect to the other computer and the iPhone on the same network.
 
 ## This website
 

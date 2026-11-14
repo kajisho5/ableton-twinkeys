@@ -71,7 +71,7 @@ public partial class App : Application
             EarlyLog.Write("Smoke: all windows opened");
             return;
         }
-        bool background = cmd.Contains("--background");
+        bool background = StartupRegistration.StartedAtSignIn(cmd);
         if (!model.Settings.FirstRunDone && !background) ShowFirstRun();
         else if (!background) ShowMain();
     }

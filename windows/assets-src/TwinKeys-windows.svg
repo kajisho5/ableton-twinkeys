@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- The Windows app icon (the same drawing as src/TwinKeys.App/Assets/TwinKeys.ico, 256 px layer), redrawn
+       as a vector so the MSIX logos can be made at any size: windows/scripts/make-msix-assets.py. -->
+  <rect x="8" y="8" width="241" height="241" rx="44" fill="#005FB8"/>
+  <rect x="56" y="53" width="63" height="151" rx="12" fill="#FFFFFF"/>
+  <rect x="138" y="53" width="63" height="151" rx="12" fill="#FFFFFF"/>
+</svg>

@@ -1,0 +1,33 @@
+<Project>
+  <!--
+    The Microsoft Store identity of TwinKeys for Windows: the ONLY place to change it.
+    docs/windows-store-submit.md (step 2) says where each value comes from.
+
+    After reserving the name "TwinKeys" in Partner Center, open the app, then
+    Product management > Product identity, and copy these three values exactly (they are case-sensitive):
+      Package/Identity/Name              -> StoreIdentityName
+      Package/Identity/Publisher         -> StoreIdentityPublisher      (starts with "CN=")
+      Package/Properties/PublisherDisplayName -> StorePublisherDisplayName
+    https://learn.microsoft.com/windows/apps/publish/view-app-identity-details
+
+    Until then these are placeholders (StoreIdentityIsPlaceholder is true): the MSIX still builds and installs
+    with a test certificate on the CI runner, but Partner Center will refuse it.
+  -->
+  <PropertyGroup>
+    <StoreIdentityName>REPLACE-ME.TwinKeys</StoreIdentityName>
+    <StoreIdentityPublisher>CN=REPLACE-ME-WITH-PARTNER-CENTER-PUBLISHER</StoreIdentityPublisher>
+    <StorePublisherDisplayName>REPLACE-ME</StorePublisherDisplayName>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <StoreIdentityIsPlaceholder>false</StoreIdentityIsPlaceholder>
+    <StoreIdentityIsPlaceholder Condition="$(StoreIdentityName.Contains('REPLACE-ME')) or $(StoreIdentityPublisher.Contains('REPLACE-ME')) or $(StorePublisherDisplayName.Contains('REPLACE-ME'))">true</StoreIdentityIsPlaceholder>
+    <!--
+      The package version (Identity/Version). Not the app's version (Directory.Build.props, 0.3.0): the Store
+      wants four numbers, the first not 0 and the last 0, and each update higher than the last
+      (https://learn.microsoft.com/windows/apps/publish/publish-your-app/msix/app-package-requirements).
+      CI passes the run number as the third number: -p:StorePackageVersion=1.0.<run>.0
+    -->
+    <StorePackageVersion Condition="'$(StorePackageVersion)' == ''">1.0.0.0</StorePackageVersion>
+  </PropertyGroup>
+</Project>

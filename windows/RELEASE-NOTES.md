@@ -4,6 +4,37 @@ Kept here, not in `release-notes/`, because that folder holds the Mac app's note
 the Mac release workflow read every file in it).
 
 ---
+version: 0.3.0 (test version)
+date: 2026-11-14
+---
+
+## 日本語
+
+> **試験版です。まだ本物の Windows PC では試していません。**
+
+### 新しくなったこと
+- Microsoft Store に出せる形（MSIX）を作れるようにしました。Store 版は Store が署名と更新をします（SmartScreen の警告が出ません）。
+- Store 版では、「サインイン時に起動」を Windows のスタートアップ タスクで行います（Store 版はレジストリの Run キーが使えないため）。
+- プライバシーポリシーに Windows 版のこと（キーボードフック、保存する場所）を足しました。
+- Mac 版 2.4.0 と組めます（Mac 版の QLab モードは Mac だけの機能です）。
+
+### まだできないこと
+- Store での公開（名前の予約とアップロードは、手順書 `docs/windows-store-submit.md` のとおり）。
+
+## English
+
+> **Test version, not yet tried on a real Windows PC.**
+
+### New
+- CI builds a Microsoft Store package (MSIX). The Store signs and updates it (no SmartScreen warning).
+- In the Store version, "Start at sign-in" uses a Windows startup task (packaged apps cannot use the Run registry key).
+- The privacy policy now covers TwinKeys for Windows (keyboard hook, where data is kept).
+- Works with TwinKeys 2.4.0 for Mac (QLab mode is Mac only).
+
+### Not yet
+- Publishing in the Store (reserve the name and upload as in `docs/windows-store-submit.md`).
+
+---
 version: 0.2.0 (test version)
 date: 2026-11-13
 ---
