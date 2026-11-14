@@ -311,6 +311,9 @@ public sealed record Packet(uint Session, uint Seq, PacketBody Body)
                 body = new PacketBody.RemoteSummary(p[0], p[1]);
                 break;
             case 0x22: body = new PacketBody.Desk(p.ToArray()); break;
+            // 0x23-0x26 are the Mac's QLab mode (docs/design-qlab.md 6.2, phase 3). QLab runs on macOS
+            // only, so this version does not drive it: they stay unknown and are dropped. A Mac sends
+            // them only to a peer whose features have bit 2 (QLab), which this version never sets.
             default: throw new PacketDecodeException(DecodeError.UnknownType);
         }
         return new Packet(session, seq, body);

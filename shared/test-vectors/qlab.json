@@ -1,0 +1,231 @@
+{
+  "about": "QLab mode (docs/design-qlab.md): OSC messages and SLIP frames TwinKeys sends to QLab, and the Mac-to-Mac packets 0x23-0x26. TwinKeys for Windows does not drive QLab: it must reject every packet here as unknownType (and so drop it), and accept features with the QLab bit (4) set. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+  "features_with_qlab": {
+    "bytes": "544b021300000001000000280507",
+    "epoch": 7,
+    "flags": 5
+  },
+  "osc": [
+    {
+      "address": "/workspace/WS-1/go",
+      "args": [],
+      "bytes": "2f776f726b73706163652f57532d312f676f00002c000000",
+      "name": "go",
+      "slip": "c02f776f726b73706163652f57532d312f676f00002c000000c0"
+    },
+    {
+      "address": "/workspace/WS-1/connect",
+      "args": [
+        {
+          "type": "s",
+          "value": "1234"
+        }
+      ],
+      "bytes": "2f776f726b73706163652f57532d312f636f6e6e656374002c7300003132333400000000",
+      "name": "connect_passcode",
+      "slip": "c02f776f726b73706163652f57532d312f636f6e6e656374002c7300003132333400000000c0"
+    },
+    {
+      "address": "/workspace/WS-1/alwaysReply",
+      "args": [
+        {
+          "type": "i",
+          "value": 1
+        }
+      ],
+      "bytes": "2f776f726b73706163652f57532d312f616c776179735265706c79002c69000000000001",
+      "name": "always_reply",
+      "slip": "c02f776f726b73706163652f57532d312f616c776179735265706c79002c69000000000001c0"
+    },
+    {
+      "address": "/workspace/WS-1/cue_id/C-12/valuesForKeys",
+      "args": [
+        {
+          "type": "s",
+          "value": "[\"currentDuration\"]"
+        }
+      ],
+      "bytes": "2f776f726b73706163652f57532d312f6375655f69642f432d31322f76616c756573466f724b6579730000002c7300005b2263757272656e744475726174696f6e225d00",
+      "name": "values_for_keys",
+      "slip": "c02f776f726b73706163652f57532d312f6375655f69642f432d31322f76616c756573466f724b6579730000002c7300005b2263757272656e744475726174696f6e225d00c0"
+    },
+    {
+      "address": "/test",
+      "args": [
+        {
+          "type": "f",
+          "value": 1.5
+        },
+        {
+          "type": "T"
+        },
+        {
+          "type": "F"
+        },
+        {
+          "type": "i",
+          "value": -2
+        }
+      ],
+      "bytes": "2f746573740000002c665446690000003fc00000fffffffe",
+      "name": "float_and_bools",
+      "slip": "c02f746573740000002c665446690000003fdbdc0000fffffffec0"
+    },
+    {
+      "address": "/reply/workspace/WS-1/go",
+      "args": [
+        {
+          "type": "s",
+          "value": "{\"status\":\"ok\"}"
+        }
+      ],
+      "bytes": "2f7265706c792f776f726b73706163652f57532d312f676f000000002c7300007b22737461747573223a226f6b227d00",
+      "name": "reply",
+      "slip": "c02f7265706c792f776f726b73706163652f57532d312f676f000000002c7300007b22737461747573223a226f6b227d00c0"
+    }
+  ],
+  "packets": [
+    {
+      "body": {
+        "action": 1,
+        "expect": "13",
+        "id": 7,
+        "type": "qlabCommand"
+      },
+      "bytes": "544b0223000000010000001e000000070100023133",
+      "name": "qlabCommand_go",
+      "seq": 30,
+      "session": 1,
+      "size": 21,
+      "windows_error": "unknownType"
+    },
+    {
+      "body": {
+        "action": 6,
+        "cue": "90",
+        "id": 8,
+        "type": "qlabCommand"
+      },
+      "bytes": "544b0223000000010000001f000000080602393000",
+      "name": "qlabCommand_goCue",
+      "seq": 31,
+      "session": 1,
+      "size": 21,
+      "windows_error": "unknownType"
+    },
+    {
+      "body": {
+        "action": 4,
+        "id": 9,
+        "type": "qlabCommand"
+      },
+      "bytes": "544b0223000000010000002000000009040000",
+      "name": "qlabCommand_panic",
+      "seq": 32,
+      "session": 1,
+      "size": 19,
+      "windows_error": "unknownType"
+    },
+    {
+      "body": {
+        "code": 1,
+        "id": 7,
+        "type": "qlabResult"
+      },
+      "bytes": "544b0224000000020000001e0000000701",
+      "name": "qlabResult_corrected",
+      "seq": 30,
+      "session": 2,
+      "size": 17,
+      "windows_error": "unknownType"
+    },
+    {
+      "body": {
+        "cues": 48,
+        "follow": true,
+        "keys_hash": 16909060,
+        "list_hash": 3405691582,
+        "permissions": 5,
+        "playhead": "13",
+        "running": 2,
+        "show_mode": true,
+        "state": 6,
+        "target": "qlab",
+        "type": "qlabState"
+      },
+      "bytes": "544b0225000000020000001f060507020030cafebabe01020304023133",
+      "name": "qlabState",
+      "seq": 31,
+      "session": 2,
+      "size": 29,
+      "windows_error": "unknownType"
+    },
+    {
+      "body": {
+        "cues": 0,
+        "follow": false,
+        "keys_hash": 0,
+        "list_hash": 0,
+        "permissions": 0,
+        "running": 0,
+        "show_mode": false,
+        "state": 1,
+        "target": "both",
+        "type": "qlabState"
+      },
+      "bytes": "544b02250000000200000020010008000000000000000000000000",
+      "name": "qlabState_no_playhead",
+      "seq": 32,
+      "session": 2,
+      "size": 27,
+      "windows_error": "unknownType"
+    },
+    {
+      "body": {
+        "cue_type": 1,
+        "index": 11,
+        "name": "雨の音（遠く）",
+        "number": "12",
+        "type": "qlabItem"
+      },
+      "bytes": "544b02260000000200000021000b0231320115e99ba8e381aee99fb3efbc88e981a0e3818fefbc89",
+      "name": "qlabItem",
+      "seq": 33,
+      "session": 2,
+      "size": 40,
+      "windows_error": "unknownType"
+    },
+    {
+      "body": {
+        "cue_type": 4,
+        "index": 300,
+        "name": "雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷雷",
+        "number": "1.5",
+        "type": "qlabItem"
+      },
+      "bytes": "544b02260000000200000022012c03312e35043fe99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7e99bb7",
+      "name": "qlabItem_long_name_cut",
+      "seq": 34,
+      "session": 2,
+      "size": 83,
+      "windows_error": "unknownType"
+    }
+  ],
+  "slip": [
+    {
+      "framed": "c02f676f00c0",
+      "name": "plain",
+      "packet": "2f676f00"
+    },
+    {
+      "framed": "c001dbdc02dbdd03c0",
+      "name": "escapes_end_and_esc",
+      "packet": "01c002db03"
+    },
+    {
+      "framed": "c0dbdcdbdcdbddc0",
+      "name": "only_specials",
+      "packet": "c0c0db"
+    }
+  ]
+}

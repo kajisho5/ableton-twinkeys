@@ -31,6 +31,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var remoteEnabled: Bool = false
     /// 2.4 (experimental): moving a Yamaha console's faders when the main Mac stops. Off by default.
     public var desk = DeskSettings()
+    /// QLab mode (docs/design-qlab.md): what TwinKeys drives. Ableton Live by default (as before).
+    public var target: QLabTarget = .live
+    public var qlab = QLabSettings()
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -51,6 +54,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case approvedDevices = "approved_devices"
         case remoteEnabled = "remote_enabled"
         case desk
+        case target
+        case qlab
     }
 
     public init() {}
@@ -86,6 +91,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         // Rows from the first 2.4 builds (by role) are keyed to this Mac now; the other Mac's
         // side keeps a placeholder until the two Macs are linked.
         desk.normalize(me: instanceID.uuidString)
+        target = (try? c.decodeIfPresent(QLabTarget.self, forKey: .target)) ?? d.target
+        qlab = (try? c.decodeIfPresent(QLabSettings.self, forKey: .qlab)) ?? d.qlab
     }
 }
 

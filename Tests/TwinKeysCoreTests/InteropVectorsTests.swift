@@ -85,7 +85,79 @@ final class InteropVectorsTests: XCTestCase {
         case .roleHandover: return ["type": "roleHandover"]
         case let .remoteSummary(phones, watch): return ["type": "remoteSummary", "phones": Int(phones), "watch": Int(watch)]
         case .desk: return ["type": "desk"]
+        case let .qlabCommand(id, c):
+            var d: [String: Any] = ["type": "qlabCommand", "id": Int(id), "action": Int(c.action.rawValue)]
+            if let n = c.cueNumber { d["cue"] = n }
+            if let e = c.expect { d["expect"] = e }
+            return d
+        case let .qlabResult(id, code): return ["type": "qlabResult", "id": Int(id), "code": Int(code)]
+        case let .qlabState(st):
+            var d: [String: Any] = ["type": "qlabState", "state": Int(st.state.rawValue), "permissions": Int(st.permissions.rawValue),
+                                    "show_mode": st.showMode, "follow": st.follow, "target": st.target.rawValue, "running": st.running,
+                                    "cues": st.cueCount, "list_hash": Int(st.listHash), "keys_hash": Int(st.keysHash)]
+            if let ph = st.playhead { d["playhead"] = ph }
+            return d
+        case let .qlabItem(index, number, type, name):
+            return ["type": "qlabItem", "index": Int(index), "number": number, "cue_type": Int(type), "name": name]
         }
+    }
+
+    // MARK: QLab mode (docs/design-qlab.md 6.2, 9 phase 3)
+
+    /// OSC messages as TwinKeys sends them to QLab, and SLIP frames.
+    static let oscCases: [(String, OSCMessage)] = [
+        ("go", OSCMessage("/workspace/WS-1/go")),
+        ("connect_passcode", OSCMessage("/workspace/WS-1/connect", [.string("1234")])),
+        ("always_reply", OSCMessage("/workspace/WS-1/alwaysReply", [.int(1)])),
+        ("values_for_keys", OSCMessage("/workspace/WS-1/cue_id/C-12/valuesForKeys", [.string("[\"currentDuration\"]")])),
+        ("float_and_bools", OSCMessage("/test", [.float(1.5), .bool(true), .bool(false), .int(-2)])),
+        ("reply", OSCMessage("/reply/workspace/WS-1/go", [.string("{\"status\":\"ok\"}")])),
+    ]
+
+    static let qlabPacketCases: [(name: String, session: UInt32, seq: UInt32, body: PacketBody)] = [
+        ("qlabCommand_go", 1, 30, .qlabCommand(id: 7, QLabCommand(action: .go, expect: "13"))),
+        ("qlabCommand_goCue", 1, 31, .qlabCommand(id: 8, QLabCommand(action: .goCue, cueNumber: "90"))),
+        ("qlabCommand_panic", 1, 32, .qlabCommand(id: 9, QLabCommand(action: .panic))),
+        ("qlabResult_corrected", 2, 30, .qlabResult(id: 7, code: QLabResultCode.corrected.rawValue)),
+        ("qlabState", 2, 31, .qlabState(QLabLinkState(state: .ready, permissions: [.view, .control], showMode: true, follow: true,
+                                                       target: .qlab, running: 2, cueCount: 48, listHash: 0xCAFE_BABE,
+                                                       keysHash: 0x0102_0304, playhead: "13"))),
+        ("qlabState_no_playhead", 2, 32, .qlabState(QLabLinkState(state: .connecting, target: .both))),
+        ("qlabItem", 2, 33, .qlabItem(index: 11, number: "12", type: QLabCueType.audio.rawValue, name: "雨の音（遠く）")),
+        ("qlabItem_long_name_cut", 2, 34, .qlabItem(index: 300, number: "1.5", type: QLabCueType.group.rawValue, name: String(repeating: "雷", count: 40))),
+    ]
+
+    static func describe(_ a: OSCArgument) -> [String: Any] {
+        switch a {
+        case let .string(s): return ["type": "s", "value": s]
+        case let .int(i): return ["type": "i", "value": Int(i)]
+        case let .float(f): return ["type": "f", "value": Double(f)]
+        case let .bool(b): return ["type": b ? "T" : "F"]
+        case let .blob(b): return ["type": "b", "value": hex(b)]
+        }
+    }
+
+    static func qlabFile() -> [String: Any] {
+        let slipCases: [(String, [UInt8])] = [
+            ("plain", [0x2F, 0x67, 0x6F, 0x00]),
+            ("escapes_end_and_esc", [0x01, 0xC0, 0x02, 0xDB, 0x03]),
+            ("only_specials", [0xC0, 0xC0, 0xDB]),
+        ]
+        return [
+            "about": "QLab mode (docs/design-qlab.md): OSC messages and SLIP frames TwinKeys sends to QLab, and the Mac-to-Mac packets 0x23-0x26. TwinKeys for Windows does not drive QLab: it must reject every packet here as unknownType (and so drop it), and accept features with the QLab bit (4) set. Written by Tests/TwinKeysCoreTests/InteropVectorsTests.swift.",
+            "osc": oscCases.map { c -> [String: Any] in
+                ["name": c.0, "address": c.1.address, "args": c.1.arguments.map(describe), "bytes": hex(c.1.encoded()),
+                 "slip": hex(SLIP.encode(c.1.encoded()))]
+            },
+            "slip": slipCases.map { ["name": $0.0, "packet": hex($0.1), "framed": hex(SLIP.encode($0.1))] },
+            "packets": qlabPacketCases.map { c -> [String: Any] in
+                let bytes = Packet(session: c.session, seq: c.seq, body: c.body).encode()
+                return ["name": c.name, "session": Int(c.session), "seq": Int(c.seq), "body": describe(c.body),
+                        "bytes": hex(bytes), "size": bytes.count, "windows_error": "unknownType"]
+            },
+            "features_with_qlab": ["bytes": hex(Packet(session: 1, seq: 40, body: .features(flags: 1 | Conductor.qlabFeature, epoch: 7)).encode()),
+                                   "flags": Int(1 | Conductor.qlabFeature), "epoch": 7],
+        ]
     }
 
     static func errorName(_ bytes: [UInt8]) -> String {
@@ -480,7 +552,7 @@ final class InteropVectorsTests: XCTestCase {
     static var files: [(String, () -> [String: Any])] {
         [("pairing.json", pairingFile), ("packets.json", packetsFile), ("secure.json", secureFile),
          ("hkdf.json", hkdfFile), ("sequence.json", sequenceFile), ("livecommand.json", liveCommandFile),
-         ("setcheck.json", setCheckFile), ("remote.json", remoteFile)]
+         ("setcheck.json", setCheckFile), ("remote.json", remoteFile), ("qlab.json", qlabFile)]
     }
 
     // MARK: Compare or write
@@ -554,6 +626,17 @@ final class InteropVectorsTests: XCTestCase {
             let back = try JSONDecoder().decode(RemoteMessage.self, from: JSONSerialization.data(withJSONObject: committed))
             XCTAssertEqual(back, m, name)
         }
+    }
+
+    /// The QLab packets decode back on the Mac and fit a sealed packet.
+    func testQLabPacketsRoundTrip() throws {
+        for c in Self.qlabPacketCases {
+            let p = Packet(session: c.session, seq: c.seq, body: c.body)
+            // Long texts are cut when encoded: decoding and encoding again gives the same bytes.
+            XCTAssertEqual(try Packet.decode(p.encode()).encode(), p.encode(), c.name)
+            XCTAssertLessThanOrEqual(p.encode().count + SecureChannel.tagSize, WireProtocol.maxPacketSize, c.name)
+        }
+        for c in Self.oscCases { XCTAssertEqual(OSCMessage.decode(c.1.encoded()), c.1, c.0) }
     }
 
     func testSealedVectorsOpen() throws {
