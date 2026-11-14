@@ -23,7 +23,7 @@
     <StoreIdentityIsPlaceholder>false</StoreIdentityIsPlaceholder>
     <StoreIdentityIsPlaceholder Condition="$(StoreIdentityName.Contains('REPLACE-ME')) or $(StoreIdentityPublisher.Contains('REPLACE-ME')) or $(StorePublisherDisplayName.Contains('REPLACE-ME'))">true</StoreIdentityIsPlaceholder>
     <!--
-      The package version (Identity/Version). Not the app's version (Directory.Build.props, 0.2.0): the Store
+      The package version (Identity/Version). Not the app's version (Directory.Build.props, 0.3.0): the Store
       wants four numbers, the first not 0 and the last 0, and each update higher than the last
       (https://learn.microsoft.com/windows/apps/publish/publish-your-app/msix/app-package-requirements).
       CI passes the run number as the third number: -p:StorePackageVersion=1.0.<run>.0
