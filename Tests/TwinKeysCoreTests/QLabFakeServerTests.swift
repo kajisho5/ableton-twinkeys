@@ -90,7 +90,8 @@ final class QLabFakeServerTests: XCTestCase {
             #endif
             if n > 0 { return Array(buf[0..<n]) }
             if n == 0 { return nil }          // closed
-            return []
+            // Nothing to read yet; anything else (a reset on macOS) means the connection is gone.
+            return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ? [] : nil
         }
         deinit { close(fd) }
     }

@@ -283,6 +283,9 @@ public struct QLabRunningCue: Codable, Equatable, Sendable, Identifiable {
         self.elapsed = elapsed; self.duration = duration; self.paused = paused
     }
 
+    /// "12 雨の音（遠く）".
+    public var title: String { [number, name].filter { !$0.isEmpty }.joined(separator: " ") }
+
     /// currentDuration − actionElapsed (design 3.1); nil without a length.
     public var left: Double? {
         guard let d = duration, d > 0 else { return nil }
