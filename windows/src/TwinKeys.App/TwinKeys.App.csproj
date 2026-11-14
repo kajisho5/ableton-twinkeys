@@ -57,7 +57,7 @@
     <XmlPoke XmlInputPath="$(_TwinKeysStampedManifest)" Namespaces="$(_TwinKeysAppxNs)" Query="/m:Package/m:Identity/@Publisher" Value="$(StoreIdentityPublisher)" />
     <XmlPoke XmlInputPath="$(_TwinKeysStampedManifest)" Namespaces="$(_TwinKeysAppxNs)" Query="/m:Package/m:Identity/@Version" Value="$(StorePackageVersion)" />
     <XmlPoke XmlInputPath="$(_TwinKeysStampedManifest)" Namespaces="$(_TwinKeysAppxNs)" Query="/m:Package/m:Properties/m:PublisherDisplayName" Value="$(StorePublisherDisplayName)" />
-    <Error Condition="$([System.IO.File]::ReadAllText('$(_TwinKeysStampedManifest)').Contains('@@'))" Text="Package.appxmanifest has an @@ mark that StoreIdentity.props does not fill." />
+    <Error Condition="$([System.IO.File]::ReadAllText('$(_TwinKeysStampedManifest)').Contains('@@Store'))" Text="Package.appxmanifest still has an @@Store... mark after stamping." />
     <Message Importance="high" Text="MSIX identity: $(StoreIdentityName) / $(StoreIdentityPublisher) / $(StorePublisherDisplayName), version $(StorePackageVersion)" />
   </Target>
   <ItemGroup>
